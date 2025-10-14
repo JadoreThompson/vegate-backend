@@ -1,10 +1,10 @@
 from fastapi import Request
 
 from config import COOKIE_ALIAS
-from utils import smaker
 from server.exc import JWTError
 from server.typing import JWTPayload
 from server.services import JWTService
+from utils.db import smaker
 
 
 async def depends_db_sess():

@@ -27,7 +27,11 @@ DB_ENGINE = create_async_engine(
 
 
 # Logging
-logging.basicConfig(format="%(asctime)s - [%(levelname)s] - %(module)s - %(message)s")
+logging.basicConfig(
+    filename="app.log",
+    filemode="a",
+    format="%(asctime)s - [%(levelname)s] - %(module)s - %(message)s",
+)
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
