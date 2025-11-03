@@ -6,6 +6,7 @@ from config import DOMAIN, SCHEME, SUB_DOMAIN
 from server.exc import CustomValidationError, JWTError
 from server.middlewares import RateLimitMiddleware
 from server.routes.auth.route import router as auth_router
+from server.routes.public.route import router as public_router
 
 
 app = FastAPI()
@@ -23,6 +24,7 @@ app.add_middleware(
 app.add_middleware(RateLimitMiddleware)
 
 app.include_router(auth_router)
+app.include_router(public_router)
 
 
 @app.exception_handler(CustomValidationError)

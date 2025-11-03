@@ -40,8 +40,8 @@ DB_ENGINE_SYNC = create_engine(
 )
 
 # Redis
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.getenv("REDIS_PORT", "0"))
+REDIS_HOST = os.getenv("REDIS_HOST")
+REDIS_PORT = int(os.getenv("REDIS_PORT"))
 REDIS_DB = None
 kw = {
     "host": REDIS_HOST,
@@ -65,7 +65,7 @@ PAGE_SIZE = 10
 if IS_PRODUCTION:
     SCHEME = "https"
     SUB_DOMAIN = "www."
-    DOMAIN = "acme.com"
+    DOMAIN = "domain.com"
 else:
     SCHEME = "http"
     SUB_DOMAIN = ""
