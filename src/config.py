@@ -71,6 +71,9 @@ else:
     SUB_DOMAIN = ""
     DOMAIN = "localhost:5173"
 
+# Email
+PERSONAL_EMAIL = os.getenv("PERSONAL_EMAIL")
+
 # Security
 PW_HASH_SALT = os.getenv("PW_HASH_SALT")
 ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
