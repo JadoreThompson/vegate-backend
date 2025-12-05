@@ -6,3 +6,4 @@ alembic.ini
 
 .env
 .env.prod
+.env.test

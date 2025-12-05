@@ -1,0 +1,72 @@
+from enum import Enum
+
+
+class OrderType(str, Enum):
+    """Supported order types across all brokers."""
+
+    MARKET = "market"
+    LIMIT = "limit"
+    STOP = "stop"
+    STOP_LIMIT = "stop_limit"
+    TRAILING_STOP = "trailing_stop"
+
+
+class OrderSide(str, Enum):
+    """Order side: buy or sell."""
+
+    BUY = "buy"
+    SELL = "sell"
+
+
+class OrderStatus(str, Enum):
+    """Order execution status."""
+
+    PENDING = "pending"
+    SUBMITTED = "submitted"
+    PARTIALLY_FILLED = "partially_filled"
+    FILLED = "filled"
+    CANCELLED = "cancelled"
+    REJECTED = "rejected"
+    EXPIRED = "expired"
+
+
+class TimeInForce(str, Enum):
+    """Time-in-force options for orders."""
+
+    DAY = "day"  # Valid for the trading day
+    GTC = "gtc"  # Good till cancelled
+    IOC = "ioc"  # Immediate or cancel
+    FOK = "fok"  # Fill or kill
+
+
+class BacktestStatus(str, Enum):
+    """Status of backtest execution."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class LiveDeploymentStatus(str, Enum):
+    """Status of live deployment."""
+
+    PENDING = "pending"
+    ACTIVE = "active"
+    PAUSED = "paused"
+    STOPPED = "stopped"
+    FAILED = "failed"
+
+
+class BrokerPlatform(str, Enum):
+    """Supported broker platforms."""
+
+    ALPACA = "alpaca"
+
+
+class PositionStatus(str, Enum):
+    """Status of a position."""
+
+    OPEN = "open"
+    CLOSED = "closed"
