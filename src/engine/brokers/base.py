@@ -1,78 +1,18 @@
-from abc import ABC, abstractmethod
-from typing import Optional, List
 import logging
+from abc import ABC, abstractmethod
 
-from ..models import OrderRequest, OrderResponse, Position, Account
-from .rate_limiter import TokenBucketRateLimiter
-from .exc import BrokerError
-
-logger = logging.getLogger(__name__)
+from engine.backtesting.ohlcv_loaders import AlpacaOHLCVLoader
+from engine.models import OrderRequest, OrderResponse, Account
 
 
 class BaseBroker(ABC):
-    """
-    Abstract base class for all broker implementations.
-
-    This class defines the interface that all broker implementations must provide.
-    It includes both abstract methods that must be implemented by subclasses and
-    concrete methods that provide common functionality like context management
-    and rate limiting.
-
-    Lifecycle:
-        1. __init__() - Initialize with credentials
-        2. connect() - Establish connection and authenticate
-        3. ... use broker methods ...
-        4. disconnect() - Clean up resources
-
-    Alternative lifecycle using context manager:
-        with broker:
-            # Use broker methods
-            broker.submit_order(order)
-
-    Attributes:
-        rate_limiter: Optional rate limiter for API calls
-        _connected: Connection state flag
-
-    Example:
-        class MyBroker(BaseBroker):
-            def connect(self):
-                # Implementation here
-                pass
-
-            def submit_order(self, order):
-                # Implementation here
-                pass
-    """
-
-    def __init__(self, rate_limiter: Optional[TokenBucketRateLimiter] = None):
-        """
-        Initialize broker with optional rate limiter.
-
-        Args:
-            rate_limiter: Optional rate limiter for API calls.
-                         If None, no rate limiting is applied.
-        """
-        self.rate_limiter = rate_limiter
+    def __init__(self, ohlcv_loader: AlpacaOHLCVLoader):
+        self._ohlcv_loader = ohlcv_loader
         self._connected = False
-
-    # Lifecycle Management
+        self._logger = logging.getLogger(self.__class__.__name__)
 
     @abstractmethod
     def connect(self) -> None:
-        """
-        Establish connection to broker and authenticate.
-
-        This method should:
-        - Validate credentials
-        - Establish connection to broker API
-        - Perform any necessary authentication
-        - Set up any required resources
-
-        Raises:
-            AuthenticationError: If authentication fails
-            ConnectionError: If connection cannot be established
-            BrokerError: For other connection-related errors
-        """
         pass
 
     @abstractmethod
@@ -123,9 +63,7 @@ class BaseBroker(ABC):
         """
         self.disconnect()
         return False
-
-    # Order Management
-
+    
     @abstractmethod
     def submit_order(self, order: OrderRequest) -> OrderResponse:
         """
@@ -179,7 +117,7 @@ class BaseBroker(ABC):
         pass
 
     @abstractmethod
-    def get_open_orders(self, symbol: Optional[str] = None) -> List[OrderResponse]:
+    def get_open_orders(self, symbol: str | None = None) -> list[OrderResponse]:
         """
         Get all open orders, optionally filtered by symbol.
 
@@ -195,59 +133,6 @@ class BaseBroker(ABC):
         """
         pass
 
-    # Position Management
-
-    @abstractmethod
-    def get_position(self, symbol: str) -> Optional[Position]:
-        """
-        Get current position for a symbol.
-
-        Args:
-            symbol: Trading symbol
-
-        Returns:
-            Position information if a position exists, None otherwise
-
-        Raises:
-            BrokerError: If position data cannot be retrieved
-        """
-        pass
-
-    @abstractmethod
-    def get_all_positions(self) -> List[Position]:
-        """
-        Get all current positions.
-
-        Returns:
-            List of all current positions across all symbols
-
-        Raises:
-            BrokerError: If position data cannot be retrieved
-        """
-        pass
-
-    @abstractmethod
-    def close_position(self, symbol: str) -> OrderResponse:
-        """
-        Close entire position for a symbol.
-
-        This is a convenience method that submits a market order to close
-        the position. The order quantity is determined by the current position.
-
-        Args:
-            symbol: Trading symbol
-
-        Returns:
-            Order response for the closing order
-
-        Raises:
-            BrokerError: If position cannot be closed or doesn't exist
-            OrderRejectedError: If closing order is rejected
-        """
-        pass
-
-    # Account Information
-
     @abstractmethod
     def get_account(self) -> Account:
         """
@@ -261,8 +146,6 @@ class BaseBroker(ABC):
         """
         pass
 
-    # Helper Methods
-
     def _apply_rate_limit(self) -> None:
         """
         Apply rate limiting if configured.
@@ -270,8 +153,6 @@ class BaseBroker(ABC):
         This helper method should be called before making API requests
         to ensure rate limits are respected.
         """
-        if self.rate_limiter:
-            self.rate_limiter.acquire()
 
     def _log_error(self, operation: str, error: Exception) -> None:
         """
@@ -281,7 +162,7 @@ class BaseBroker(ABC):
             operation: Name of the operation that failed
             error: The exception that occurred
         """
-        logger.error(
+        self._logger.error(
             f"Broker error during {operation}: {error}",
             extra={
                 "operation": operation,

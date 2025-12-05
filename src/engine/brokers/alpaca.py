@@ -1,6 +1,6 @@
+import logging
 from typing import Optional, List
 from datetime import datetime
-import logging
 
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import (
@@ -72,51 +72,20 @@ class AlpacaBroker(BaseBroker):
             response = broker.submit_order(order)
     """
 
-    def __init__(
-        self,
-        api_key: str,
-        secret_key: str,
-        paper: bool = True,
-        rate_limiter: Optional[TokenBucketRateLimiter] = None,
-    ):
-        """
-        Initialize Alpaca broker.
-
-        Args:
-            api_key: Alpaca API key
-            secret_key: Alpaca secret key
-            paper: Use paper trading (default: True)
-            rate_limiter: Optional rate limiter (default: 200 requests/minute)
-        """
-        # Initialize with default rate limiter if none provided
-        # Alpaca allows 200 requests per minute
-        if rate_limiter is None:
-            rate_limiter = TokenBucketRateLimiter(rate=200, per_seconds=60)
-
-        super().__init__(rate_limiter)
-
-        self.api_key = api_key
-        self.secret_key = secret_key
-        self.paper = paper
-        self.client: Optional[TradingClient] = None
+    def __init__(self, client: TradingClient):
+        self._client = client
 
     def connect(self) -> None:
-        """
-        Establish connection to Alpaca and authenticate.
 
-        Raises:
-            AuthenticationError: If credentials are invalid
-            BrokerConnectionError: If connection fails
-        """
         try:
             self._apply_rate_limit()
 
-            self.client = TradingClient(
+            self._client = TradingClient(
                 api_key=self.api_key, secret_key=self.secret_key, paper=self.paper
             )
 
             # Test connection by fetching account
-            self.client.get_account()
+            self._client.get_account()
 
             self._connected = True
             logger.info(
@@ -144,7 +113,7 @@ class AlpacaBroker(BaseBroker):
         Alpaca's REST client doesn't maintain persistent connections,
         so this mainly cleans up the client reference.
         """
-        self.client = None
+        self._client = None
         self._connected = False
         logger.info("Disconnected from Alpaca")
 
@@ -164,7 +133,7 @@ class AlpacaBroker(BaseBroker):
             RateLimitError: If rate limit exceeded
             BrokerError: For other submission errors
         """
-        if not self._connected or not self.client:
+        if not self._connected or not self._client:
             raise BrokerError("Broker not connected")
 
         try:
@@ -174,7 +143,7 @@ class AlpacaBroker(BaseBroker):
             alpaca_order = self._convert_order_to_alpaca(order)
 
             # Submit order
-            alpaca_response = self.client.submit_order(alpaca_order)
+            alpaca_response = self._client.submit_order(alpaca_order)
 
             # Convert response to our format
             response = self._convert_order_from_alpaca(alpaca_response)
@@ -201,12 +170,12 @@ class AlpacaBroker(BaseBroker):
         Raises:
             BrokerError: If cancellation fails
         """
-        if not self._connected or not self.client:
+        if not self._connected or not self._client:
             raise BrokerError("Broker not connected")
 
         try:
             self._apply_rate_limit()
-            self.client.cancel_order_by_id(order_id)
+            self._client.cancel_order_by_id(order_id)
             logger.info(f"Cancelled order: {order_id}")
             return True
 
@@ -232,12 +201,12 @@ class AlpacaBroker(BaseBroker):
         Raises:
             BrokerError: If order cannot be retrieved
         """
-        if not self._connected or not self.client:
+        if not self._connected or not self._client:
             raise BrokerError("Broker not connected")
 
         try:
             self._apply_rate_limit()
-            alpaca_order = self.client.get_order_by_id(order_id)
+            alpaca_order = self._client.get_order_by_id(order_id)
             return self._convert_order_from_alpaca(alpaca_order)
 
         except APIError as e:
@@ -259,7 +228,7 @@ class AlpacaBroker(BaseBroker):
         Raises:
             BrokerError: If orders cannot be retrieved
         """
-        if not self._connected or not self.client:
+        if not self._connected or not self._client:
             raise BrokerError("Broker not connected")
 
         try:
@@ -269,7 +238,7 @@ class AlpacaBroker(BaseBroker):
                 status="open", symbols=[symbol] if symbol else None
             )
 
-            alpaca_orders = self.client.get_orders(filter=request)
+            alpaca_orders = self._client.get_orders(filter=request)
 
             return [self._convert_order_from_alpaca(order) for order in alpaca_orders]
 
@@ -292,12 +261,12 @@ class AlpacaBroker(BaseBroker):
         Raises:
             BrokerError: If position data cannot be retrieved
         """
-        if not self._connected or not self.client:
+        if not self._connected or not self._client:
             raise BrokerError("Broker not connected")
 
         try:
             self._apply_rate_limit()
-            alpaca_position = self.client.get_open_position(symbol)
+            alpaca_position = self._client.get_open_position(symbol)
             return self._convert_position_from_alpaca(alpaca_position)
 
         except APIError as e:
@@ -318,12 +287,12 @@ class AlpacaBroker(BaseBroker):
         Raises:
             BrokerError: If positions cannot be retrieved
         """
-        if not self._connected or not self.client:
+        if not self._connected or not self._client:
             raise BrokerError("Broker not connected")
 
         try:
             self._apply_rate_limit()
-            alpaca_positions = self.client.get_all_positions()
+            alpaca_positions = self._client.get_all_positions()
 
             return [self._convert_position_from_alpaca(pos) for pos in alpaca_positions]
 
@@ -346,12 +315,12 @@ class AlpacaBroker(BaseBroker):
         Raises:
             BrokerError: If position cannot be closed
         """
-        if not self._connected or not self.client:
+        if not self._connected or not self._client:
             raise BrokerError("Broker not connected")
 
         try:
             self._apply_rate_limit()
-            alpaca_order = self.client.close_position(symbol)
+            alpaca_order = self._client.close_position(symbol)
             return self._convert_order_from_alpaca(alpaca_order)
 
         except APIError as e:
@@ -370,17 +339,17 @@ class AlpacaBroker(BaseBroker):
         Raises:
             BrokerError: If account data cannot be retrieved
         """
-        if not self._connected or not self.client:
+        if not self._connected or not self._client:
             raise BrokerError("Broker not connected")
 
         try:
             self._apply_rate_limit()
-            alpaca_account = self.client.get_account()
+            alpaca_account = self._client.get_account()
 
             return Account(
                 account_id=alpaca_account.id,
                 equity=float(alpaca_account.equity),
-                cash=float(alpaca_account.cash),
+                available_cash=float(alpaca_account.cash),
                 buying_power=float(alpaca_account.buying_power),
                 portfolio_value=float(alpaca_account.portfolio_value),
                 last_updated=datetime.now(),
@@ -497,7 +466,7 @@ class AlpacaBroker(BaseBroker):
             status=status,
             submitted_at=alpaca_order.submitted_at,
             filled_at=alpaca_order.filled_at,
-            average_fill_price=(
+            avg_fill_price=(
                 float(alpaca_order.filled_avg_price)
                 if alpaca_order.filled_avg_price
                 else None

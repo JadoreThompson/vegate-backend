@@ -6,8 +6,8 @@ execute trades, and calculate technical indicators. It exports the base Strategy
 class and the IndicatorMixin for enhanced functionality.
 """
 
-from .base import StrategyContext, HistoricalData
-from .indicators import IndicatorMixin
+from ..strategy.context import StrategyContext, HistoricalData
+from .indicators.indicators import IndicatorMixin
 
 __all__ = [
     "StrategyContext",

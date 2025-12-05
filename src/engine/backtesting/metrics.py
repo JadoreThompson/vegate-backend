@@ -1,5 +1,5 @@
 import logging
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from datetime import datetime
 import numpy as np
 import pandas as pd
@@ -76,15 +76,18 @@ def calculate_sharpe_ratio(
 
 def calculate_max_drawdown(
     equity_curve: List[Tuple[datetime, float]],
+    cash_curve: Optional[List[Tuple[datetime, float]]] = None,
 ) -> Tuple[float, float]:
     """
     Calculate maximum drawdown from an equity curve.
 
     Drawdown is the peak-to-trough decline in equity. Maximum drawdown
-    represents the largest loss from a peak.
+    represents the largest loss from a peak. When cash_curve is provided,
+    it is used to understand the actual cash balance at each point in time.
 
     Args:
         equity_curve: List of (timestamp, equity) tuples
+        cash_curve: Optional list of (timestamp, cash) tuples for cash balance tracking
 
     Returns:
         Tuple of (max_drawdown_dollars, max_drawdown_percent)
@@ -95,7 +98,12 @@ def calculate_max_drawdown(
             (datetime(2024, 1, 2), 95000),
             (datetime(2024, 1, 3), 98000)
         ]
-        dd_dollars, dd_percent = calculate_max_drawdown(equity_curve)
+        cash_curve = [
+            (datetime(2024, 1, 1), 100000),
+            (datetime(2024, 1, 2), 50000),
+            (datetime(2024, 1, 3), 50000)
+        ]
+        dd_dollars, dd_percent = calculate_max_drawdown(equity_curve, cash_curve)
     """
     if not equity_curve:
         logger.warning("Empty equity curve for drawdown calculation")
@@ -104,11 +112,22 @@ def calculate_max_drawdown(
     try:
         equity_values = [equity for _, equity in equity_curve]
 
+        # If cash curve is provided, use it for additional context
+        # This allows tracking actual cash balance at each point in time
+        cash_values = None
+        if cash_curve:
+            cash_values = [cash for _, cash in cash_curve]
+            if len(cash_values) != len(equity_values):
+                logger.warning(
+                    "Cash curve length doesn't match equity curve, ignoring cash data"
+                )
+                cash_values = None
+
         peak = equity_values[0]
         max_dd = 0.0
         max_dd_pct = 0.0
 
-        for equity in equity_values:
+        for i, equity in enumerate(equity_values):
             # Update peak
             if equity > peak:
                 peak = equity
@@ -116,6 +135,13 @@ def calculate_max_drawdown(
             # Calculate drawdown from peak
             dd = peak - equity
             dd_pct = (dd / peak * 100) if peak > 0 else 0.0
+
+            # Log cash balance at drawdown points if available
+            if cash_values and dd > 0:
+                cash_at_time = cash_values[i]
+                logger.debug(
+                    f"Drawdown: ${dd:.2f} ({dd_pct:.2f}%), Cash: ${cash_at_time:.2f}"
+                )
 
             # Update max drawdown
             if dd > max_dd:

@@ -1,10 +1,4 @@
-"""
-Broker system for the trading strategy framework.
-
-This package provides a unified interface for interacting with different
-trading brokers, supporting both live and paper trading.
-"""
-
+from .alpaca import AlpacaBroker
 from .base import BaseBroker
 from .exc import (
     BrokerError,
@@ -16,12 +10,8 @@ from .exc import (
     SymbolNotFoundError,
     DataNotAvailableError,
 )
-from .rate_limiter import TokenBucketRateLimiter
 from .factory import BrokerFactory
-from .alpaca import AlpacaBroker
-
-# Register Alpaca broker with factory
-BrokerFactory.register("alpaca", AlpacaBroker)
+from .simulated_broker import BacktestBroker
 
 __all__ = [
     # Base classes
@@ -35,9 +25,8 @@ __all__ = [
     "ConnectionError",
     "SymbolNotFoundError",
     "DataNotAvailableError",
-    # Utilities
-    "TokenBucketRateLimiter",
     "BrokerFactory",
-    # Broker implementations
+    # Brokers
     "AlpacaBroker",
+    "BacktestBroker",
 ]

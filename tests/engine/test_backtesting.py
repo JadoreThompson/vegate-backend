@@ -34,7 +34,7 @@ from src.engine.backtesting.metrics import (
     calculate_equity_curve_stats,
     calculate_trade_stats,
 )
-from src.engine.backtesting.simulated_broker import SimulatedBroker
+from engine.brokers.simulated_broker import BacktestBroker
 from src.engine.models import OrderSide
 
 
@@ -176,14 +176,14 @@ class TestBacktestEngine:
         config = BacktestConfig(
             start_date=base_timestamp,
             end_date=base_timestamp + timedelta(days=30),
-            symbols=["AAPL", "TSLA"],
-            initial_capital=100000.0,
+            symbol=["AAPL", "TSLA"],
+            starting_balance=100000.0,
             commission_percent=0.1,
             slippage_percent=0.05,
         )
 
-        assert config.initial_capital == 100000.0
-        assert len(config.symbols) == 2
+        assert config.starting_balance == 100000.0
+        assert len(config.symbol) == 2
         assert config.commission_percent == 0.1
         assert config.slippage_percent == 0.05
 
@@ -194,17 +194,17 @@ class TestBacktestEngine:
         config = BacktestConfig(
             start_date=base_timestamp,
             end_date=base_timestamp + timedelta(days=1),
-            symbols=["AAPL"],
-            initial_capital=100000.0,
+            symbol=["AAPL"],
+            starting_balance=100000.0,
         )
 
         loader = OHLCDataLoader(mock_db_session)
         engine = BacktestEngine(config, loader, simple_buy_strategy)
 
-        assert engine.config == config
-        assert engine.data_loader == loader
-        assert engine.strategy_func == simple_buy_strategy
-        assert isinstance(engine.broker, SimulatedBroker)
+        assert engine._config == config
+        assert engine._data_loader == loader
+        assert engine._strategy_func == simple_buy_strategy
+        assert isinstance(engine._broker, BacktestBroker)
 
     @pytest.mark.asyncio
     async def test_backtest_context_provides_bar_access(
@@ -250,7 +250,7 @@ class TestBacktestEngine:
         self, base_timestamp, sample_bar, mock_db_session
     ):
         """Test that context provides trading operations."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
         broker.set_current_time(base_timestamp)
         broker.set_current_price("AAPL", 150.0)
@@ -285,7 +285,7 @@ class TestBacktestEngine:
         self, base_timestamp, sample_bar, mock_db_session
     ):
         """Test that context provides account access."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
         broker.set_current_time(base_timestamp)
 

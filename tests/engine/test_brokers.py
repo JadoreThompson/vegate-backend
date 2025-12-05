@@ -177,7 +177,7 @@ def test_broker_initialization(alpaca_credentials):
     assert broker.api_key == alpaca_credentials["api_key"]
     assert broker.secret_key == alpaca_credentials["secret_key"]
     assert broker.paper is True
-    assert broker.client is None
+    assert broker._client is None
     assert not broker._connected
     assert broker.rate_limiter is not None
 

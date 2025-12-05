@@ -179,7 +179,7 @@ def filled_order_response(base_timestamp):
         status=OrderStatus.FILLED,
         submitted_at=base_timestamp,
         filled_at=base_timestamp + timedelta(seconds=1),
-        average_fill_price=150.5,
+        avg_fill_price=150.5,
         broker_metadata={"commission": 1.0, "slippage": 0.15},
     )
 
@@ -267,7 +267,7 @@ def sample_account(base_timestamp):
     return Account(
         account_id="ACC123",
         equity=100000.0,
-        cash=50000.0,
+        available_cash=50000.0,
         buying_power=50000.0,
         portfolio_value=100000.0,
         last_updated=base_timestamp,

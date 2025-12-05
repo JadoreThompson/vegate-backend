@@ -11,8 +11,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 from src.engine.backtesting.data_loader import OHLCDataLoader, OHLCBar, Timeframe
 from src.engine.backtesting.engine import BacktestEngine, BacktestConfig
-from src.engine.backtesting.simulated_broker import SimulatedBroker
-from src.engine.context.base import StrategyContext
+from engine.brokers.simulated_broker import BacktestBroker
+from engine.strategy.context import StrategyContext
 from src.engine.models import OrderType, OrderSide
 
 
@@ -42,8 +42,8 @@ class TestEndToEndIntegration:
         config = BacktestConfig(
             start_date=base_timestamp,
             end_date=base_timestamp + timedelta(days=1),
-            symbols=["AAPL"],
-            initial_capital=100000.0,
+            symbol=["AAPL"],
+            starting_balance=100000.0,
             commission_percent=0.1,
             slippage_percent=0.05,
         )
@@ -53,9 +53,9 @@ class TestEndToEndIntegration:
 
         # Note: This would normally run a full backtest
         # For unit tests, we validate the components are properly connected
-        assert engine.config == config
-        assert engine.broker.initial_capital == 100000.0
-        assert engine.strategy_func == simple_buy_strategy
+        assert engine._config == config
+        assert engine._broker._initial_capital == 100000.0
+        assert engine._strategy_func == simple_buy_strategy
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -74,8 +74,8 @@ class TestEndToEndIntegration:
         config = BacktestConfig(
             start_date=base_timestamp,
             end_date=base_timestamp + timedelta(days=2),
-            symbols=["AAPL"],
-            initial_capital=100000.0,
+            symbol=["AAPL"],
+            starting_balance=100000.0,
             commission_percent=0.0,
             slippage_percent=0.0,
         )
@@ -84,8 +84,8 @@ class TestEndToEndIntegration:
         engine = BacktestEngine(config, loader, sma_crossover_strategy)
 
         # Validate engine is properly configured
-        assert len(config.symbols) == 1
-        assert engine.broker.commission_percent == 0.0
+        assert len(config.symbol) == 1
+        assert engine._broker.commission_percent == 0.0
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -115,14 +115,14 @@ class TestEndToEndIntegration:
         config = BacktestConfig(
             start_date=base_timestamp,
             end_date=base_timestamp + timedelta(hours=1),
-            symbols=["AAPL", "TSLA", "MSFT"],
-            initial_capital=100000.0,
+            symbol=["AAPL", "TSLA", "MSFT"],
+            starting_balance=100000.0,
         )
 
         loader = OHLCDataLoader(mock_db_session)
         engine = BacktestEngine(config, loader, multi_symbol_strategy)
 
-        assert len(config.symbols) == 3
+        assert len(config.symbol) == 3
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -155,14 +155,14 @@ class TestEndToEndIntegration:
         config = BacktestConfig(
             start_date=base_timestamp,
             end_date=base_timestamp + timedelta(hours=1),
-            symbols=["AAPL"],
-            initial_capital=100000.0,
+            symbol=["AAPL"],
+            starting_balance=100000.0,
         )
 
         loader = OHLCDataLoader(mock_db_session)
         engine = BacktestEngine(config, loader, risk_managed_strategy)
 
-        assert engine.broker.initial_capital == 100000.0
+        assert engine._broker._initial_capital == 100000.0
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -192,8 +192,8 @@ class TestEndToEndIntegration:
         config = BacktestConfig(
             start_date=base_timestamp,
             end_date=base_timestamp + timedelta(hours=1),
-            symbols=["AAPL"],
-            initial_capital=100000.0,
+            symbol=["AAPL"],
+            starting_balance=100000.0,
         )
 
         loader = OHLCDataLoader(mock_db_session)
@@ -214,7 +214,7 @@ class TestEndToEndIntegration:
         - Price-conditional execution
         - Order status updates
         """
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
 
         # Set initial state
@@ -266,7 +266,7 @@ class TestEndToEndIntegration:
         - Exit order execution
         - Realized P&L calculation
         """
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
 
         broker.set_current_time(base_timestamp)
@@ -325,8 +325,8 @@ class TestEndToEndIntegration:
         - Accurate cost basis tracking
         """
         # Test with commissions and slippage
-        broker_with_costs = SimulatedBroker(
-            initial_capital=100000.0,
+        broker_with_costs = BacktestBroker(
+            starting_balance=100000.0,
             commission_per_share=0.01,
             commission_percent=0.1,
             slippage_percent=0.1,
@@ -373,7 +373,7 @@ class TestEndToEndIntegration:
         - Executing multiple trades to rebalance
         - Maintaining portfolio constraints
         """
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
 
         broker.set_current_time(base_timestamp)
@@ -423,7 +423,7 @@ class TestEndToEndIntegration:
         - Equity reflects both cash and positions
         - Equity calculation accuracy
         """
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
 
         broker.set_current_time(base_timestamp)
@@ -483,7 +483,7 @@ class TestEndToEndIntegration:
                 await context.buy("AAPL", quantity=10)
                 state["bought"] = True
 
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
 
         loader = OHLCDataLoader(AsyncMock())
@@ -527,7 +527,7 @@ class TestEdgeCases:
     @pytest.mark.integration
     async def test_zero_capital_scenario(self, base_timestamp):
         """Test that trading with zero capital is handled properly."""
-        broker = SimulatedBroker(initial_capital=0.0)
+        broker = BacktestBroker(starting_balance=0.0)
         await broker.connect()
 
         broker.set_current_time(base_timestamp)
@@ -552,7 +552,7 @@ class TestEdgeCases:
     @pytest.mark.integration
     async def test_fractional_shares_handling(self, base_timestamp):
         """Test handling of fractional share quantities."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
 
         broker.set_current_time(base_timestamp)
@@ -580,7 +580,7 @@ class TestEdgeCases:
     @pytest.mark.integration
     async def test_concurrent_orders_same_symbol(self, base_timestamp):
         """Test handling multiple orders for the same symbol."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
 
         broker.set_current_time(base_timestamp)

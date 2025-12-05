@@ -10,10 +10,10 @@ from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 import numpy as np
 
-from src.engine.context.base import StrategyContext, HistoricalData
-from src.engine.context.indicators import IndicatorMixin
+from engine.strategy.context import StrategyContext, HistoricalData
+from engine.context.indicators.indicators import IndicatorMixin
 from src.engine.backtesting.data_loader import OHLCBar, OHLCDataLoader, Timeframe
-from src.engine.backtesting.simulated_broker import SimulatedBroker
+from engine.brokers.simulated_broker import BacktestBroker
 from src.engine.models import OrderType, OrderSide
 
 
@@ -98,7 +98,7 @@ class TestStrategyContext:
         self, base_timestamp, sample_bar, mock_db_session
     ):
         """Test initializing strategy context."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
 
         bars = {"AAPL": sample_bar}
@@ -122,7 +122,7 @@ class TestStrategyContext:
         self, base_timestamp, sample_bar, mock_db_session
     ):
         """Test accessing current bar data through context."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
 
         bars = {"AAPL": sample_bar}
@@ -149,7 +149,7 @@ class TestStrategyContext:
         self, base_timestamp, sample_bar, mock_db_session
     ):
         """Test that missing symbol returns None."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
 
         bars = {"AAPL": sample_bar}
@@ -173,7 +173,7 @@ class TestStrategyContext:
         self, base_timestamp, multi_symbol_bars, mock_db_session
     ):
         """Test getting list of available symbols."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
 
         bars = {bar.symbol: bar for bar in multi_symbol_bars}
@@ -197,7 +197,7 @@ class TestStrategyContext:
     @pytest.mark.asyncio
     async def test_context_buy_order(self, base_timestamp, sample_bar, mock_db_session):
         """Test placing buy order through context."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
         broker.set_current_time(base_timestamp)
         broker.set_current_price("AAPL", 150.0)
@@ -225,7 +225,7 @@ class TestStrategyContext:
         self, base_timestamp, sample_bar, mock_db_session
     ):
         """Test placing sell order through context."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
         broker.set_current_time(base_timestamp)
         broker.set_current_price("AAPL", 150.0)
@@ -257,7 +257,7 @@ class TestStrategyContext:
         self, base_timestamp, sample_bar, mock_db_session
     ):
         """Test placing limit order through context."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
         broker.set_current_time(base_timestamp)
         broker.set_current_price("AAPL", 150.0)
@@ -286,7 +286,7 @@ class TestStrategyContext:
         self, base_timestamp, sample_bar, mock_db_session
     ):
         """Test getting position through context."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
         broker.set_current_time(base_timestamp)
         broker.set_current_price("AAPL", 150.0)
@@ -320,7 +320,7 @@ class TestStrategyContext:
         self, base_timestamp, multi_symbol_bars, mock_db_session
     ):
         """Test getting all positions through context."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
         broker.set_current_time(base_timestamp)
 
@@ -351,7 +351,7 @@ class TestStrategyContext:
         self, base_timestamp, sample_bar, mock_db_session
     ):
         """Test closing position through context."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
         broker.set_current_time(base_timestamp)
         broker.set_current_price("AAPL", 150.0)
@@ -386,7 +386,7 @@ class TestStrategyContext:
         self, base_timestamp, sample_bar, mock_db_session
     ):
         """Test getting account info through context."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
         broker.set_current_time(base_timestamp)
 
@@ -413,7 +413,7 @@ class TestStrategyContext:
         self, base_timestamp, sample_bars, mock_db_session_with_data
     ):
         """Test that historical data is cached."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
 
         bars = {"AAPL": sample_bars[0]}
@@ -441,7 +441,7 @@ class TestStrategyContext:
         self, base_timestamp, sample_bars, mock_db_session_with_data
     ):
         """Test clearing historical data cache."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
 
         bars = {"AAPL": sample_bars[0]}
@@ -485,7 +485,7 @@ class TestTechnicalIndicators:
         self, base_timestamp, sample_bars, mock_db_session_with_data
     ):
         """Test Simple Moving Average calculation."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
 
         bars = {"AAPL": sample_bars[0]}
@@ -510,7 +510,7 @@ class TestTechnicalIndicators:
         self, base_timestamp, sample_bars, mock_db_session_with_data
     ):
         """Test that invalid period raises ValueError."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
 
         bars = {"AAPL": sample_bars[0]}
@@ -533,7 +533,7 @@ class TestTechnicalIndicators:
         self, base_timestamp, sample_bars, mock_db_session_with_data
     ):
         """Test Exponential Moving Average calculation."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
 
         bars = {"AAPL": sample_bars[0]}
@@ -558,7 +558,7 @@ class TestTechnicalIndicators:
         self, base_timestamp, sample_bars, mock_db_session_with_data
     ):
         """Test RSI calculation."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
 
         bars = {"AAPL": sample_bars[0]}
@@ -583,7 +583,7 @@ class TestTechnicalIndicators:
         self, base_timestamp, sample_bars, mock_db_session_with_data
     ):
         """Test MACD calculation."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
 
         bars = {"AAPL": sample_bars[0]}
@@ -610,7 +610,7 @@ class TestTechnicalIndicators:
         self, base_timestamp, sample_bars, mock_db_session_with_data
     ):
         """Test that invalid MACD periods raise ValueError."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
 
         bars = {"AAPL": sample_bars[0]}
@@ -634,7 +634,7 @@ class TestTechnicalIndicators:
         self, base_timestamp, sample_bars, mock_db_session_with_data
     ):
         """Test Bollinger Bands calculation."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
 
         bars = {"AAPL": sample_bars[0]}
@@ -661,7 +661,7 @@ class TestTechnicalIndicators:
         self, base_timestamp, sample_bars, mock_db_session_with_data
     ):
         """Test Bollinger Bands with custom standard deviation."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
 
         bars = {"AAPL": sample_bars[0]}
@@ -688,7 +688,7 @@ class TestTechnicalIndicators:
         self, base_timestamp, sample_bars, mock_db_session_with_data
     ):
         """Test that indicators benefit from history caching."""
-        broker = SimulatedBroker(initial_capital=100000.0)
+        broker = BacktestBroker(starting_balance=100000.0)
         await broker.connect()
 
         bars = {"AAPL": sample_bars[0]}
