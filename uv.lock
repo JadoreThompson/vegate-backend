@@ -576,6 +576,12 @@ wheels = [
 ]
 
 [[package]]
+name = "ibapi"
+version = "9.81.1.post1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/cc/78/8f1322aa1be1fe7d747d06d445ede80141e873525120bde809ccae5484fa/ibapi-9.81.1.post1.tar.gz", hash = "sha256:49f6678bf4cced996920f32ad4b48e6897749ac30ba14a661082285f4ec09cd6", size = 61109, upload-time = "2020-12-06T03:18:39.916Z" }
+
+[[package]]
 name = "idna"
 version = "3.11"
 source = { registry = "https://pypi.org/simple" }
@@ -1295,6 +1301,7 @@ name = "vegate-backend"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "aiohttp" },
     { name = "aiokafka" },
     { name = "alembic" },
     { name = "alpaca-py" },
@@ -1302,6 +1309,7 @@ dependencies = [
     { name = "asyncpg" },
     { name = "discord-py" },
     { name = "fastapi" },
+    { name = "ibapi" },
     { name = "kafka-python" },
     { name = "psycopg2-binary" },
     { name = "pydantic", extra = ["email"] },
@@ -1313,10 +1321,12 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "stripe" },
     { name = "uvicorn" },
+    { name = "websockets" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohttp", specifier = ">=3.13.0" },
     { name = "aiokafka", specifier = ">=0.12.0" },
     { name = "alembic", specifier = ">=1.17.1" },
     { name = "alpaca-py", specifier = ">=0.43.2" },
@@ -1324,6 +1334,7 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.30.0" },
     { name = "discord-py", specifier = ">=2.6.4" },
     { name = "fastapi", specifier = ">=0.119.0" },
+    { name = "ibapi", specifier = ">=9.81.1.post1" },
     { name = "kafka-python", specifier = ">=2.2.15" },
     { name = "psycopg2-binary", specifier = ">=2.9.11" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.12.0" },
@@ -1335,6 +1346,7 @@ requires-dist = [
     { name = "sqlalchemy", specifier = ">=2.0.44" },
     { name = "stripe", specifier = ">=14.0.1" },
     { name = "uvicorn", specifier = ">=0.37.0" },
+    { name = "websockets", specifier = ">=15.0.1" },
 ]
 
 [[package]]

@@ -14,7 +14,7 @@ from config import PW_HASH_SALT, REDIS_EMAIL_VERIFICATION_KEY_PREFIX, REDIS_EXPI
 from utils.redis import REDIS_CLIENT
 from services import EmailService
 from db_models import Users
-from utils.db import get_datetime
+from utils.utils import get_datetime
 from .controller import gen_verification_code
 from .models import (
     UpdateEmail,

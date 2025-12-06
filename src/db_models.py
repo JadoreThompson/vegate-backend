@@ -10,25 +10,28 @@ from sqlalchemy import (
     ForeignKey,
     Text,
     Numeric,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, mapped_column, Mapped, relationship
 
 from core.enums import PricingTierType
 from engine.enums import BrokerPlatform
-from utils.db import get_datetime
+from utils.utils import get_datetime
 from utils.utils import get_uuid
 
 
 # Helper functions for consistent column definitions
-def uuid_pk():
+def uuid_pk(**kw):
     """Helper function for UUID primary key columns."""
-    return mapped_column(SaUUID(as_uuid=True), primary_key=True, default=get_uuid)
+    return mapped_column(SaUUID(as_uuid=True), primary_key=True, default=get_uuid, **kw)
 
 
-def datetime_tz():
+def datetime_tz(nullable=False, **kw):
     """Helper function for timezone-aware datetime columns."""
-    return mapped_column(DateTime(timezone=True), nullable=False, default=get_datetime)
+    return mapped_column(
+        DateTime(timezone=True), nullable=nullable, default=get_datetime, **kw
+    )
 
 
 class Base(DeclarativeBase):
@@ -74,7 +77,7 @@ class BrokerConnections(Base):
     __tablename__ = "broker_connections"
 
     connection_id: Mapped[UUID] = uuid_pk()
-    broker: Mapped[str] = mapped_column(String, nullable=False)
+    broker: Mapped[BrokerPlatform] = mapped_column(String, nullable=False)
     user_id: Mapped[UUID] = mapped_column(
         SaUUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False
     )
@@ -203,3 +206,19 @@ class Orders(Base):
     # Relationships
     backtest: Mapped["Backtests | None"] = relationship(back_populates="orders")
     deployment: Mapped["LiveDeployments | None"] = relationship(back_populates="orders")
+
+
+class MarketData(Base):
+    __tablename__ = "market_data"
+    __table_args__ = (UniqueConstraint("source", "timestamp"),)
+
+    market_data_id: Mapped[UUID] = uuid_pk()
+    source: Mapped[str] = mapped_column(String, nullable=False)
+    symbol: Mapped[str] = mapped_column(String, nullable=False)
+    price: Mapped[Decimal] = mapped_column(
+        Numeric(precision=15, scale=2), nullable=False
+    )
+    size: Mapped[int] = mapped_column(BigInteger, nullable=True)
+    timestamp: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    created_at: Mapped[datetime] = datetime_tz()
+    key: Mapped[str] = mapped_column(String, nullable=False)

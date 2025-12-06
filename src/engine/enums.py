@@ -74,3 +74,7 @@ class BrokerPlatform(str, Enum):
     """Supported broker platforms."""
 
     ALPACA = "alpaca"
+
+
+class MarketType(str, Enum):
+    CRYPTO = 'crypto'

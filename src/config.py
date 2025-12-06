@@ -74,7 +74,8 @@ stripe.api_key = STRIPE_API_KEY
 
 # Alpaca
 ALPACA_API_KEY = os.getenv("ALPACA_API_KEY")
-ALPACA_SECRET_KEY = os.getenv("ALPACA_SERET_KEY")
+ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
+ALPACA_BASE_URL = "https://data.alpaca.markets/v2/stocks/{symbol}/trades"
 
 # Logging
 logging.basicConfig(

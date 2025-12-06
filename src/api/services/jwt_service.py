@@ -9,8 +9,8 @@ from config import COOKIE_ALIAS, IS_PRODUCTION, JWT_SECRET, JWT_ALGO, JWT_EXPIRY
 from db_models import Users
 from api.exc import JWTError
 from api.typing import JWTPayload
-from utils.db import get_db_sess, get_datetime
-
+from utils.db import get_db_sess
+from utils.utils import get_datetime
 
 class JWTService:
     @classmethod

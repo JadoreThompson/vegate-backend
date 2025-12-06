@@ -50,4 +50,15 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+    import asyncio
+    from engine.pipelines import AlpacaPipeline
+    
+    async def func():
+
+        pl = AlpacaPipeline()
+        async with pl:
+            trades = await pl.run_stocks_pipeline("AAPL")
+            # import pprint; pprint.pprint(trades)
+
+    asyncio.run(func())
