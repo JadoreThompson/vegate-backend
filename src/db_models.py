@@ -1,12 +1,21 @@
 from datetime import datetime
-from uuid import UUID
 from decimal import Decimal
+from uuid import UUID
 
-from sqlalchemy import UUID as SaUUID, String, DateTime, ForeignKey, Text, Numeric
+from sqlalchemy import (
+    UUID as SaUUID,
+    BigInteger,
+    String,
+    DateTime,
+    ForeignKey,
+    Text,
+    Numeric,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, mapped_column, Mapped, relationship
 
 from core.enums import PricingTierType
+from engine.enums import BrokerPlatform
 from utils.db import get_datetime
 from utils.utils import get_uuid
 
@@ -123,9 +132,6 @@ class Backtests(Base):
     orders: Mapped[list["Orders"]] = relationship(
         back_populates="backtest", cascade="all, delete-orphan"
     )
-    positions: Mapped[list["Positions"]] = relationship(
-        back_populates="backtest", cascade="all, delete-orphan"
-    )
 
 
 class LiveDeployments(Base):
@@ -149,9 +155,6 @@ class LiveDeployments(Base):
         back_populates="live_deployments"
     )
     orders: Mapped[list["Orders"]] = relationship(
-        back_populates="deployment", cascade="all, delete-orphan"
-    )
-    positions: Mapped[list["Positions"]] = relationship(
         back_populates="deployment", cascade="all, delete-orphan"
     )
 
@@ -200,54 +203,3 @@ class Orders(Base):
     # Relationships
     backtest: Mapped["Backtests | None"] = relationship(back_populates="orders")
     deployment: Mapped["LiveDeployments | None"] = relationship(back_populates="orders")
-
-
-class Positions(Base):
-    __tablename__ = "positions"
-
-    position_id: Mapped[UUID] = uuid_pk()
-    symbol: Mapped[str] = mapped_column(String, nullable=False)
-    quantity: Mapped[Decimal] = mapped_column(
-        Numeric(precision=15, scale=8), nullable=False
-    )
-    side: Mapped[str] = mapped_column(String, nullable=False)
-    average_entry_price: Mapped[Decimal] = mapped_column(
-        Numeric(precision=15, scale=2), nullable=False
-    )
-    current_price: Mapped[Decimal] = mapped_column(
-        Numeric(precision=15, scale=2), nullable=False
-    )
-    market_value: Mapped[Decimal] = mapped_column(
-        Numeric(precision=15, scale=2), nullable=False
-    )
-    unrealized_pnl: Mapped[Decimal] = mapped_column(
-        Numeric(precision=15, scale=2), nullable=False
-    )
-    unrealized_pnl_percent: Mapped[Decimal] = mapped_column(
-        Numeric(precision=10, scale=4), nullable=False
-    )
-    cost_basis: Mapped[Decimal] = mapped_column(
-        Numeric(precision=15, scale=2), nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=get_datetime,
-        onupdate=get_datetime,
-    )
-
-    # Foreign keys (nullable for backtest vs live)
-    backtest_id: Mapped[UUID | None] = mapped_column(
-        SaUUID(as_uuid=True), ForeignKey("backtests.backtest_id"), nullable=True
-    )
-    deployment_id: Mapped[UUID | None] = mapped_column(
-        SaUUID(as_uuid=True),
-        ForeignKey("live_deployments.deployment_id"),
-        nullable=True,
-    )
-
-    # Relationships
-    backtest: Mapped["Backtests | None"] = relationship(back_populates="positions")
-    deployment: Mapped["LiveDeployments | None"] = relationship(
-        back_populates="positions"
-    )

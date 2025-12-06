@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Generator
 
+from engine.enums import Timeframe
 from engine.ohlcv import OHLCV
 from engine.models import OrderRequest, OrderResponse, Account
 
@@ -148,17 +149,29 @@ class BaseBroker(ABC):
         pass
 
     @abstractmethod
-    def load_historic_olhcv(
-        self, symbol: str, start_date: datetime, end_date: datetime
-    ) -> None: ...
+    def get_historic_olhcv(
+        self,
+        symbol: str,
+        timeframe: Timeframe,
+        prev_bars: int | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> list[OHLCV]: ...
 
     @abstractmethod
     def yield_historic_ohlcv(
-        self, symbol: str, start_date: datetime, end_date: datetime
+        self,
+        symbol: str,
+        timeframe: Timeframe,
+        prev_bars: int | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
     ) -> Generator[OHLCV, None, None]: ...
 
     @abstractmethod
-    def yield_ohlcv(self, symbol: str) -> Generator[OHLCV, None, None]: ...
+    def yield_ohlcv(
+        self, symbol: str, timeframe: Timeframe
+    ) -> Generator[OHLCV, None, None]: ...
 
     def _apply_rate_limit(self) -> None:
         """

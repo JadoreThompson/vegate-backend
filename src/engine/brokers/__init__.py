@@ -10,7 +10,6 @@ from .exc import (
     SymbolNotFoundError,
     DataNotAvailableError,
 )
-from .factory import BrokerFactory
 from .backtest import BacktestBroker
 
 __all__ = [
@@ -25,7 +24,6 @@ __all__ = [
     "ConnectionError",
     "SymbolNotFoundError",
     "DataNotAvailableError",
-    "BrokerFactory",
     # Brokers
     "AlpacaBroker",
     "BacktestBroker",

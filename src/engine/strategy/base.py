@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-
 from .context import StrategyContext
 
 

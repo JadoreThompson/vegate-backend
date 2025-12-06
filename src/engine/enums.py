@@ -74,10 +74,3 @@ class BrokerPlatform(str, Enum):
     """Supported broker platforms."""
 
     ALPACA = "alpaca"
-
-
-class PositionStatus(str, Enum):
-    """Status of a position."""
-
-    OPEN = "open"
-    CLOSED = "closed"

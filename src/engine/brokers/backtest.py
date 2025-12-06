@@ -211,10 +211,6 @@ class BacktestBroker(BaseBroker):
 
         return response
 
-    # def set_current_candle(self, candle: OHLCV):
-    #     self._current_candle = candle
-    #     self.process_pending_orders()
-
     def process_pending_orders(self) -> None:
         """Process pending limit and stop orders against current prices."""
         filled_orders = []
@@ -322,6 +318,13 @@ class BacktestBroker(BaseBroker):
 
         Returns: of open orders
         """
+        if symbol:
+            return [
+                order
+                for order in self._orders.values()
+                if order.symbol == symbol
+                and order.status in {OrderStatus.PARTIALLY_FILLED, OrderStatus.PENDING}
+            ]
         return [
             order
             for order in self._orders.values()
@@ -347,12 +350,27 @@ class BacktestBroker(BaseBroker):
 
         return Account(account_id=self._account_id, equity=equity, cash=self._cash)
 
-    def load_historic_olhcv(self, symbol, start_date, end_date):
-        return super().load_historic_olhcv(symbol, start_date, end_date)
-    
-    def yield_historic_ohlcv(self, symbol, start_date, end_date):
-        return super().yield_historic_ohlcv(symbol, start_date, end_date)
-    
-    def yield_ohlcv(self, symbol):
-        return super().yield_ohlcv(symbol)
-    
+    def get_historic_olhcv(
+        self, symbol, timeframe, prev_bars=None, start_date=None, end_date=None
+    ) -> list[OHLCV]:
+        if start_date is not None and end_date is None:
+            raise ValueError("End date must be provided if start date is provided")
+        if start_date is None and end_date is not None:
+            raise ValueError("Start date must be provided if end date is provided")
+        return super().get_historic_olhcv(
+            symbol, timeframe, prev_bars, start_date, end_date
+        )
+
+    def yield_historic_ohlcv(
+        self, symbol, timeframe, prev_bars=None, start_date=None, end_date=None
+    ):
+        if start_date is not None and end_date is None:
+            raise ValueError("End date must be provided if start date is provided")
+        if start_date is None and end_date is not None:
+            raise ValueError("Start date must be provided if end date is provided")
+        return super().yield_historic_ohlcv(
+            symbol, timeframe, prev_bars, start_date, end_date
+        )
+
+    def yield_ohlcv(self, symbol, timeframe):
+        return super().yield_ohlcv(symbol, timeframe)

@@ -1,6 +1,5 @@
 from .base import BaseStrategy
-from .runner import StrategyRunner
+from .manager import StrategyManager
 from .context import StrategyContext
-from .config import StrategyConfig
 
-__all__ = ["BaseStrategy", "StrategyRunner", "StrategyContext", "StrategyConfig"]
+__all__ = ["BaseStrategy", "StrategyManager", "StrategyContext"]

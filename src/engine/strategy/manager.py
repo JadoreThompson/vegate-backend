@@ -7,7 +7,7 @@ from .base import BaseStrategy
 from .context import StrategyContext
 
 
-class StrategyRunner:
+class StrategyManager:
     def __init__(self, strategy: BaseStrategy, broker: BaseBroker):
         self._broker = broker
         self._strategy = strategy
@@ -119,80 +119,3 @@ class StrategyRunner:
         self._logger.warning("Received interrupt signal, shutting down gracefully...")
         self._cleanup()
         sys.exit(0)
-
-    # def _group_bars_by_timestamp(
-    #     self,
-    #     bars: List[OHLCBar],
-    # ) -> Dict[datetime, List[OHLCBar]]:
-    #     """
-    #     Group bars by timestamp for event-driven processing.
-
-    #     Args:
-    #         bars: List of OHLC bars
-
-    #     Returns:
-    #         Dictionary mapping timestamp to list of bars at that time
-    #     """
-    #     from collections import defaultdict
-
-    #     bars_by_time = defaultdict(list)
-    #     for bar in bars:
-    #         bars_by_time[bar.timestamp].append(bar)
-    #     return bars_by_time
-
-    # def _process_tick(self, timestamp: datetime, bars: List[OHLCBar]) -> None:
-    #     """
-    #     Process a single tick (timestamp with bars for all symbols).
-
-    #     This method:
-    #     1. Updates broker state with current time and prices
-    #     2. Updates current bars cache
-    #     3. Creates a StrategyContext
-    #     4. Calls strategy.run(context)
-
-    #     Args:
-    #         timestamp: Current timestamp
-    #         bars: List of bars for all symbols at this timestamp
-
-    #     Raises:
-    #         Exception: If tick processing fails critically
-    #     """
-    #     # Update broker state (for simulated broker)
-    #     if hasattr(self._broker, "set_current_time"):
-    #         self._broker.set_current_time(timestamp)
-
-    #     # Update current prices and bars
-    #     for bar in bars:
-    #         if hasattr(self._broker, "set_current_price"):
-    #             self._broker.set_current_price(bar.symbol, bar.close)
-    #         self._current_bars[bar.symbol] = bar
-
-    #     # Create strategy context
-    #     context = StrategyContext(
-    #         timestamp=timestamp,
-    #         bars=self._current_bars.copy(),
-    #         broker=self._broker,
-    #         data_loader=self.data_loader,
-    #         timeframe=self.timeframe,
-    #     )
-
-    #     # Execute strategy
-    #     try:
-    #         self._strategy.run(context)
-    #         self._bars_processed += len(bars)
-
-    #     except KeyboardInterrupt:
-    #         # Re-raise keyboard interrupt to allow graceful shutdown
-    #         raise
-
-    #     except Exception as e:
-    #         # Log strategy errors but continue execution
-    #         self._logger.error(
-    #             f"Strategy execution error at {timestamp}: {e}",
-    #             exc_info=True,
-    #         )
-    #         # Depending on requirements, you might want to:
-    #         # - Continue (current behavior)
-    #         # - Stop execution: raise
-    #         # - Count errors and stop after threshold
-    #         # For now, we continue to match backtesting engine behavior

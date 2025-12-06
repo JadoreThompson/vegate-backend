@@ -1,3 +1,0 @@
-"""
-Engine module tests.
-"""

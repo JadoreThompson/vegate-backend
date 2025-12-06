@@ -41,35 +41,6 @@ logger = logging.getLogger(__name__)
 
 
 class AlpacaBroker(BaseBroker):
-    """
-    Alpaca Markets broker implementation.
-
-    Implements the BaseBroker interface using the alpaca-py library.
-    Supports both paper and live trading through Alpaca's API.
-
-    Attributes:
-        api_key: Alpaca API key
-        secret_key: Alpaca secret key
-        paper: Whether to use paper trading (default: True)
-        client: Alpaca trading client instance
-
-    Example:
-        broker = AlpacaBroker(
-            api_key='your_api_key',
-            secret_key='your_secret_key',
-            paper=True
-        )
-
-        with broker:
-            order = OrderRequest(
-                symbol='AAPL',
-                side=OrderSide.BUY,
-                order_type=OrderType.MARKET,
-                quantity=10
-            )
-            response = broker.submit_order(order)
-    """
-
     def __init__(self, client: TradingClient):
         self._client = client
 
@@ -242,87 +213,6 @@ class AlpacaBroker(BaseBroker):
             self._log_error("get_open_orders", e)
             raise BrokerError(f"Failed to get open orders: {e}") from e
 
-    def get_position(self, symbol: str) -> Optional[Position]:
-        """
-        Get position for a symbol.
-
-        Args:
-            symbol: Trading symbol
-
-        Returns:
-            Position if exists, None otherwise
-
-        Raises:
-            BrokerError: If position data cannot be retrieved
-        """
-        if not self._connected or not self._client:
-            raise BrokerError("Broker not connected")
-
-        try:
-            self._apply_rate_limit()
-            alpaca_position = self._client.get_open_position(symbol)
-            return self._convert_position_from_alpaca(alpaca_position)
-
-        except APIError as e:
-            if e.status_code == 404:
-                return None
-            self._handle_api_error(e, "get_position")
-        except Exception as e:
-            self._log_error("get_position", e)
-            raise BrokerError(f"Failed to get position: {e}") from e
-
-    def get_all_positions(self) -> List[Position]:
-        """
-        Get all positions.
-
-        Returns:
-            List of all positions
-
-        Raises:
-            BrokerError: If positions cannot be retrieved
-        """
-        if not self._connected or not self._client:
-            raise BrokerError("Broker not connected")
-
-        try:
-            self._apply_rate_limit()
-            alpaca_positions = self._client.get_all_positions()
-
-            return [self._convert_position_from_alpaca(pos) for pos in alpaca_positions]
-
-        except APIError as e:
-            self._handle_api_error(e, "get_all_positions")
-        except Exception as e:
-            self._log_error("get_all_positions", e)
-            raise BrokerError(f"Failed to get positions: {e}") from e
-
-    def close_position(self, symbol: str) -> OrderResponse:
-        """
-        Close entire position for a symbol.
-
-        Args:
-            symbol: Trading symbol
-
-        Returns:
-            Order response for closing order
-
-        Raises:
-            BrokerError: If position cannot be closed
-        """
-        if not self._connected or not self._client:
-            raise BrokerError("Broker not connected")
-
-        try:
-            self._apply_rate_limit()
-            alpaca_order = self._client.close_position(symbol)
-            return self._convert_order_from_alpaca(alpaca_order)
-
-        except APIError as e:
-            self._handle_api_error(e, "close_position")
-        except Exception as e:
-            self._log_error("close_position", e)
-            raise BrokerError(f"Failed to close position: {e}") from e
-
     def get_account(self) -> Account:
         """
         Get account information.
@@ -473,23 +363,6 @@ class AlpacaBroker(BaseBroker):
                 ),
                 "alpaca_time_in_force": str(alpaca_order.time_in_force),
             },
-        )
-
-    def _convert_position_from_alpaca(self, alpaca_position) -> Position:
-        """Convert Alpaca position to our Position."""
-        quantity = float(alpaca_position.qty)
-        side = OrderSide.BUY if quantity > 0 else OrderSide.SELL
-
-        return Position(
-            symbol=alpaca_position.symbol,
-            quantity=abs(quantity),
-            average_entry_price=float(alpaca_position.avg_entry_price),
-            current_price=float(alpaca_position.current_price),
-            market_value=float(alpaca_position.market_value),
-            unrealized_pnl=float(alpaca_position.unrealized_pl),
-            unrealized_pnl_percent=float(alpaca_position.unrealized_plpc) * 100,
-            cost_basis=float(alpaca_position.cost_basis),
-            side=side,
         )
 
     def _handle_api_error(self, error: APIError, operation: str):

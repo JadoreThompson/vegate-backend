@@ -6,7 +6,7 @@ from engine.brokers import BacktestBroker
 from engine.enums import Timeframe, OrderStatus, OrderSide
 from engine.models import OrderResponse
 from engine.strategy import BaseStrategy
-from engine.strategy import StrategyContext, StrategyRunner
+from engine.strategy import StrategyContext, StrategyManager
 from .metrics import (
     calculate_sharpe_ratio,
     calculate_max_drawdown,
@@ -42,15 +42,11 @@ class SpotBacktestResult(BacktestResult):
 
 
 class BacktestEngine:
-    def __init__(
-        self,
-        config: BacktestConfig,
-        strategy: BaseStrategy,
-    ):
+    def __init__(self, config: BacktestConfig, strategy: BaseStrategy):
         self._config = config
         self._strategy = strategy
         self._broker = BacktestBroker(starting_balance=self._config.starting_balance)
-        self._strategy_runner = StrategyRunner(self._strategy, self._broker)
+        self._strategy_runner = StrategyManager(self._strategy, self._broker)
         self._strategy_context = StrategyContext[BacktestBroker](self._broker)
 
         self._equity_curve: EquityCurveT = []
