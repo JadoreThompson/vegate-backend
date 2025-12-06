@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import (
     UUID as SaUUID,
     BigInteger,
+    Index,
     String,
     DateTime,
     ForeignKey,
@@ -210,7 +211,10 @@ class Orders(Base):
 
 class Ticks(Base):
     __tablename__ = "ticks"
-    __table_args__ = (UniqueConstraint("source", "key"),)
+    __table_args__ = (
+        UniqueConstraint("source", "key"),
+        Index("idx_ticks_source_timestamp", "source", "timestamp"),
+    )
 
     tick_id: Mapped[UUID] = uuid_pk()
     source: Mapped[str] = mapped_column(String, nullable=False)

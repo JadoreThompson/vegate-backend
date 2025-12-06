@@ -10,6 +10,7 @@ from engine.models import (
     OrderType,
 )
 from engine.ohlcv import OHLCV
+from utils.db import get_db_sess_sync
 from .base import BaseBroker
 from .exc import BrokerError, InsufficientFundsError, OrderRejectedError
 
@@ -357,9 +358,9 @@ class BacktestBroker(BaseBroker):
             raise ValueError("End date must be provided if start date is provided")
         if start_date is None and end_date is not None:
             raise ValueError("Start date must be provided if end date is provided")
-        return super().get_historic_olhcv(
-            symbol, timeframe, prev_bars, start_date, end_date
-        )
+        
+        with get_db_sess_sync() as db_sess:
+            ...
 
     def yield_historic_ohlcv(
         self, symbol, timeframe, prev_bars=None, start_date=None, end_date=None
