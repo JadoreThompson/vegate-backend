@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import insert
 
 from config import ALPACA_API_KEY, ALPACA_SECRET_KEY
-from db_models import MarketData
+from db_models import Ticks
 from engine.enums import MarketType
 from utils.db import get_db_sess
 from utils.utils import get_datetime
@@ -124,10 +124,10 @@ class AlpacaPipeline(BasePipeline):
         logger.debug(f"Querying last timestamp for {symbol} ({market_type.value})")
         async with get_db_sess() as db_sess:
             last_timestamp = await db_sess.scalar(
-                select(func.max(MarketData.timestamp))
-                .where(MarketData.source == self._source)
-                .where(MarketData.symbol == symbol)
-                .where(MarketData.market_type == market_type)
+                select(func.max(Ticks.timestamp))
+                .where(Ticks.source == self._source)
+                .where(Ticks.symbol == symbol)
+                .where(Ticks.market_type == market_type)
             )
             if last_timestamp:
                 dt = datetime.fromtimestamp(last_timestamp)
@@ -176,7 +176,7 @@ class AlpacaPipeline(BasePipeline):
             return
 
         await db_sess.execute(
-            insert(MarketData)
+            insert(Ticks)
             .values(records)
             .on_conflict_do_nothing(index_elements=["source", "key"])
         )
@@ -201,7 +201,7 @@ class AlpacaPipeline(BasePipeline):
         records = [self._parse_live_trade(trade, market_type) for trade in trades]
 
         await db_sess.execute(
-            insert(MarketData)
+            insert(Ticks)
             .values(records)
             .on_conflict_do_nothing(index_elements=["source", "key"])
         )

@@ -208,11 +208,11 @@ class Orders(Base):
     deployment: Mapped["LiveDeployments | None"] = relationship(back_populates="orders")
 
 
-class MarketData(Base):
-    __tablename__ = "market_data"
+class Ticks(Base):
+    __tablename__ = "ticks"
     __table_args__ = (UniqueConstraint("source", "key"),)
 
-    market_data_id: Mapped[UUID] = uuid_pk()
+    tick_id: Mapped[UUID] = uuid_pk()
     source: Mapped[str] = mapped_column(String, nullable=False)
     symbol: Mapped[str] = mapped_column(String, nullable=False)
     market_type: Mapped[MarketType] = mapped_column(String, nullable=False)
