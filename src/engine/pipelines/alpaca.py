@@ -15,22 +15,19 @@ from db_models import MarketData
 from engine.enums import MarketType
 from utils.db import get_db_sess
 from utils.utils import get_datetime
+from .base import BasePipeline
 from .rate_limiter import RateLimiter
 
 
 logger = logging.getLogger(__name__)
 
 
-class AlpacaPipeline:
+class AlpacaPipeline(BasePipeline):
     def __init__(self):
         self._source = "alpaca"
         self._base_url = "https://data.alpaca.markets"
         self._http_sess: ClientSession | None = None
         self._rate_limiter = RateLimiter(max_requests=200, per_seconds=60)
-
-    @property
-    def source(self):
-        return self._source
 
     async def initialise(self):
         if self._http_sess is None:
@@ -49,12 +46,72 @@ class AlpacaPipeline:
             await self._http_sess.close()
             logger.info("Alpaca pipeline cleaned up successfully")
 
-    async def __aenter__(self):
-        await self.initialise()
-        return self
+    async def run_crypto_pipeline(self, symbol: str):
+        logger.info(f"Starting crypto pipeline for {symbol}")
+        last_dt = await self._get_last_timestamp(symbol, MarketType.CRYPTO)
 
-    async def __aexit__(self, exc_type, exc_value, tcb):
-        await self.cleanup()
+        end_date = get_datetime() - timedelta(days=1)
+        start_date = (
+            last_dt - timedelta(days=1)
+            if last_dt
+            else end_date - timedelta(weeks=5 * 52)
+        )
+
+        if last_dt:
+            logger.info(f"Resuming from last timestamp: {last_dt}")
+        else:
+            logger.info(f"Starting fresh from {start_date}")
+
+        await self._fetch_historical(symbol, MarketType.CRYPTO, start_date, end_date)
+
+        task = None
+
+        try:
+            task = asyncio.create_task(
+                self._loop_historical(symbol, MarketType.CRYPTO, start_date, end_date)
+            )
+            while True:
+                await self._stream_trades(symbol, CryptoDataStream, MarketType.CRYPTO)
+        finally:
+            if task is not None and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+    async def run_stocks_pipeline(self, symbol: str) -> None:
+        logger.info(f"Starting stocks pipeline for {symbol}")
+        last_dt = await self._get_last_timestamp(symbol, MarketType.STOCKS)
+
+        end_date = get_datetime() - timedelta(days=1)
+        start_date = (
+            last_dt - timedelta(days=1)
+            if last_dt
+            else end_date - timedelta(weeks=5 * 52)
+        )
+
+        if last_dt:
+            logger.info(f"Resuming from last timestamp: {last_dt}")
+        else:
+            logger.info(f"Starting fresh from {start_date}")
+
+        await self._fetch_historical(symbol, MarketType.STOCKS, start_date, end_date)
+
+        task = asyncio.create_task(
+            self._loop_historical(symbol, MarketType.STOCKS, start_date, end_date)
+        )
+
+        try:
+            while True:
+                await self._stream_trades(symbol, CryptoDataStream, MarketType.STOCKS)
+        finally:
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
 
     @staticmethod
     def _generate_trade_key(trade: dict) -> str:
@@ -84,7 +141,7 @@ class AlpacaPipeline:
                 )
                 return None
 
-    async def _ingest_trades(
+    async def _ingest_historical_trades(
         self,
         trades: list[dict],
         symbol: str,
@@ -105,7 +162,7 @@ class AlpacaPipeline:
                 "symbol": symbol,
                 "market_type": market_type,
                 "price": Decimal(str(trade["p"])),
-                "size": trade.get("s", 1),
+                "size": trade["s"],
                 "timestamp": datetime.fromisoformat(trade["t"]).timestamp(),
                 "created_at": now,
                 "key": self._generate_trade_key(trade),
@@ -124,9 +181,32 @@ class AlpacaPipeline:
             .on_conflict_do_nothing(index_elements=["source", "key"])
         )
         await db_sess.commit()
-        logger.info(
-            f"Inserted {len(records)} {market_type.value} trades for {symbol}"
+        logger.info(f"Inserted {len(records)} {market_type.value} trades for {symbol}")
+
+    def _parse_live_trade(self, trade: dict, market_type: MarketType) -> dict:
+        return {
+            "source": self._source,
+            "symbol": trade["S"],
+            "market_type": market_type,
+            "price": Decimal(str(trade["p"])),
+            "size": trade["s"],
+            "timestamp": datetime.fromisoformat(trade["t"]).timestamp(),
+            "created_at": get_datetime(),
+            "key": self._generate_trade_key(trade),
+        }
+
+    async def _ingest_live_trades(
+        self, trades: list[dict], market_type: MarketType, db_sess: AsyncSession
+    ):
+        records = [self._parse_live_trade(trade, market_type) for trade in trades]
+
+        await db_sess.execute(
+            insert(MarketData)
+            .values(records)
+            .on_conflict_do_nothing(index_elements=["source", "key"])
         )
+
+        await db_sess.commit()
 
     async def _fetch_historical(
         self,
@@ -184,7 +264,9 @@ class AlpacaPipeline:
 
             logger.debug(f"Retrieved {len(trades)} trades on page {page_count}")
             async with get_db_sess() as db_sess:
-                await self._ingest_trades(trades, symbol, market_type, db_sess)
+                await self._ingest_historical_trades(
+                    trades, symbol, market_type, db_sess
+                )
 
             next_page_token = data.get("next_page_token")
             if not next_page_token:
@@ -202,84 +284,24 @@ class AlpacaPipeline:
         """Generic streaming handler for live trades."""
         logger.info(f"Starting live {market_type.value} stream for {symbol}")
         stream = stream_class(ALPACA_API_KEY, ALPACA_SECRET_KEY, raw_data=True)
+        trades = []
 
         async def handle_trade(trade):
+            nonlocal trades
             logger.debug(
                 f"Received live trade for {symbol}: price={trade.get('p')}, size={trade.get('s')}"
             )
-            async with get_db_sess() as db_sess:
-                await self._ingest_trades([trade], symbol, market_type, db_sess)
+
+            trades.append(trade)
+
+            if len(trades) == 1000:
+                async with get_db_sess() as db_sess:
+                    await self._ingest_live_trades(trades, market_type, db_sess)
+                trades = []
 
         stream.subscribe_trades(handle_trade, symbol)
         logger.info(f"Live stream connected for {symbol} ({market_type.value})")
         await stream._run_forever()
-
-    async def run_stocks_pipeline(self, symbol: str) -> None:
-        logger.info(f"Starting stocks pipeline for {symbol}")
-        last_dt = await self._get_last_timestamp(symbol, MarketType.STOCKS)
-
-        end_date = get_datetime() - timedelta(days=1)
-        start_date = (
-            last_dt - timedelta(days=1)
-            if last_dt
-            else end_date - timedelta(weeks=5 * 52)
-        )
-
-        if last_dt:
-            logger.info(f"Resuming from last timestamp: {last_dt}")
-        else:
-            logger.info(f"Starting fresh from {start_date}")
-
-        await self._fetch_historical(symbol, MarketType.STOCKS, start_date, end_date)
-
-        task = asyncio.create_task(
-            self._loop_historical(symbol, MarketType.STOCKS, start_date, end_date)
-        )
-
-        try:
-            while True:
-                await self._stream_trades(symbol, CryptoDataStream, MarketType.STOCKS)
-        finally:
-            if not task.done():
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-
-    async def run_crypto_pipeline(self, symbol: str):
-        logger.info(f"Starting crypto pipeline for {symbol}")
-        last_dt = await self._get_last_timestamp(symbol, MarketType.CRYPTO)
-
-        end_date = get_datetime() - timedelta(days=1)
-        start_date = (
-            last_dt - timedelta(days=1)
-            if last_dt
-            else end_date - timedelta(weeks=5 * 52)
-        )
-
-        if last_dt:
-            logger.info(f"Resuming from last timestamp: {last_dt}")
-        else:
-            logger.info(f"Starting fresh from {start_date}")
-
-        await self._fetch_historical(symbol, MarketType.CRYPTO, start_date, end_date)
-
-        task = None
-
-        try:
-            task = asyncio.create_task(
-                self._loop_historical(symbol, MarketType.CRYPTO, start_date, end_date)
-            )
-            while True:
-                await self._stream_trades(symbol, CryptoDataStream, MarketType.CRYPTO)
-        finally:
-            if task is not None and not task.done():
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
 
     async def _loop_historical(
         self,
@@ -302,3 +324,10 @@ class AlpacaPipeline:
             logger.info(
                 f"Completed daily historical refresh for {symbol} ({market_type.value})"
             )
+
+    async def __aenter__(self):
+        await self.initialise()
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, tcb):
+        await self.cleanup()
