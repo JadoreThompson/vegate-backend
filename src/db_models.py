@@ -16,7 +16,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, mapped_column, Mapped, relationship
 
 from core.enums import PricingTierType
-from engine.enums import BrokerPlatform
+from engine.enums import BrokerPlatform, MarketType
 from utils.utils import get_datetime
 from utils.utils import get_uuid
 
@@ -210,11 +210,12 @@ class Orders(Base):
 
 class MarketData(Base):
     __tablename__ = "market_data"
-    __table_args__ = (UniqueConstraint("source", "timestamp"),)
+    __table_args__ = (UniqueConstraint("source", "key"),)
 
     market_data_id: Mapped[UUID] = uuid_pk()
     source: Mapped[str] = mapped_column(String, nullable=False)
     symbol: Mapped[str] = mapped_column(String, nullable=False)
+    market_type: Mapped[MarketType] = mapped_column(String, nullable=False)
     price: Mapped[Decimal] = mapped_column(
         Numeric(precision=15, scale=2), nullable=False
     )

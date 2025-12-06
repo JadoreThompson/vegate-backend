@@ -1,4 +1,5 @@
+from .base import BasePipeline
 from .alpaca import AlpacaPipeline
 
 
-__all__ = ["AlpacaPipeline"]
+__all__ = ["BasePipeline", "AlpacaPipeline"]

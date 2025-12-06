@@ -58,7 +58,7 @@ if __name__ == "__main__":
 
         pl = AlpacaPipeline()
         async with pl:
-            trades = await pl.run_stocks_pipeline("AAPL")
+            trades = await pl.run_crypto_pipeline("BTC/USD")
             # import pprint; pprint.pprint(trades)
 
     asyncio.run(func())

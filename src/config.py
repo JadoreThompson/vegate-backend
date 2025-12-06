@@ -81,7 +81,7 @@ ALPACA_BASE_URL = "https://data.alpaca.markets/v2/stocks/{symbol}/trades"
 logging.basicConfig(
     filename="app.log",
     filemode="a",
-    format="%(asctime)s - [%(levelname)s] - %(module)s - %(message)s",
+    format="%(asctime)s - [%(levelname)s] - %(name)s - %(message)s",
 )
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

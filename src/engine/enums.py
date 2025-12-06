@@ -77,4 +77,5 @@ class BrokerPlatform(str, Enum):
 
 
 class MarketType(str, Enum):
-    CRYPTO = 'crypto'
+    STOCKS = "stocks"
+    CRYPTO = "crypto"
