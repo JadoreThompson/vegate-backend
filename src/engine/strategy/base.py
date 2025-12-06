@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from engine.context import StrategyContext
+from .context import StrategyContext
 
 
 class BaseStrategy(ABC):

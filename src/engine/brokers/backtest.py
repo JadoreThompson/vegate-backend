@@ -1,9 +1,6 @@
 import logging
-from datetime import datetime
-from typing import Optional
 from uuid import uuid4
 
-from engine.core import OHLCV
 from engine.models import (
     OrderRequest,
     OrderResponse,
@@ -12,6 +9,7 @@ from engine.models import (
     OrderStatus,
     OrderType,
 )
+from engine.ohlcv import OHLCV
 from .base import BaseBroker
 from .exc import BrokerError, InsufficientFundsError, OrderRejectedError
 
@@ -24,14 +22,8 @@ class BacktestBroker(BaseBroker):
         self._orders: list[OrderResponse] = []
         self._orders: dict[str, OrderResponse] = {}
         self._pending_orders: dict[str, tuple[OrderRequest, OrderResponse]] = {}
-        self.current_time: Optional[datetime] = None
-        self.current_prices: dict[str, float] = {}
         self._current_candle: OHLCV | None = None
         self._account_id = f"ac_{uuid4()}"
-
-        # Order tracking
-        self._order_counter = 0
-
         logger.info(f"SimulatedBroker initialized: capital=${starting_balance:,.2f}")
 
     def connect(self) -> None:
@@ -74,7 +66,6 @@ class BacktestBroker(BaseBroker):
         if self._current_candle is None:
             raise BrokerError("No price data available")
 
-        self._order_counter += 1
         order_id = f"bt_{uuid4()}"
 
         logger.debug(
@@ -119,7 +110,7 @@ class BacktestBroker(BaseBroker):
             if required_cash > self._cash:
                 raise InsufficientFundsError(
                     f"Insufficient funds: need ${required_cash:,.2f}, "
-                    f"have ${self.cash:,.2f}"
+                    f"have ${self._cash:,.2f}"
                 )
 
         # Check position for sells
@@ -176,9 +167,9 @@ class BacktestBroker(BaseBroker):
             quantity=order.quantity,
             filled_quantity=0.0,
             status=OrderStatus.PENDING,
-            submitted_at=self.current_time,
+            created_at=self._current_candle.timestamp,
             avg_fill_price=None,
-            broker_metadata={"limit_price": order.limit_price},
+            limit_price=order.limit_price,
         )
 
         self._pending_orders[order_id] = (order, response)
@@ -208,9 +199,9 @@ class BacktestBroker(BaseBroker):
             quantity=order.quantity,
             filled_quantity=0.0,
             status=OrderStatus.PENDING,
-            submitted_at=self.current_time,
+            created_at=self._current_candle.timestamp,
             avg_fill_price=None,
-            broker_metadata={"stop_price": order.stop_price},
+            stop_price=order.stop_price,
         )
 
         self._pending_orders[order_id] = (order, response)
@@ -220,9 +211,9 @@ class BacktestBroker(BaseBroker):
 
         return response
 
-    def set_current_candle(self, candle: OHLCV):
-        self._current_candle = candle
-        self.process_pending_orders()
+    # def set_current_candle(self, candle: OHLCV):
+    #     self._current_candle = candle
+    #     self.process_pending_orders()
 
     def process_pending_orders(self) -> None:
         """Process pending limit and stop orders against current prices."""
@@ -355,3 +346,13 @@ class BacktestBroker(BaseBroker):
             equity += diff
 
         return Account(account_id=self._account_id, equity=equity, cash=self._cash)
+
+    def load_historic_olhcv(self, symbol, start_date, end_date):
+        return super().load_historic_olhcv(symbol, start_date, end_date)
+    
+    def yield_historic_ohlcv(self, symbol, start_date, end_date):
+        return super().yield_historic_ohlcv(symbol, start_date, end_date)
+    
+    def yield_ohlcv(self, symbol):
+        return super().yield_ohlcv(symbol)
+    

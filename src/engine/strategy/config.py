@@ -1,4 +1,4 @@
-from engine.core import Timeframe
+from engine.enums import Timeframe
 from core.models import CustomBaseModel
 
 

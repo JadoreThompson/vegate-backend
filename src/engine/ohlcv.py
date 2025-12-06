@@ -1,6 +1,5 @@
 from datetime import datetime
-
-from core.enums import Timeframe
+from engine.enums import Timeframe
 
 
 class OHLCV:
@@ -28,5 +27,6 @@ class OHLCV:
         return (
             f"OHLCV(symbol={self.symbol}, timestamp={self.timestamp}, "
             f"open={self.open}, high={self.high}, low={self.low}, "
-            f"close={self.close}, volume={self.volume})"
+            f"close={self.close}, volume={self.volume}, "
+            f"timeframe={self.timeframe})"
         )

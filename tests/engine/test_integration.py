@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from src.engine.backtesting.data_loader import OHLCDataLoader, OHLCBar, Timeframe
 from src.engine.backtesting.engine import BacktestEngine, BacktestConfig
-from engine.brokers.simulated_broker import BacktestBroker
+from engine.brokers.backtest import BacktestBroker
 from engine.strategy.context import StrategyContext
 from src.engine.models import OrderType, OrderSide
 

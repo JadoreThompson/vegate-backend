@@ -4,7 +4,6 @@ import sys
 
 from engine.brokers import BaseBroker
 from .base import BaseStrategy
-from .config import StrategyConfig
 from .context import StrategyContext
 
 
@@ -12,7 +11,6 @@ class StrategyRunner:
     def __init__(self, strategy: BaseStrategy, broker: BaseBroker):
         self._broker = broker
         self._strategy = strategy
-        # self._config = config
 
         self._is_running = False
         self._shutdown_called = False

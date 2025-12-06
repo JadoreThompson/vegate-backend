@@ -4,7 +4,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from core.models import CustomBaseModel
-from engine.core import OrderType, OrderSide, OrderStatus, TimeInForce
+from engine.enums import OrderType, OrderSide, OrderStatus, TimeInForce
 
 
 class OrderRequest(BaseModel):
@@ -39,6 +39,8 @@ class OrderResponse(CustomBaseModel):
     order_type: OrderType
     quantity: float
     filled_quantity: float
+    limit_price: float | None
+    stop_price: float | None
     status: OrderStatus
     created_at: datetime
     filled_at: datetime | None = None

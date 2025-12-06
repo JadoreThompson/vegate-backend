@@ -19,7 +19,6 @@ from alpaca.trading.enums import (
 from alpaca.common.exceptions import APIError
 
 from .base import BaseBroker
-from .rate_limiter import TokenBucketRateLimiter
 from .exc import (
     BrokerError,
     AuthenticationError,
@@ -31,7 +30,6 @@ from .exc import (
 from ..models import (
     OrderRequest,
     OrderResponse,
-    Position,
     Account,
     OrderType,
     OrderSide,
@@ -79,10 +77,6 @@ class AlpacaBroker(BaseBroker):
 
         try:
             self._apply_rate_limit()
-
-            self._client = TradingClient(
-                api_key=self.api_key, secret_key=self.secret_key, paper=self.paper
-            )
 
             # Test connection by fetching account
             self._client.get_account()

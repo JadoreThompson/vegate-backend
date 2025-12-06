@@ -3,8 +3,9 @@ import os
 import sys
 from urllib.parse import quote
 
-from dotenv import load_dotenv
 import stripe
+from dotenv import load_dotenv
+
 
 # Paths
 BASE_PATH = os.path.dirname(__file__)
@@ -70,6 +71,10 @@ STRIPE_API_KEY = os.getenv("STRIPE_API_KEY")
 STRIPE_PRICING_PRO_WEBHOOOK_SECRET = os.getenv("STRIPE_PRICING_PRO_WEBHOOOK_SECRET")
 STRIPE_PRICING_PRO_PRICE_ID = os.getenv("STRIPE_PRICING_PRO_PRICE_ID")
 stripe.api_key = STRIPE_API_KEY
+
+# Alpaca
+ALPACA_API_KEY = os.getenv("ALPACA_API_KEY")
+ALPACA_SECRET_KEY = os.getenv("ALPACA_SERET_KEY")
 
 # Logging
 logging.basicConfig(

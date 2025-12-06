@@ -1,23 +1,18 @@
 import logging
-from collections import defaultdict
 from datetime import datetime
 
 from core.models import CustomBaseModel
 from engine.brokers import BacktestBroker
-from engine.core import Timeframe, OrderStatus, OrderSide
+from engine.enums import Timeframe, OrderStatus, OrderSide
 from engine.models import OrderResponse
 from engine.strategy import BaseStrategy
 from engine.strategy import StrategyContext, StrategyRunner
-from .ohlcv_loaders import BaseOHLCVLoader
 from .metrics import (
     calculate_sharpe_ratio,
     calculate_max_drawdown,
-    calculate_win_rate,
     calculate_total_return,
 )
-
-
-EquityCurveT = list[tuple[datetime, float]]
+from .types import EquityCurveT
 
 
 logger = logging.getLogger(__name__)
@@ -50,26 +45,21 @@ class BacktestEngine:
     def __init__(
         self,
         config: BacktestConfig,
-        ohlcv_loader: BaseOHLCVLoader,
         strategy: BaseStrategy,
     ):
         self._config = config
-        self._ohlcv_loader = ohlcv_loader
         self._strategy = strategy
         self._broker = BacktestBroker(starting_balance=self._config.starting_balance)
         self._strategy_runner = StrategyRunner(self._strategy, self._broker)
-        self._strategy_context = StrategyContext[BacktestBroker](
-            self._broker, self._ohlcv_loader
-        )
+        self._strategy_context = StrategyContext[BacktestBroker](self._broker)
 
         self._equity_curve: EquityCurveT = []
         self._cash_balance_curve: EquityCurveT = []
 
     def run(self) -> SpotBacktestResult:
-        for ohlcv in self._ohlcv_loader.yield_historic_ohlcv(
+        for ohlcv in self._broker.yield_historic_ohlcv(
             self._config.symbol, self._config.start_date, self._config.end_date
         ):
-            self._broker.set_current_candle(ohlcv)
             account = self._broker.get_account()
             self._equity_curve.append((ohlcv.timestamp, account.equity))
             self._cash_balance_curve.append((ohlcv.timestamp, account.cash))
@@ -105,17 +95,13 @@ class BacktestEngine:
         realised_pnl = 0.0
         unrealised_pnl = 0.0
 
-        # For spot trading, we need to track buy and sell orders
         for order in all_orders:
             if order.status == OrderStatus.FILLED:
                 if order.side == OrderSide.SELL and order.avg_fill_price:
-                    # For sells, we realize profit
                     realised_pnl += order.quantity * order.avg_fill_price
                 elif order.side == OrderSide.BUY and order.avg_fill_price:
-                    # For buys, we spend cash
                     realised_pnl -= order.quantity * order.avg_fill_price
 
-        # Unrealized PnL is captured in the equity curve difference
         unrealised_pnl = account.equity - self._config.starting_balance - realised_pnl
 
         logger.info(

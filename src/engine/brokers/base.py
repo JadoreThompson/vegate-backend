@@ -1,13 +1,14 @@
 import logging
 from abc import ABC, abstractmethod
+from datetime import datetime
+from typing import Generator
 
-from engine.backtesting.ohlcv_loaders import AlpacaOHLCVLoader
+from engine.ohlcv import OHLCV
 from engine.models import OrderRequest, OrderResponse, Account
 
 
 class BaseBroker(ABC):
-    def __init__(self, ohlcv_loader: AlpacaOHLCVLoader):
-        self._ohlcv_loader = ohlcv_loader
+    def __init__(self):
         self._connected = False
         self._logger = logging.getLogger(self.__class__.__name__)
 
@@ -63,7 +64,7 @@ class BaseBroker(ABC):
         """
         self.disconnect()
         return False
-    
+
     @abstractmethod
     def submit_order(self, order: OrderRequest) -> OrderResponse:
         """
@@ -145,6 +146,19 @@ class BaseBroker(ABC):
             BrokerError: If account data cannot be retrieved
         """
         pass
+
+    @abstractmethod
+    def load_historic_olhcv(
+        self, symbol: str, start_date: datetime, end_date: datetime
+    ) -> None: ...
+
+    @abstractmethod
+    def yield_historic_ohlcv(
+        self, symbol: str, start_date: datetime, end_date: datetime
+    ) -> Generator[OHLCV, None, None]: ...
+
+    @abstractmethod
+    def yield_ohlcv(self, symbol: str) -> Generator[OHLCV, None, None]: ...
 
     def _apply_rate_limit(self) -> None:
         """

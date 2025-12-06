@@ -34,7 +34,7 @@ from src.engine.backtesting.metrics import (
     calculate_equity_curve_stats,
     calculate_trade_stats,
 )
-from engine.brokers.simulated_broker import BacktestBroker
+from engine.brokers.backtest import BacktestBroker
 from src.engine.models import OrderSide
 
 

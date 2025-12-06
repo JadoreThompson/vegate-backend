@@ -13,7 +13,7 @@ import numpy as np
 from engine.strategy.context import StrategyContext, HistoricalData
 from engine.context.indicators.indicators import IndicatorMixin
 from src.engine.backtesting.data_loader import OHLCBar, OHLCDataLoader, Timeframe
-from engine.brokers.simulated_broker import BacktestBroker
+from engine.brokers.backtest import BacktestBroker
 from src.engine.models import OrderType, OrderSide
 
 

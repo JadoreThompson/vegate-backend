@@ -1,16 +1,15 @@
 import logging
-from typing import List, Tuple, Optional
-from datetime import datetime
+
 import numpy as np
-import pandas as pd
+
+from .types import EquityCurveT
+
 
 logger = logging.getLogger(__name__)
 
 
 def calculate_sharpe_ratio(
-    equity_curve: List[Tuple[datetime, float]],
-    risk_free_rate: float = 0.0,
-    periods_per_year: int = 252,
+    equity_curve: EquityCurveT, risk_free_rate: float = 0.0, periods_per_year: int = 252
 ) -> float:
     """
     Calculate the Sharpe ratio from an equity curve.
@@ -19,7 +18,7 @@ def calculate_sharpe_ratio(
     to volatility. Higher values indicate better risk-adjusted performance.
 
     Args:
-        equity_curve: List of (timestamp, equity) tuples
+        equity_curve: list of (timestamp, equity) tuples
         risk_free_rate: Annual risk-free rate (default: 0.0)
         periods_per_year: Number of periods per year for annualization (default: 252 for daily)
 
@@ -75,9 +74,9 @@ def calculate_sharpe_ratio(
 
 
 def calculate_max_drawdown(
-    equity_curve: List[Tuple[datetime, float]],
-    cash_curve: Optional[List[Tuple[datetime, float]]] = None,
-) -> Tuple[float, float]:
+    equity_curve: EquityCurveT,
+    cash_curve: EquityCurveT,
+) -> tuple[float, float]:
     """
     Calculate maximum drawdown from an equity curve.
 
@@ -86,11 +85,11 @@ def calculate_max_drawdown(
     it is used to understand the actual cash balance at each point in time.
 
     Args:
-        equity_curve: List of (timestamp, equity) tuples
+        equity_curve: list of (timestamp, equity) tuples
         cash_curve: Optional list of (timestamp, cash) tuples for cash balance tracking
 
     Returns:
-        Tuple of (max_drawdown_dollars, max_drawdown_percent)
+        tuple of (max_drawdown_dollars, max_drawdown_percent)
 
     Example:
         equity_curve = [
@@ -105,9 +104,6 @@ def calculate_max_drawdown(
         ]
         dd_dollars, dd_percent = calculate_max_drawdown(equity_curve, cash_curve)
     """
-    if not equity_curve:
-        logger.warning("Empty equity curve for drawdown calculation")
-        return 0.0, 0.0
 
     try:
         equity_values = [equity for _, equity in equity_curve]
@@ -155,14 +151,14 @@ def calculate_max_drawdown(
         return 0.0, 0.0
 
 
-def calculate_win_rate(trades: List) -> float:
+def calculate_win_rate(trades: list) -> float:
     """
     Calculate win rate from trade history.
 
     Win rate is the percentage of profitable trades.
 
     Args:
-        trades: List of TradeRecord objects with pnl attribute
+        trades: list of TradeRecord objects with pnl attribute
 
     Returns:
         Win rate as percentage (0-100)
@@ -190,7 +186,7 @@ def calculate_win_rate(trades: List) -> float:
 
 def calculate_total_return(
     initial_capital: float, final_capital: float
-) -> Tuple[float, float]:
+) -> tuple[float, float]:
     """
     Calculate total return from initial and final capital.
 
@@ -199,7 +195,7 @@ def calculate_total_return(
         final_capital: Ending capital
 
     Returns:
-        Tuple of (return_dollars, return_percent)
+        tuple of (return_dollars, return_percent)
 
     Example:
         ret_dollars, ret_percent = calculate_total_return(100000, 110000)
@@ -215,291 +211,3 @@ def calculate_total_return(
     except Exception as e:
         logger.error(f"Error calculating total return: {e}", exc_info=True)
         return 0.0, 0.0
-
-
-def calculate_average_trade(trades: List) -> Tuple[float, float, float]:
-    """
-    Calculate average trade statistics.
-
-    Args:
-        trades: List of TradeRecord objects
-
-    Returns:
-        Tuple of (avg_pnl, avg_win, avg_loss)
-
-    Example:
-        avg_pnl, avg_win, avg_loss = calculate_average_trade(trades)
-    """
-    if not trades:
-        return 0.0, 0.0, 0.0
-
-    try:
-        winning_trades = [t.pnl for t in trades if t.pnl > 0]
-        losing_trades = [t.pnl for t in trades if t.pnl < 0]
-
-        avg_pnl = np.mean([t.pnl for t in trades]) if trades else 0.0
-        avg_win = np.mean(winning_trades) if winning_trades else 0.0
-        avg_loss = np.mean(losing_trades) if losing_trades else 0.0
-
-        return float(avg_pnl), float(avg_win), float(avg_loss)
-
-    except Exception as e:
-        logger.error(f"Error calculating average trade: {e}", exc_info=True)
-        return 0.0, 0.0, 0.0
-
-
-def calculate_profit_factor(trades: List) -> float:
-    """
-    Calculate profit factor (gross profit / gross loss).
-
-    A profit factor > 1 indicates profitability.
-
-    Args:
-        trades: List of TradeRecord objects
-
-    Returns:
-        Profit factor
-
-    Example:
-        pf = calculate_profit_factor(trades)
-    """
-    if not trades:
-        return 0.0
-
-    try:
-        gross_profit = sum(t.pnl for t in trades if t.pnl > 0)
-        gross_loss = abs(sum(t.pnl for t in trades if t.pnl < 0))
-
-        if gross_loss == 0:
-            return float("inf") if gross_profit > 0 else 0.0
-
-        profit_factor = gross_profit / gross_loss
-
-        return float(profit_factor)
-
-    except Exception as e:
-        logger.error(f"Error calculating profit factor: {e}", exc_info=True)
-        return 0.0
-
-
-def calculate_sortino_ratio(
-    equity_curve: List[Tuple[datetime, float]],
-    risk_free_rate: float = 0.0,
-    periods_per_year: int = 252,
-) -> float:
-    """
-    Calculate Sortino ratio (similar to Sharpe but uses downside deviation).
-
-    The Sortino ratio only considers downside volatility, making it more
-    appropriate for strategies with asymmetric return distributions.
-
-    Args:
-        equity_curve: List of (timestamp, equity) tuples
-        risk_free_rate: Annual risk-free rate (default: 0.0)
-        periods_per_year: Number of periods per year (default: 252)
-
-    Returns:
-        Annualized Sortino ratio
-    """
-    if len(equity_curve) < 2:
-        return 0.0
-
-    try:
-        equity_values = [equity for _, equity in equity_curve]
-
-        returns = []
-        for i in range(1, len(equity_values)):
-            ret = (equity_values[i] - equity_values[i - 1]) / equity_values[i - 1]
-            returns.append(ret)
-
-        if not returns:
-            return 0.0
-
-        returns_array = np.array(returns)
-        mean_return = np.mean(returns_array)
-
-        # Calculate downside deviation (only negative returns)
-        downside_returns = returns_array[returns_array < 0]
-
-        if len(downside_returns) == 0:
-            return float("inf") if mean_return > 0 else 0.0
-
-        downside_std = np.std(downside_returns, ddof=1)
-
-        if downside_std == 0:
-            return 0.0
-
-        daily_rf = risk_free_rate / periods_per_year
-        sortino = ((mean_return - daily_rf) / downside_std) * np.sqrt(periods_per_year)
-
-        return float(sortino)
-
-    except Exception as e:
-        logger.error(f"Error calculating Sortino ratio: {e}", exc_info=True)
-        return 0.0
-
-
-def calculate_calmar_ratio(
-    equity_curve: List[Tuple[datetime, float]], periods_per_year: int = 252
-) -> float:
-    """
-    Calculate Calmar ratio (annualized return / max drawdown).
-
-    The Calmar ratio measures return relative to maximum drawdown,
-    useful for evaluating downside risk.
-
-    Args:
-        equity_curve: List of (timestamp, equity) tuples
-        periods_per_year: Number of periods per year (default: 252)
-
-    Returns:
-        Calmar ratio
-    """
-    if len(equity_curve) < 2:
-        return 0.0
-
-    try:
-        initial_equity = equity_curve[0][1]
-        final_equity = equity_curve[-1][1]
-
-        # Calculate total return
-        total_return = (final_equity - initial_equity) / initial_equity
-
-        # Estimate number of periods and annualize
-        num_periods = len(equity_curve) - 1
-        years = num_periods / periods_per_year
-
-        if years <= 0:
-            return 0.0
-
-        annualized_return = (1 + total_return) ** (1 / years) - 1
-
-        # Calculate max drawdown
-        _, max_dd_pct = calculate_max_drawdown(equity_curve)
-
-        if max_dd_pct == 0:
-            return float("inf") if annualized_return > 0 else 0.0
-
-        calmar = (annualized_return * 100) / max_dd_pct
-
-        return float(calmar)
-
-    except Exception as e:
-        logger.error(f"Error calculating Calmar ratio: {e}", exc_info=True)
-        return 0.0
-
-
-def calculate_recovery_factor(equity_curve: List[Tuple[datetime, float]]) -> float:
-    """
-    Calculate recovery factor (net profit / max drawdown).
-
-    Measures how well the strategy recovers from drawdowns.
-
-    Args:
-        equity_curve: List of (timestamp, equity) tuples
-
-    Returns:
-        Recovery factor
-    """
-    if len(equity_curve) < 2:
-        return 0.0
-
-    try:
-        initial_equity = equity_curve[0][1]
-        final_equity = equity_curve[-1][1]
-        net_profit = final_equity - initial_equity
-
-        max_dd, _ = calculate_max_drawdown(equity_curve)
-
-        if max_dd == 0:
-            return float("inf") if net_profit > 0 else 0.0
-
-        recovery = net_profit / max_dd
-
-        return float(recovery)
-
-    except Exception as e:
-        logger.error(f"Error calculating recovery factor: {e}", exc_info=True)
-        return 0.0
-
-
-def calculate_equity_curve_stats(equity_curve: List[Tuple[datetime, float]]) -> dict:
-    """
-    Calculate comprehensive statistics from equity curve.
-
-    Args:
-        equity_curve: List of (timestamp, equity) tuples
-
-    Returns:
-        Dictionary with various statistics
-    """
-    if not equity_curve:
-        return {}
-
-    try:
-        equity_values = [equity for _, equity in equity_curve]
-
-        return {
-            "min_equity": float(np.min(equity_values)),
-            "max_equity": float(np.max(equity_values)),
-            "mean_equity": float(np.mean(equity_values)),
-            "std_equity": float(np.std(equity_values)),
-            "sharpe_ratio": calculate_sharpe_ratio(equity_curve),
-            "sortino_ratio": calculate_sortino_ratio(equity_curve),
-            "calmar_ratio": calculate_calmar_ratio(equity_curve),
-            "recovery_factor": calculate_recovery_factor(equity_curve),
-        }
-
-    except Exception as e:
-        logger.error(f"Error calculating equity curve stats: {e}", exc_info=True)
-        return {}
-
-
-def calculate_trade_stats(trades: List) -> dict:
-    """
-    Calculate comprehensive trade statistics.
-
-    Args:
-        trades: List of TradeRecord objects
-
-    Returns:
-        Dictionary with various trade statistics
-    """
-    if not trades:
-        return {
-            "total_trades": 0,
-            "winning_trades": 0,
-            "losing_trades": 0,
-            "win_rate": 0.0,
-            "avg_pnl": 0.0,
-            "avg_win": 0.0,
-            "avg_loss": 0.0,
-            "profit_factor": 0.0,
-            "total_pnl": 0.0,
-            "total_commission": 0.0,
-            "total_slippage": 0.0,
-        }
-
-    try:
-        winning_trades = [t for t in trades if t.pnl > 0]
-        losing_trades = [t for t in trades if t.pnl < 0]
-
-        avg_pnl, avg_win, avg_loss = calculate_average_trade(trades)
-
-        return {
-            "total_trades": len(trades),
-            "winning_trades": len(winning_trades),
-            "losing_trades": len(losing_trades),
-            "win_rate": calculate_win_rate(trades),
-            "avg_pnl": avg_pnl,
-            "avg_win": avg_win,
-            "avg_loss": avg_loss,
-            "profit_factor": calculate_profit_factor(trades),
-            "total_pnl": sum(t.pnl for t in trades),
-            "total_commission": sum(t.commission for t in trades),
-            "total_slippage": sum(t.slippage for t in trades),
-        }
-
-    except Exception as e:
-        logger.error(f"Error calculating trade stats: {e}", exc_info=True)
-        return {}

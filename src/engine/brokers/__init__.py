@@ -11,7 +11,7 @@ from .exc import (
     DataNotAvailableError,
 )
 from .factory import BrokerFactory
-from .simulated_broker import BacktestBroker
+from .backtest import BacktestBroker
 
 __all__ = [
     # Base classes
