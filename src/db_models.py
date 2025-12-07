@@ -30,8 +30,11 @@ def uuid_pk(**kw):
 
 def datetime_tz(**kw):
     """Helper function for timezone-aware datetime columns."""
+    if 'nullable' not in kw:
+        kw['nullable'] = False
+
     return mapped_column(
-        DateTime(timezone=True), nullable=False, default=get_datetime, **kw
+        DateTime(timezone=True), default=get_datetime, **kw
     )
 
 
@@ -55,15 +58,17 @@ class Users(Base):
     stripe_customer_id: Mapped[str | None] = mapped_column(
         String, unique=True, nullable=True
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=get_datetime
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=get_datetime,
-        onupdate=get_datetime,
-    )
+    # created_at: Mapped[datetime] = mapped_column(
+    #     DateTime(timezone=True), nullable=False, default=get_datetime
+    # )
+    created_at: Mapped[datetime] = datetime_tz()
+    # updated_at: Mapped[datetime] = mapped_column(
+    #     DateTime(timezone=True),
+    #     nullable=False,
+    #     default=get_datetime,
+    #     onupdate=get_datetime,
+    # )
+    updated_at: Mapped[datetime] = datetime_tz(onupdate=get_datetime)
     authenticated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -117,7 +122,7 @@ class Strategies(Base):
     live_deployments: Mapped[list["LiveDeployments"]] = relationship(
         back_populates="strategy", cascade="all, delete-orphan"
     )
-    user: Mapped["Users"] = relationship(backpopulates="strategies")
+    user: Mapped["Users"] = relationship(back_populates="strategies")
 
 
 class Backtests(Base):
@@ -132,8 +137,8 @@ class Backtests(Base):
         Numeric(precision=15, scale=2), nullable=False
     )
     metrics: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    created_at: Mapped[datetime] = datetime_tz()
     status: Mapped[BacktestStatus] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = datetime_tz()
 
     # Relationships
     strategy: Mapped["Strategies"] = relationship(back_populates="backtests")
@@ -172,6 +177,12 @@ class Orders(Base):
     __tablename__ = "orders"
 
     order_id: Mapped[UUID] = uuid_pk()
+    backtest_id: Mapped[UUID] = mapped_column(
+        SaUUID(as_uuid=True), ForeignKey("backtests.backtest_id"), nullable=True
+    )
+    deployment_id: Mapped[UUID] = mapped_column(
+        SaUUID(as_uuid=True), ForeignKey("strategy_deployments.deployment_id"), nullable=True
+    )
     symbol: Mapped[str] = mapped_column(String, nullable=False)
     side: Mapped[str] = mapped_column(String, nullable=False)
     order_type: Mapped[str] = mapped_column(String, nullable=False)
