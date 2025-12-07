@@ -50,4 +50,14 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+    import asyncio
+    from engine.pipelines import AlpacaPipeline
+    
+    async def func():
+
+        pl = AlpacaPipeline()
+        async with pl:
+            await pl.run_crypto_pipeline("BTC/USD")
+
+    asyncio.run(func())

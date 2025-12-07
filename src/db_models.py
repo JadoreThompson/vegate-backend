@@ -17,7 +17,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, mapped_column, Mapped, relationship
 
 from core.enums import PricingTierType
-from engine.enums import BrokerPlatform, MarketType
+from engine.enums import BrokerPlatformType, MarketType
 from utils.utils import get_datetime
 from utils.utils import get_uuid
 
@@ -78,7 +78,7 @@ class BrokerConnections(Base):
     __tablename__ = "broker_connections"
 
     connection_id: Mapped[UUID] = uuid_pk()
-    broker: Mapped[BrokerPlatform] = mapped_column(String, nullable=False)
+    broker: Mapped[BrokerPlatformType] = mapped_column(String, nullable=False)
     user_id: Mapped[UUID] = mapped_column(
         SaUUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False
     )

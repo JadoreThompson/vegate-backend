@@ -219,13 +219,6 @@ def test_backtest_with_buy_and_sell(
     strategy = BuyAndSellStrategy()
     engine = BacktestEngine(basic_config, strategy)
 
-    # with patch.object(
-    #     engine._broker,
-    #     "yield_historic_ohlcv",
-    #     new_callable=get_mock_yield_historic_ohlcv(sample_ohlcv_data, engine._broker),
-    # ):
-    #     result = engine.run()
-
     engine._broker.yield_historic_ohlcv = get_mock_yield_historic_ohlcv(
         sample_ohlcv_data, engine._broker
     )
@@ -274,10 +267,6 @@ def test_equity_curve_with_trades(
     strategy = BuyAndHoldStrategy()
     engine = BacktestEngine(basic_config, strategy)
 
-    # with patch.object(
-    #     engine._broker, "yield_historic_ohlcv", return_value=iter(sample_ohlcv_data)
-    # ):
-    #     result = engine.run()
     engine._broker.yield_historic_ohlcv = get_mock_yield_historic_ohlcv(
         sample_ohlcv_data, engine._broker
     )
@@ -332,9 +321,6 @@ def test_total_return_calculation_with_profit(basic_config: BacktestConfig) -> N
         )
         data.append(ohlcv)
 
-    # with patch.object(engine._broker, "yield_historic_ohlcv", return_value=iter(data)):
-    #     result = engine.run()
-
     engine._broker.yield_historic_ohlcv = get_mock_yield_historic_ohlcv(
         data, engine._broker
     )
@@ -370,18 +356,11 @@ def test_realized_pnl_calculation(basic_config: BacktestConfig) -> None:
         )
         data.append(ohlcv)
 
-    # with patch.object(engine._broker, "yield_historic_ohlcv", return_value=iter(data)):
-    #     result = engine.run()
-
     engine._broker.yield_historic_ohlcv = get_mock_yield_historic_ohlcv(
         data, engine._broker
     )
     result = engine.run()
 
-    # BUG: Lines 91-99 don't match buy/sell pairs correctly
-    # It just sums all buys as negative and sells as positive
-    # For 10 shares: buy at 100 = -1000, sell at 110 = +1100
-    # Bug would calculate: realised_pnl = 1100 - 1000 = 100 (correct by accident)
     assert isinstance(result.realised_pnl, float)
 
 
@@ -392,10 +371,6 @@ def test_unrealized_pnl_calculation(
     strategy = BuyAndHoldStrategy()
     engine = BacktestEngine(basic_config, strategy)
 
-    # with patch.object(
-    #     engine._broker, "yield_historic_ohlcv", return_value=iter(sample_ohlcv_data)
-    # ):
-    #     result = engine.run()
     engine._broker.yield_historic_ohlcv = get_mock_yield_historic_ohlcv(
         sample_ohlcv_data, engine._broker
     )
@@ -416,10 +391,6 @@ def test_sharpe_ratio_calculation(
     strategy = BuyAndHoldStrategy()
     engine = BacktestEngine(basic_config, strategy)
 
-    # with patch.object(
-    #     engine._broker, "yield_historic_ohlcv", return_value=iter(sample_ohlcv_data)
-    # ):
-    #     result = engine.run()
     engine._broker.yield_historic_ohlcv = get_mock_yield_historic_ohlcv(
         sample_ohlcv_data, engine._broker
     )
@@ -434,11 +405,6 @@ def test_max_drawdown_calculation(
     """Verify max drawdown is calculated."""
     strategy = BuyAndHoldStrategy()
     engine = BacktestEngine(basic_config, strategy)
-
-    # with patch.object(
-    #     engine._broker, "yield_historic_ohlcv", return_value=iter(sample_ohlcv_data)
-    # ):
-    #     result = engine.run()
 
     engine._broker.yield_historic_ohlcv = get_mock_yield_historic_ohlcv(
         sample_ohlcv_data, engine._broker
@@ -457,9 +423,6 @@ def test_backtest_with_empty_data(basic_config: BacktestConfig) -> None:
     strategy = NoTradeStrategy()
     engine = BacktestEngine(basic_config, strategy)
 
-    # with patch.object(engine._broker, "yield_historic_ohlcv", return_value=iter([])):
-    #     result = engine.run()
-
     engine._broker.yield_historic_ohlcv = get_mock_yield_historic_ohlcv(
         [], engine._broker
     )
@@ -476,13 +439,6 @@ def test_backtest_with_constant_prices(
     """Verify backtest handles constant prices correctly."""
     strategy = BuyAndHoldStrategy()
     engine = BacktestEngine(basic_config, strategy)
-
-    # with patch.object(
-    #     engine._broker,
-    #     "yield_historic_ohlcv",
-    #     return_value=iter(constant_price_ohlcv_data),
-    # ):
-    #     result = engine.run()
 
     engine._broker.yield_historic_ohlcv = get_mock_yield_historic_ohlcv(
         constant_price_ohlcv_data, engine._broker
@@ -511,11 +467,6 @@ def test_backtest_with_single_candle(basic_config: BacktestConfig) -> None:
             timeframe=Timeframe.M1,
         )
     ]
-
-    # with patch.object(
-    #     engine._broker, "yield_historic_ohlcv", return_value=iter(single_candle)
-    # ):
-    #     result = engine.run()
 
     engine._broker.yield_historic_ohlcv = get_mock_yield_historic_ohlcv(
         single_candle, engine._broker
@@ -550,10 +501,6 @@ def test_cancel_all_orders_at_end(
     strategy = LimitOrderStrategy()
     engine = BacktestEngine(basic_config, strategy)
 
-    # with patch.object(
-    #     engine._broker, "yield_historic_ohlcv", return_value=iter(sample_ohlcv_data)
-    # ):
-    #     result = engine.run()
     engine._broker.yield_historic_ohlcv = get_mock_yield_historic_ohlcv(
         sample_ohlcv_data, engine._broker
     )
@@ -589,8 +536,6 @@ def test_full_backtest_integration(basic_config: BacktestConfig) -> None:
         )
         data.append(ohlcv)
 
-    # with patch.object(engine._broker, "yield_historic_ohlcv", return_value=iter(data)):
-    #     result = engine.run()
     engine._broker.yield_historic_ohlcv = get_mock_yield_historic_ohlcv(
         data, engine._broker
     )
@@ -633,10 +578,6 @@ def test_backtest_result_contains_all_fields(
     strategy = BuyAndHoldStrategy()
     engine = BacktestEngine(basic_config, strategy)
 
-    # with patch.object(
-    #     engine._broker, "yield_historic_ohlcv", return_value=iter(sample_ohlcv_data)
-    # ):
-    #     result = engine.run()
     engine._broker.yield_historic_ohlcv = get_mock_yield_historic_ohlcv(
         sample_ohlcv_data, engine._broker
     )

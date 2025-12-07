@@ -83,7 +83,7 @@ class LiveDeploymentStatus(str, Enum):
     FAILED = "failed"
 
 
-class BrokerPlatform(str, Enum):
+class BrokerPlatformType(str, Enum):
     """Supported broker platforms."""
 
     ALPACA = "alpaca"
