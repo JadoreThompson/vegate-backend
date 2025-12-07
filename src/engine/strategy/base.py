@@ -4,7 +4,7 @@ from .context import StrategyContext
 
 class BaseStrategy(ABC):
     @abstractmethod
-    def process(self, context: StrategyContext): ...
+    def on_candle(self, context: StrategyContext): ...
 
     def startup(self):
         return

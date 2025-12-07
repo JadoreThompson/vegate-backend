@@ -45,6 +45,7 @@ class OrderResponse(CustomBaseModel):
     created_at: datetime
     filled_at: datetime | None = None
     avg_fill_price: float | None = None
+    time_in_force: TimeInForce
     broker_metadata: dict[str, Any] = Field(default_factory=dict)
 
 

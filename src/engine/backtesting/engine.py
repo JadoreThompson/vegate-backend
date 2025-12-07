@@ -59,9 +59,8 @@ class BacktestEngine:
             account = self._broker.get_account()
             self._equity_curve.append((ohlcv.timestamp, account.equity))
             self._cash_balance_curve.append((ohlcv.timestamp, account.cash))
-            self._strategy_runner.process(self._strategy_context)
+            self._strategy_runner.on_candle(self._strategy_context)
 
-        self._broker.cancel_all_orders()
         return self._calculate_results()
 
     def _calculate_results(self) -> SpotBacktestResult:

@@ -24,8 +24,8 @@ class StrategyManager:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._cleanup()
 
-    def process(self, context: StrategyContext) -> None:
-        self._strategy.process(context)
+    def on_candle(self, context: StrategyContext) -> None:
+        self._strategy.on_candle(context)
 
     def _setup(self) -> None:
         """

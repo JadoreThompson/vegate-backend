@@ -19,6 +19,7 @@ from utils.utils import get_datetime
 from .base import BaseBroker
 from .exc import BrokerError, InsufficientFundsError, OrderRejectedError
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -82,6 +83,7 @@ class BacktestBroker(BaseBroker):
 
         # Handle different order types
         if order.order_type == OrderType.MARKET:
+            print(1)
             response = self._execute_market_order(order_id, order)
         elif order.order_type == OrderType.LIMIT:
             response = self._submit_limit_order(order_id, order)
@@ -113,7 +115,10 @@ class BacktestBroker(BaseBroker):
 
         # Check buying power for purchases
         if order.side == OrderSide.BUY:
-            required_cash = fill_price * order.quantity
+            if order.notional is not None:
+                required_cash = order.notional
+            else:
+                required_cash = fill_price * order.quantity
             if required_cash > self._cash:
                 raise InsufficientFundsError(
                     f"Insufficient funds: need ${required_cash:,.2f}, "
@@ -129,6 +134,11 @@ class BacktestBroker(BaseBroker):
                     f"have {total_assets}"
                 )
 
+        if order.notional is not None:
+            quantity = order.notional / self._current_candle.close
+        else:
+            quantity = order.quantity
+
         # Execute trade
         if order.side == OrderSide.BUY:
             self._cash -= fill_price * order.quantity
@@ -136,7 +146,7 @@ class BacktestBroker(BaseBroker):
             self._cash += fill_price * order.quantity
 
         logger.info(
-            f"Order {order_id} filled: {order.side.value} {order.quantity} "
+            f"Order {order_id} filled: {order.side.value} {quantity} "
             f"{order.symbol} @ ${fill_price:.2f}"
         )
 
@@ -152,6 +162,9 @@ class BacktestBroker(BaseBroker):
             created_at=self._current_candle.timestamp,
             filled_at=self._current_candle.timestamp,
             avg_fill_price=fill_price,
+            limit_price=None,
+            stop_price=None,
+            time_in_force=order.time_in_force,
         )
 
     def _submit_limit_order(self, order_id: str, order: OrderRequest) -> OrderResponse:
@@ -177,6 +190,8 @@ class BacktestBroker(BaseBroker):
             created_at=self._current_candle.timestamp,
             avg_fill_price=None,
             limit_price=order.limit_price,
+            stop_price=None,
+            time_in_force=order.time_in_force,
         )
 
         self._pending_orders[order_id] = (order, response)
@@ -209,6 +224,8 @@ class BacktestBroker(BaseBroker):
             created_at=self._current_candle.timestamp,
             avg_fill_price=None,
             stop_price=order.stop_price,
+            limit_price=None,
+            time_in_force=order.time_in_force,
         )
 
         self._pending_orders[order_id] = (order, response)
@@ -346,14 +363,15 @@ class BacktestBroker(BaseBroker):
             Account information including balances
         """
         equity = self._cash
-        price = self._current_candle.close
 
-        for order in self._orders.values():
-            if order.side == OrderSide.SELL:
-                continue
+        if self._current_candle is not None:
+            price = self._current_candle.close
 
-            diff = price - order.avg_fill_price
-            equity += diff
+            for order in self._orders.values():
+                if order.side == OrderSide.SELL:
+                    continue
+
+                equity += order.quantity * price
 
         return Account(account_id=self._account_id, equity=equity, cash=self._cash)
 
@@ -477,6 +495,7 @@ class BacktestBroker(BaseBroker):
                     continue
 
                 if tick_ts >= current_candle.timestamp + secs:
+                    self._current_candle = current_candle
                     yield current_candle
                     current_candle = OHLCV(
                         symbol=symbol,
@@ -495,6 +514,7 @@ class BacktestBroker(BaseBroker):
                     current_candle.volume += tick.size
 
         if current_candle is not None:
+            self._current_candle = current_candle
             yield current_candle
 
     def yield_ohlcv(self, symbol, timeframe):
@@ -529,6 +549,7 @@ class BacktestBroker(BaseBroker):
                     continue
 
                 if tick_ts >= current_candle.timestamp + tf_secs:
+                    self._current_candle = current_candle
                     yield current_candle
 
                     current_candle = OHLCV(
@@ -550,4 +571,5 @@ class BacktestBroker(BaseBroker):
                     self._current_candle = current_candle
 
         if current_candle is not None:
+            self._current_candle = current_candle
             yield current_candle
