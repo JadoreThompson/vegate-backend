@@ -1,6 +1,10 @@
 import logging
+from datetime import timedelta
 from uuid import uuid4
 
+from sqlalchemy import select
+
+from db_models import Ticks
 from engine.models import (
     OrderRequest,
     OrderResponse,
@@ -11,6 +15,7 @@ from engine.models import (
 )
 from engine.ohlcv import OHLCV
 from utils.db import get_db_sess_sync
+from utils.utils import get_datetime
 from .base import BaseBroker
 from .exc import BrokerError, InsufficientFundsError, OrderRejectedError
 
@@ -25,6 +30,7 @@ class BacktestBroker(BaseBroker):
         self._pending_orders: dict[str, tuple[OrderRequest, OrderResponse]] = {}
         self._current_candle: OHLCV | None = None
         self._account_id = f"ac_{uuid4()}"
+        self._source = "alpaca"
         logger.info(f"SimulatedBroker initialized: capital=${starting_balance:,.2f}")
 
     def connect(self) -> None:
@@ -354,13 +360,74 @@ class BacktestBroker(BaseBroker):
     def get_historic_olhcv(
         self, symbol, timeframe, prev_bars=None, start_date=None, end_date=None
     ) -> list[OHLCV]:
-        if start_date is not None and end_date is None:
-            raise ValueError("End date must be provided if start date is provided")
         if start_date is None and end_date is not None:
             raise ValueError("Start date must be provided if end date is provided")
-        
+
+        stmt = (
+            select(Ticks)
+            .where(Ticks.source == self._source, Ticks.symbol == symbol)
+            .order_by(Ticks.timestamp)
+        )
+
+        if prev_bars is not None:
+            end_date = get_datetime()
+            start_date = end_date - timedelta(
+                seconds=timeframe.get_seconds() * (prev_bars + 1)
+            )
+
+        if start_date is not None:
+            stmt = stmt.where(Ticks.timestamp >= start_date.timestamp())
+        if end_date is not None:
+            stmt = stmt.where(Ticks.timestamp <= end_date.timestamp())
+
+        candles = []
+        current_candle = None
+        tf_secs = timeframe.get_seconds()
+
         with get_db_sess_sync() as db_sess:
-            ...
+            res = db_sess.scalars(stmt)
+            for tick in res:
+                if current_candle is None:
+
+                    current_candle = OHLCV(
+                        symbol=symbol,
+                        timestamp=int(tick.timestamp // tf_secs) * tf_secs,
+                        open=tick.price,
+                        high=tick.price,
+                        low=tick.price,
+                        close=tick.price,
+                        volume=tick.size,
+                        timeframe=timeframe,
+                    )
+                    continue
+
+                t = current_candle.timestamp
+
+                if (next_start := t + tf_secs) <= tick.timestamp:
+                    current_candle = OHLCV(
+                        symbol=symbol,
+                        timestamp=next_start,
+                        open=current_candle.close,
+                        high=max(current_candle.high, tick.price),
+                        low=min(current_candle.low, tick.price),
+                        close=tick.price,
+                        volume=tick.size,
+                        timeframe=timeframe,
+                    )
+                    candles.append(current_candle)
+                else:
+                    current_candle.close = tick.price
+                    current_candle.high = max(current_candle.close, current_candle.high)
+                    current_candle.low = min(current_candle.close, current_candle.low)
+                    current_candle.volume += tick.size
+
+        if candles and current_candle is not None and candles[-1] is not current_candle:
+            candles.append(current_candle)
+
+        if prev_bars is not None:
+            return candles[:prev_bars]
+
+        return candles
 
     def yield_historic_ohlcv(
         self, symbol, timeframe, prev_bars=None, start_date=None, end_date=None
@@ -369,9 +436,118 @@ class BacktestBroker(BaseBroker):
             raise ValueError("End date must be provided if start date is provided")
         if start_date is None and end_date is not None:
             raise ValueError("Start date must be provided if end date is provided")
-        return super().yield_historic_ohlcv(
-            symbol, timeframe, prev_bars, start_date, end_date
+
+        if prev_bars is not None:
+            end_date = get_datetime()
+            start_date = end_date - timedelta(
+                seconds=timeframe.get_seconds() * (prev_bars + 1)
+            )
+
+        stmt = (
+            select(Ticks)
+            .where(Ticks.source == self._source, Ticks.symbol == symbol)
+            .order_by(Ticks.timestamp)
         )
 
+        if start_date is not None:
+            stmt = stmt.where(Ticks.timestamp >= start_date.timestamp())
+        if end_date is not None:
+            stmt = stmt.where(Ticks.timestamp <= end_date.timestamp())
+
+        current_candle = None
+        secs = timeframe.get_seconds()
+
+        with get_db_sess_sync() as db_sess:
+            res = db_sess.scalars(stmt)
+            for tick in res:
+                tick_ts = tick.timestamp
+                candle_start_ts = (tick_ts // secs) * secs
+
+                if current_candle is None:
+                    current_candle = OHLCV(
+                        symbol=symbol,
+                        timestamp=candle_start_ts,
+                        open=tick.price,
+                        high=tick.price,
+                        low=tick.price,
+                        close=tick.price,
+                        volume=tick.size,
+                        timeframe=timeframe,
+                    )
+                    continue
+
+                if tick_ts >= current_candle.timestamp + secs:
+                    yield current_candle
+                    current_candle = OHLCV(
+                        symbol=symbol,
+                        timestamp=candle_start_ts,
+                        open=current_candle.close,
+                        high=tick.price,
+                        low=tick.price,
+                        close=tick.price,
+                        volume=tick.size,
+                        timeframe=timeframe,
+                    )
+                else:
+                    current_candle.close = tick.price
+                    current_candle.high = max(current_candle.high, tick.price)
+                    current_candle.low = min(current_candle.low, tick.price)
+                    current_candle.volume += tick.size
+
+        if current_candle is not None:
+            yield current_candle
+
     def yield_ohlcv(self, symbol, timeframe):
-        return super().yield_ohlcv(symbol, timeframe)
+        tf_secs = timeframe.get_seconds()
+        current_candle = None
+
+        stmt = (
+            select(Ticks)
+            .where(Ticks.source == self._source, Ticks.symbol == symbol)
+            .order_by(Ticks.timestamp)
+        )
+
+        with get_db_sess_sync() as db_sess:
+            res = db_sess.scalars(stmt)
+
+            for tick in res.yield_per(1000):
+                tick_ts = tick.timestamp
+                candle_start_ts = (tick_ts // tf_secs) * tf_secs
+
+                if current_candle is None:
+                    current_candle = OHLCV(
+                        symbol=symbol,
+                        timestamp=candle_start_ts,
+                        open=tick.price,
+                        high=tick.price,
+                        low=tick.price,
+                        close=tick.price,
+                        volume=tick.size,
+                        timeframe=timeframe,
+                    )
+                    self._current_candle = current_candle
+                    continue
+
+                if tick_ts >= current_candle.timestamp + tf_secs:
+                    yield current_candle
+
+                    current_candle = OHLCV(
+                        symbol=symbol,
+                        timestamp=candle_start_ts,
+                        open=current_candle.close,
+                        high=tick.price,
+                        low=tick.price,
+                        close=tick.price,
+                        volume=tick.size,
+                        timeframe=timeframe,
+                    )
+                    self._current_candle = current_candle
+                else:
+                    current_candle.close = tick.price
+                    current_candle.high = max(current_candle.high, tick.price)
+                    current_candle.low = min(current_candle.low, tick.price)
+                    current_candle.volume += tick.size
+                    self._current_candle = current_candle
+
+        if current_candle is not None:
+            yield current_candle

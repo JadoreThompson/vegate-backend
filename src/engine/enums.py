@@ -11,6 +11,19 @@ class Timeframe(str, Enum):
     H1 = "1h"
     D1 = "1d"
 
+    def get_seconds(self) -> int:
+        unit = self.value[-1]
+        amount = int(self.value[:-1])
+
+        if unit == "m":
+            return amount * 60
+        elif unit == "h":
+            return amount * 3600
+        elif unit == "d":
+            return amount * 86400
+        else:
+            raise ValueError(f"Unknown timeframe unit: {unit}")
+
 
 class OrderType(str, Enum):
     """Supported order types across all brokers."""
