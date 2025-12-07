@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import jwt
 from fastapi import Response
@@ -16,7 +16,7 @@ class JWTService:
     @classmethod
     def _generate_expiry(cls) -> datetime:
         """Private method to generate JWT expiry datetime"""
-        return get_datetime() + JWT_EXPIRY_SECS
+        return int((get_datetime() + timedelta(seconds=JWT_EXPIRY_SECS)).timestamp())
 
     @classmethod
     def generate_jwt(cls, **kwargs) -> str:
@@ -35,7 +35,7 @@ class JWTService:
             return JWTPayload(**jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO]))
         except jwt.ExpiredSignatureError:
             raise JWTError("Token has expired")
-        except jwt.InvalidTokenError:
+        except jwt.InvalidTokenError as e:
             raise JWTError("Invalid token")
 
     @classmethod
@@ -112,7 +112,7 @@ class JWTService:
         payload = cls.decode_jwt(token)
         if is_authenticated and not payload.authenticated:
             raise JWTError("User not authenticated")
-        if payload.exp < get_datetime():
+        if payload.exp < int(get_datetime().timestamp()):
             raise JWTError("Expired token")
 
         async with get_db_sess() as db_sess:

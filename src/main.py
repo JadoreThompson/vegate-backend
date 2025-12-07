@@ -14,7 +14,7 @@ def run_runner(runner_cls: Type[BaseRunner], *args, **kw):
 def main():
     logger = logging.getLogger("main")
 
-    configs = (ServerRunner, (), {"host": "0.0.0.0", "port": 8000, "reload": False})
+    configs = ((ServerRunner, (), {"host": "0.0.0.0", "port": 8000, "reload": False}),)
 
     ps: list[Process] = [
         Process(
@@ -50,14 +50,14 @@ def main():
 
 
 if __name__ == "__main__":
-    # main()
-    import asyncio
-    from engine.pipelines import AlpacaPipeline
+    main()
+    # import asyncio
+    # from pipelines import AlpacaPipeline
     
-    async def func():
+    # async def func():
 
-        pl = AlpacaPipeline()
-        async with pl:
-            await pl.run_crypto_pipeline("BTC/USD")
+    #     pl = AlpacaPipeline()
+    #     async with pl:
+    #         await pl.run_crypto_pipeline("BTC/USD")
 
-    asyncio.run(func())
+    # asyncio.run(func())

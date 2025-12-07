@@ -17,10 +17,26 @@ load_dotenv(os.path.join(PARENT_PATH, ".env"))
 IS_PRODUCTION = bool(os.getenv("IS_PRODUCTION"))
 
 # Auth
-COOKIE_ALIAS = "app-cookie"
+COOKIE_ALIAS = "vegate-cookie"
 JWT_ALGO = os.getenv("JWT_ALGO")
 JWT_SECRET = os.getenv("JWT_SECRET")
 JWT_EXPIRY_SECS = int(os.getenv("JWT_EXPIRY_SECS"))
+
+# Server
+PAGE_SIZE = 10
+if IS_PRODUCTION:
+    SCHEME = "https"
+    SUB_DOMAIN = "api."
+    DOMAIN = "domain.com"
+else:
+    SCHEME = "http"
+    SUB_DOMAIN = ""
+    DOMAIN = "localhost:5173"
+
+# Security
+PW_HASH_SALT = os.getenv("PW_HASH_SALT")
+ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
+ENCRYPTION_IV_LEN = int(os.getenv("ENCRYPTION_IV_LEN"))
 
 # DB
 DB_HOST = os.getenv("DB_HOST")
@@ -45,26 +61,11 @@ REDIS_EMAIL_VERIFICATION_KEY_PREFIX = os.getenv("REDIS_EMAIL_VERIFICATION_KEY_PR
 REDIS_STRIPE_INVOICE_METADATA_KEY_PREFIX = os.getenv(
     "REDIS_STRIPE_INVOICE_METADATA_KEY_PREFIX"
 )
-REDIS_EXPIRY_SECS = 900
-
-# Server
-PAGE_SIZE = 10
-if IS_PRODUCTION:
-    SCHEME = "https"
-    SUB_DOMAIN = "api."
-    DOMAIN = "domain.com"
-else:
-    SCHEME = "http"
-    SUB_DOMAIN = ""
-    DOMAIN = "localhost:5173"
+REDIS_EMAIL_VERIFCATION_EXPIRY_SECS = 900
+REDIS_ALPACA_OAUTH_PREFIX = os.getenv("REDIS_ALPACA_OAUTH_PREFIX")
 
 # Email
 CUSTOMER_SUPPORT_EMAIL = os.getenv("CUSTOMER_SUPPORT_EMAIL")
-
-# Security
-PW_HASH_SALT = os.getenv("PW_HASH_SALT")
-ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
-ENCRYPTION_IV_LEN = int(os.getenv("ENCRYPTION_IV_LEN"))
 
 # Stripe
 STRIPE_API_KEY = os.getenv("STRIPE_API_KEY")
@@ -77,7 +78,7 @@ ALPACA_API_KEY = os.getenv("ALPACA_API_KEY")
 ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
 ALPACA_OAUTH_CLIENT_ID = os.getenv("ALPACA_OAUTH_CLIENT_ID")
 ALPACA_OAUTH_SECRET_KEY = os.getenv("ALPACA_OAUTH_SECRET_KEY")
-ALPACA_OAUTH_REDIRECT_URI_DEMO = f"{SCHEME}://{SUB_DOMAIN}{DOMAIN}/brokers/alpaca/oauth/callback/?env=demo"
+ALPACA_OAUTH_REDIRECT_URI = "http://localhost:8000/brokers/alpaca/oauth/callback"
 
 # Logging
 logging.basicConfig(

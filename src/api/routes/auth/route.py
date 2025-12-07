@@ -10,7 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.dependencies import depends_db_sess, depends_jwt
 from api.services import JWTService
 from api.typing import JWTPayload
-from config import PW_HASH_SALT, REDIS_EMAIL_VERIFICATION_KEY_PREFIX, REDIS_EXPIRY_SECS
+from config import (
+    PW_HASH_SALT,
+    REDIS_EMAIL_VERIFICATION_KEY_PREFIX,
+    REDIS_EMAIL_VERIFCATION_EXPIRY_SECS,
+)
 from utils.redis import REDIS_CLIENT
 from services import EmailService
 from db_models import Users
@@ -58,7 +62,7 @@ async def register(
     code = gen_verification_code()
     key = f"{REDIS_EMAIL_VERIFICATION_KEY_PREFIX}{str(user.user_id)}"
     await REDIS_CLIENT.delete(key)
-    await REDIS_CLIENT.set(key, code, ex=REDIS_EXPIRY_SECS)
+    await REDIS_CLIENT.set(key, code, ex=REDIS_EMAIL_VERIFCATION_EXPIRY_SECS)
 
     bg_tasks.add_task(
         em_service.send_email,
@@ -113,7 +117,7 @@ async def request_email_verification(
     key = f"{REDIS_EMAIL_VERIFICATION_KEY_PREFIX}{str(jwt.sub)}"
 
     await REDIS_CLIENT.delete(key)
-    await REDIS_CLIENT.set(key, code, ex=REDIS_EXPIRY_SECS)
+    await REDIS_CLIENT.set(key, code, ex=REDIS_EMAIL_VERIFCATION_EXPIRY_SECS)
 
     bg_tasks.add_task(
         em_service.send_email,
@@ -205,7 +209,7 @@ async def change_username(
         }
     )
     redis_key = f"{prefix}{verification_code}"
-    await REDIS_CLIENT.set(redis_key, payload, ex=REDIS_EXPIRY_SECS)
+    await REDIS_CLIENT.set(redis_key, payload, ex=REDIS_EMAIL_VERIFCATION_EXPIRY_SECS)
 
     bg_tasks.add_task(
         em_service.send_email,
@@ -245,7 +249,7 @@ async def change_password(
     )
 
     await REDIS_CLIENT.set(
-        f"{prefix}{verification_code}", payload, ex=REDIS_EXPIRY_SECS
+        f"{prefix}{verification_code}", payload, ex=REDIS_EMAIL_VERIFCATION_EXPIRY_SECS
     )
 
     bg_tasks.add_task(
@@ -288,7 +292,7 @@ async def change_email(
         }
     )
     redis_key = f"{prefix}{verification_code}"
-    await REDIS_CLIENT.set(redis_key, payload, ex=REDIS_EXPIRY_SECS)
+    await REDIS_CLIENT.set(redis_key, payload, ex=REDIS_EMAIL_VERIFCATION_EXPIRY_SECS)
 
     bg_tasks.add_task(
         em_service.send_email,

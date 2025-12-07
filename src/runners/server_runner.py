@@ -9,4 +9,4 @@ class ServerRunner(BaseRunner):
         self._kw = uvicorn_kwargs
 
     def run(self) -> None:
-        uvicorn.run("server.app:app", **self._kw)
+        uvicorn.run("api.app:app", **self._kw)

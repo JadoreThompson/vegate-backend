@@ -8,6 +8,6 @@ from core.models import CustomBaseModel
 class JWTPayload(CustomBaseModel):
     sub: UUID
     em: str
-    exp: datetime
+    exp: int
     pricing_tier: PricingTierType
     authenticated: bool

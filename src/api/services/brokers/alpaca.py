@@ -1,65 +1,62 @@
 import json
 import random
 import string
-from typing import Literal
+from urllib.parse import quote
 from uuid import UUID
 
 from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.services.mixins import HTTPSessMixin
 from api.services import EncryptionService
 from config import (
     ALPACA_OAUTH_CLIENT_ID,
-    ALPACA_OAUTH_REDIRECT_URI_DEMO,
+    ALPACA_OAUTH_REDIRECT_URI,
     ALPACA_OAUTH_SECRET_KEY,
 )
 from db_models import BrokerConnections
 from engine.enums import BrokerPlatformType
 from .base import BaseBrokerAPI
+from .mixins import HTTPSessMixin
 
 
-AlpacaTradingEnvT = Literal["demo", "live"]
+class AlpacaAPI(HTTPSessMixin, BaseBrokerAPI):
+    def __init__(self):
+        """Initialize AlpacaAPI with HTTP session."""
+        super().__init__()
 
-
-class AlpacaAPI(BaseBrokerAPI, HTTPSessMixin):
-    def get_oauth_url(self, env: AlpacaTradingEnvT) -> str:
+    def get_oauth_url(self) -> str:
+        """Generate OAuth URL for Alpaca authentication."""
         state = "".join(random.choices(string.ascii_uppercase + string.digits, k=24))
-        scope = "trading"
-        env = "live" if env == "live" else "paper"
 
         base_url = "https://app.alpaca.markets/oauth/authorize"
-        params = (
-            f"response_type=code&"
-            f"client_id={ALPACA_OAUTH_CLIENT_ID}&"
-            f"redirect_uri={ALPACA_OAUTH_REDIRECT_URI_DEMO}&"
-            f"state={state}&"
-            f"scope={scope}&"
-            f"env={env}"
-        )
 
-        return f"{base_url}?{params}"
+        params = (
+            ("response_type", "code"),
+            ("client_id", ALPACA_OAUTH_CLIENT_ID),
+            ("redirect_uri", quote(ALPACA_OAUTH_REDIRECT_URI)),
+            ("state", quote(state)),
+            ("scope", "trading"),
+        )
+        query_string = "&".join(f"{key}={value}" for key, value in params)
+
+        return f"{base_url}?{query_string}"
 
     async def handle_oauth_callback(
-        self, user_id: UUID, code: str, env: AlpacaTradingEnvT, db_sess: AsyncSession
+        self, code: str, user_id: UUID, db_sess: AsyncSession
     ):
-        if env == "demo":
-            redirect_uri = ALPACA_OAUTH_REDIRECT_URI_DEMO
-        else:
-            raise NotImplementedError(
-                f"Oauth for trading environment '{env}' not implemented"
-            )
-
+        """Handle OAuth callback from Alpaca and store credentials."""
         body = {
             "code": code,
             "grant_type": "authorization_code",
             "client_id": ALPACA_OAUTH_CLIENT_ID,
             "client_secret": ALPACA_OAUTH_SECRET_KEY,
-            "redirect_uri": redirect_uri,
+            "redirect_uri": ALPACA_OAUTH_REDIRECT_URI,
         }
 
-        rsp = await self._http_sess.post(
-            "https://api.alpaca.markets/oauth/token", json=body
+        rsp = await self.http_session.post(
+            "https://api.alpaca.markets/oauth/token",
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            data=body,
         )
         rsp.raise_for_status()
 
