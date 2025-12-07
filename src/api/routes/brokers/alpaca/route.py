@@ -28,7 +28,7 @@ async def oauth_callback(
     jwt: JWTPayload = Depends(depends_jwt()),
     db_sess: AsyncSession = Depends(depends_db_sess),
 ):
-    params = [("broker", BrokerPlatformType.ALPACA)]
+    params = [("broker", BrokerPlatformType.ALPACA.value)]
     if code is not None:
         await alpaca_api.handle_oauth_callback(code, jwt.sub, db_sess)
     else:

@@ -7,6 +7,7 @@ from api.middlewares import RateLimitMiddleware
 from api.routes.auth.route import router as auth_router
 from api.routes.brokers.alpaca.route import router as broker_alpaca_router
 from api.routes.public.route import router as public_router
+from api.routes.strategies.route import router as strategies_router
 from config import DOMAIN, SCHEME, SUB_DOMAIN
 
 
@@ -27,6 +28,7 @@ app.add_middleware(RateLimitMiddleware)
 app.include_router(auth_router)
 app.include_router(broker_alpaca_router)
 app.include_router(public_router)
+app.include_router(strategies_router)
 
 
 @app.exception_handler(CustomValidationError)

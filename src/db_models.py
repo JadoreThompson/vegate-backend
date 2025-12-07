@@ -16,7 +16,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, mapped_column, Mapped, relationship
 
-from core.enums import PricingTierType
+from core.enums import BacktestStatus, PricingTierType, StratgyDeploymentStatus
 from engine.enums import BrokerPlatformType, MarketType
 from utils.utils import get_datetime
 from utils.utils import get_uuid
@@ -28,10 +28,10 @@ def uuid_pk(**kw):
     return mapped_column(SaUUID(as_uuid=True), primary_key=True, default=get_uuid, **kw)
 
 
-def datetime_tz(nullable=False, **kw):
+def datetime_tz(**kw):
     """Helper function for timezone-aware datetime columns."""
     return mapped_column(
-        DateTime(timezone=True), nullable=nullable, default=get_datetime, **kw
+        DateTime(timezone=True), nullable=False, default=get_datetime, **kw
     )
 
 
@@ -72,6 +72,9 @@ class Users(Base):
     broker_connections: Mapped[list["BrokerConnections"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    strategies: Mapped[list["Strategies"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class BrokerConnections(Base):
@@ -94,18 +97,18 @@ class BrokerConnections(Base):
 
 class Strategies(Base):
     __tablename__ = "strategies"
+    __table_args__ = (UniqueConstraint("user_id", "name"),)
 
     strategy_id: Mapped[UUID] = uuid_pk()
+    user_id: Mapped[UUID] = mapped_column(
+        SaUUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False
+    )
     name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = datetime_tz()
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=get_datetime,
-        onupdate=get_datetime,
-    )
+    updated_at: Mapped[datetime] = datetime_tz(nullable=False, onupdate=get_datetime)
     code: Mapped[str] = mapped_column(Text, nullable=False)
+    metrics: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     # Relationships
     backtests: Mapped[list["Backtests"]] = relationship(
@@ -114,6 +117,7 @@ class Strategies(Base):
     live_deployments: Mapped[list["LiveDeployments"]] = relationship(
         back_populates="strategy", cascade="all, delete-orphan"
     )
+    user: Mapped["Users"] = relationship(backpopulates="strategies")
 
 
 class Backtests(Base):
@@ -129,7 +133,7 @@ class Backtests(Base):
     )
     metrics: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = datetime_tz()
-    status: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[BacktestStatus] = mapped_column(String, nullable=False)
 
     # Relationships
     strategy: Mapped["Strategies"] = relationship(back_populates="backtests")
@@ -138,6 +142,7 @@ class Backtests(Base):
     )
 
 
+# TODO: Rename this table in a migration
 class LiveDeployments(Base):
     __tablename__ = "live_deployments"
 
@@ -151,7 +156,7 @@ class LiveDeployments(Base):
         nullable=False,
     )
     created_at: Mapped[datetime] = datetime_tz()
-    status: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[StratgyDeploymentStatus] = mapped_column(String, nullable=False)
 
     # Relationships
     strategy: Mapped["Strategies"] = relationship(back_populates="live_deployments")
