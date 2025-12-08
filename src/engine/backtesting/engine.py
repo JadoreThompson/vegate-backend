@@ -5,8 +5,7 @@ from core.models import CustomBaseModel
 from engine.brokers import BacktestBroker
 from engine.enums import Timeframe, OrderStatus, OrderSide
 from engine.models import OrderResponse
-from engine.strategy import BaseStrategy
-from engine.strategy import StrategyContext, StrategyManager
+from engine.strategy import BaseStrategy, StrategyContext, StrategyManager
 from .metrics import (
     calculate_sharpe_ratio,
     calculate_max_drawdown,

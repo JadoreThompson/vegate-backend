@@ -14,15 +14,15 @@ class DeploymentService:
         self,
         api_key: str,
         project_id: str,
-        environment_id: str,
         docker_image: str,
-        service_name_prefix: str = "deployment",
+        service_name_prefix: str,
+        environment_id: str,
     ):
-        self.api_token = api_key
+        self.api_key = api_key
         self.project_id = project_id
-        self.environment_id = environment_id
         self.docker_image = docker_image
         self.service_name_prefix = service_name_prefix
+        self.environment_id = environment_id
         self._base_url = "https://backboard.railway.app/graphql/v2"
         self._headers = {
             "Content-Type": "application/json",
@@ -30,13 +30,12 @@ class DeploymentService:
         }
         self._http_sess = ClientSession()
 
-    async def deploy(self, deployment_id: UUID) -> dict:
+    async def deploy(self, id_: UUID) -> dict:
         """
         Create a new Railway service and deploy it with the given deployment_id.
         """
-        service_name = f"{self.service_name_prefix}-{deployment_id}"
-
-        service_id = await self._create_service(service_name, deployment_id)
+        service_name = f"{self.service_name_prefix}{id_}"
+        service_id = await self._create_service(service_name, id_)
 
         return {
             "service_id": service_id,
@@ -67,7 +66,7 @@ class DeploymentService:
 
         return result["data"]
 
-    async def _create_service(self, service_name: str, deployment_id: UUID) -> str:
+    async def _create_service(self, service_name: str, id_: UUID) -> str:
         """Create a new Railway service"""
         query = """
         mutation ServiceCreate($input: ServiceCreateInput!) {
@@ -80,8 +79,8 @@ class DeploymentService:
             "input": {
                 "projectId": self.project_id,
                 "name": service_name,
-                "source": {"image": "nginx:latest"},
-                "variables": {"DEPLOYMENT_ID": deployment_id},
+                "source": {"image": self.docker_image},
+                "variables": {self.environment_id: str(id_)},
             }
         }
 
