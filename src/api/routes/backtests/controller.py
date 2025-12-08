@@ -24,9 +24,8 @@ async def create_backtest(
 
     new_backtest = Backtests(
         strategy_id=data.strategy_id,
-        ticker=data.ticker,
+        symbol=data.symbol,
         starting_balance=data.starting_balance,
-        status="pending",
     )
     db_sess.add(new_backtest)
     await db_sess.flush()

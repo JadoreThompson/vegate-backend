@@ -151,7 +151,7 @@ async def verify_email(
 
 @router.post("/logout")
 async def logout(
-    jwt: JWTPayload = Depends(depends_jwt(True)),
+    jwt: JWTPayload = Depends(depends_jwt(False)),
     db_sess: AsyncSession = Depends(depends_db_sess),
 ):
     rsp = JWTService.remove_cookie()

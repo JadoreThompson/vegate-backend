@@ -102,7 +102,7 @@ async def update_strategy_endpoint(
     strategy = await update_strategy(jwt.sub, strategy_id, body, db_sess)
     if not strategy:
         raise HTTPException(status_code=404, detail="Strategy not found.")
-
+    rsp_body
     await db_sess.commit()
     return StrategyResponse(
         strategy_id=strategy.strategy_id,
@@ -174,7 +174,6 @@ async def list_strategy_summaries_endpoint(
 ):
     """List all strategies with pre-calculated metrics summaries."""
     strategies = await list_strategy_summaries(jwt.sub, db_sess, skip, limit)
-    await db_sess.commit()
 
     results = []
 

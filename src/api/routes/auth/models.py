@@ -12,9 +12,12 @@ class PasswordField(BaseModel):
 
     @field_validator("password", mode="before")
     def password_validator(cls, value: str) -> str:
-        min_length = 8
-        min_special_chars = 2
-        min_uppercase = 2
+        # min_length = 8
+        # min_special_chars = 2
+        # min_uppercase = 2
+        min_length = 0
+        min_special_chars = 0
+        min_uppercase = 0
         status = 400
 
         if len(value) < min_length:

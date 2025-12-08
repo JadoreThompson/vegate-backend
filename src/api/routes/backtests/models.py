@@ -10,7 +10,7 @@ from core.models import CustomBaseModel
 
 class BacktestCreate(BaseModel):
     strategy_id: UUID
-    ticker: str = Field(min_length=1, max_length=10)
+    symbol: str = Field(min_length=1, max_length=10)
     starting_balance: Decimal = Field(gt=0)
 
 
@@ -22,7 +22,7 @@ class BacktestUpdate(BaseModel):
 class BacktestResponse(CustomBaseModel):
     backtest_id: UUID
     strategy_id: UUID
-    ticker: str
+    symbol: str
     starting_balance: Decimal
     status: BacktestStatus
     created_at: datetime

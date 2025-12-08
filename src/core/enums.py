@@ -14,7 +14,8 @@ class BacktestStatus(str, Enum):
     FAILED = "failed"
 
 
-class StratgyDeploymentStatus(str, Enum):
+class StrategyDeploymentStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
     ERROR = "error"
+    STOPPED = 'stopped'

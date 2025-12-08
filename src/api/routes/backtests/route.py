@@ -40,7 +40,7 @@ async def create_backtest_endpoint(
     rsp_body = BacktestResponse(
         backtest_id=backtest.backtest_id,
         strategy_id=backtest.strategy_id,
-        ticker=backtest.ticker,
+        symbol=backtest.symbol,
         starting_balance=backtest.starting_balance,
         status=backtest.status,
         created_at=backtest.created_at,
@@ -85,7 +85,7 @@ async def get_backtest_endpoint(
     return BacktestDetailResponse(
         backtest_id=backtest.backtest_id,
         strategy_id=backtest.strategy_id,
-        ticker=backtest.ticker,
+        symbol=backtest.symbol,
         starting_balance=backtest.starting_balance,
         status=backtest.status,
         created_at=backtest.created_at,
@@ -102,19 +102,19 @@ async def list_backtests_endpoint(
 ):
     """List all backtests with pagination."""
     backtests = await list_backtests(jwt.sub, db_sess, skip, limit)
-    await db_sess.commit()
-
-    return [
+    res = [
         BacktestResponse(
             backtest_id=b.backtest_id,
             strategy_id=b.strategy_id,
-            ticker=b.ticker,
+            symbol=b.symbol,
             starting_balance=b.starting_balance,
             status=b.status,
             created_at=b.created_at,
         )
         for b in backtests
     ]
+
+    return res
 
 
 @router.patch("/{backtest_id}", response_model=BacktestResponse)
@@ -129,16 +129,18 @@ async def update_backtest_endpoint(
     if not backtest:
         raise HTTPException(status_code=404, detail="Backtest not found")
 
-    await db_sess.commit()
-
-    return BacktestResponse(
+    res = BacktestResponse(
         backtest_id=backtest.backtest_id,
         strategy_id=backtest.strategy_id,
-        ticker=backtest.ticker,
+        symbol=backtest.symbol,
         starting_balance=backtest.starting_balance,
         status=backtest.status,
         created_at=backtest.created_at,
     )
+
+    await db_sess.commit()
+
+    return res
 
 
 @router.delete("/{backtest_id}", status_code=204)

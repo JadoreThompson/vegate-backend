@@ -16,7 +16,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, mapped_column, Mapped, relationship
 
-from core.enums import BacktestStatus, PricingTierType, StratgyDeploymentStatus
+from core.enums import BacktestStatus, PricingTierType, StrategyDeploymentStatus
 from engine.enums import BrokerType, MarketType
 from utils.utils import get_datetime
 from utils.utils import get_uuid
@@ -121,12 +121,14 @@ class Backtests(Base):
     strategy_id: Mapped[UUID] = mapped_column(
         SaUUID(as_uuid=True), ForeignKey("strategies.strategy_id"), nullable=False
     )
-    ticker: Mapped[str] = mapped_column(String, nullable=False)
+    symbol: Mapped[str] = mapped_column(String, nullable=False)
     starting_balance: Mapped[Decimal] = mapped_column(
         Numeric(precision=15, scale=2), nullable=False
     )
     metrics: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    status: Mapped[BacktestStatus] = mapped_column(String, nullable=False)
+    status: Mapped[BacktestStatus] = mapped_column(
+        String, nullable=False, default=BacktestStatus.PENDING.value
+    )
     created_at: Mapped[datetime] = datetime_tz()
 
     # Relationships
@@ -148,8 +150,19 @@ class StrategyDeployments(Base):
         ForeignKey("broker_connections.connection_id"),
         nullable=False,
     )
+    ticker: Mapped[str] = mapped_column(String, nullable=False)
+    timeframe: Mapped[str] = mapped_column(String, nullable=False)
+    starting_balance: Mapped[Decimal] = mapped_column(
+        Numeric(precision=15, scale=2), nullable=False
+    )
+    status: Mapped[StrategyDeploymentStatus] = mapped_column(String, nullable=False)
+    config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = datetime_tz()
-    status: Mapped[StratgyDeploymentStatus] = mapped_column(String, nullable=False)
+    updated_at: Mapped[datetime] = datetime_tz(onupdate=get_datetime)
+    stopped_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # Relationships
     strategy: Mapped["Strategies"] = relationship(back_populates="strategy_deployments")
