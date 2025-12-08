@@ -1,46 +1,32 @@
-name: Test
+name: Upstream Workflow
+
 on:
   push:
-    branches:
-      - development
+    branches: ["development"]
+
 jobs:
-  build:
-    name: Test
-    runs-on: ubuntu-latest
+  push_changes:
+    runs-on: ubuntu-slim
     permissions:
-      contents: write
+      contents: write   # required
+
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          ref: development
-          token: ${{ secrets.PAT_TOKEN }}
+          token: ${{ secrets.PAT_TOKEN }}  # IMPORTANT
 
-      - name: Create env file
+      - name: Make a change
         run: |
-          FPATH='.env.test'
-          cat <<'EOF' > $FPATH
-          ${{ secrets.ENV_TEST_FILE }}
-          EOF
-          if [ -s $FPATH ]; then
-            echo ".env created successfully"
-            exit 0
-          else
-            echo "Failed to create env at $FPATH"
-            exit 1
-          fi
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          version: "0.9.11"
-      - name: Run tests
-        run: uv run pytest -s -v
-      - name: Push to main
+          echo "Updated at $(date)" >> log.txt
+
+      - name: Commit and push
         run: |
-          # git config user.name "github-actions[bot]"
-          # git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
-          git checkout main
-          git merge --no-ff -m "Merge development into main after successful tests" development
-          git push origin main
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Automated update"
+          git push origin HEAD:main -f
+        env:
+          GIT_ASKPASS: ""
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
