@@ -7,7 +7,7 @@ on:
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-slim
+    runs-on: self-hosted
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
