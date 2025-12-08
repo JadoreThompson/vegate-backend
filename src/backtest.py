@@ -43,6 +43,7 @@ with open(os.path.join(BASE_PATH, "user_strategy.py"), "w") as f:
 
 
 from engine.brokers import BacktestBroker
+from engine.enums import Timeframe
 from engine.strategy import StrategyManager
 from user_strategy import Strategy # type: ignore
 
@@ -52,7 +53,7 @@ bt_config = BacktestConfig(
     end_date=db_backtest.end_date,
     symbol=db_backtest.symbol,
     starting_balance=db_backtest.starting_balance,
-    timeframe=db_backtest.timeframe,
+    timeframe=Timeframe(db_backtest.timeframe),
 )
 
 broker = BacktestBroker(bt_config.starting_balance)

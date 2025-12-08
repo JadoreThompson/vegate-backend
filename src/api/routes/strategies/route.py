@@ -102,15 +102,17 @@ async def update_strategy_endpoint(
     strategy = await update_strategy(jwt.sub, strategy_id, body, db_sess)
     if not strategy:
         raise HTTPException(status_code=404, detail="Strategy not found.")
-    rsp_body
-    await db_sess.commit()
-    return StrategyResponse(
+    
+    rsp_body = StrategyResponse(
         strategy_id=strategy.strategy_id,
         name=strategy.name,
         description=strategy.description,
         created_at=strategy.created_at,
         updated_at=strategy.updated_at,
     )
+
+    await db_sess.commit()
+    return rsp_body
 
 
 @router.delete("/{strategy_id}", status_code=204)

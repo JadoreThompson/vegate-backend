@@ -26,6 +26,9 @@ async def create_backtest(
         strategy_id=data.strategy_id,
         symbol=data.symbol,
         starting_balance=data.starting_balance,
+        start_date=data.start_date,
+        end_date=data.end_date,
+        timeframe=data.timeframe
     )
     db_sess.add(new_backtest)
     await db_sess.flush()

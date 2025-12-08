@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 from uuid import UUID
 
@@ -6,12 +6,16 @@ from pydantic import BaseModel, Field
 
 from core.enums import BacktestStatus
 from core.models import CustomBaseModel
+from engine.enums import Timeframe
 
 
 class BacktestCreate(BaseModel):
     strategy_id: UUID
     symbol: str = Field(min_length=1, max_length=10)
     starting_balance: Decimal = Field(gt=0)
+    timeframe: Timeframe
+    start_date: date
+    end_date: date
 
 
 class BacktestUpdate(BaseModel):

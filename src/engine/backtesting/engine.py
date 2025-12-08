@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import date
 
 from core.models import CustomBaseModel
 from engine.brokers import BacktestBroker
@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 
 class BacktestConfig(CustomBaseModel):
-    start_date: datetime
-    end_date: datetime
+    start_date: date
+    end_date: date
     symbol: str
     starting_balance: float = 100_000.0
     timeframe: Timeframe

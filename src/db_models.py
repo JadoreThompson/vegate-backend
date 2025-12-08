@@ -10,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Text,
+    Date,
     Numeric,
     UniqueConstraint,
 )
@@ -17,7 +18,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, mapped_column, Mapped, relationship
 
 from core.enums import BacktestStatus, PricingTierType, StrategyDeploymentStatus
-from engine.enums import BrokerType, MarketType
+from engine.enums import BrokerType, MarketType, Timeframe
 from utils.utils import get_datetime
 from utils.utils import get_uuid
 
@@ -126,6 +127,9 @@ class Backtests(Base):
         Numeric(precision=15, scale=2), nullable=False
     )
     metrics: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    start_date: Mapped[datetime]= mapped_column(Date(), nullable=False)
+    end_date: Mapped[datetime]= mapped_column(Date(), nullable=False)
+    timeframe: Mapped[Timeframe] = mapped_column(String, nullable=False)
     status: Mapped[BacktestStatus] = mapped_column(
         String, nullable=False, default=BacktestStatus.PENDING.value
     )

@@ -62,7 +62,8 @@ async def list_strategy_deployments_endpoint(
     # - Query deployments filtered by strategy_id and user_id
     # - Apply pagination using skip and limit
     # - Return list[DeploymentResponse]
-    pass
+    return []
+
 
 
 @router.get("/{deployment_id}", response_model=DeploymentResponse)
@@ -127,4 +128,4 @@ async def list_all_deployments_endpoint(
     # - Apply optional status filter if provided
     # - Apply pagination using skip and limit
     # - Return list[DeploymentResponse]
-    pass
+    return []
