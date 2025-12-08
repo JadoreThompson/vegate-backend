@@ -1,5 +1,6 @@
 .venv
 __pycache__
+.pytest_cache
 
 alembic.ini
 *.log
@@ -7,3 +8,6 @@ alembic.ini
 .env
 .env.prod
 .env.test
+
+prod-compose.parsed.yaml
+rec.py

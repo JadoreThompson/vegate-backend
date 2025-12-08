@@ -11,17 +11,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Create .env file
+      - name: Create env file
         run: |
-          cat <<'EOF' > .env
+          FPATH='.env'
+
+          cat <<'EOF' > $FNAME
           ${{ secrets.ENV_FILE }}
           EOF
 
-          if [ -s .env ]; then
-            echo ".env created successfully"
+          if [ -s $FNAME ]; then
+            echo "$FNAME created successfully"
             exit 0
           else
-            echo "Failed to create .env"
+            echo "Failed to create $FNAME"
             exit 1
           fi
 
@@ -31,7 +33,24 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Initialise swarm
+        run: docker swarm init || true
+
+      - name: Initialise network
+        run: |
+          docker network inspect vegate_network || 
+            docker network create --attachable --driver overlay vegate_network
+
       - name: Build backend image
         run: |
           docker build --no-cache -t ${{ secrets.DOCKERHUB_IMAGE }}:latest -f docker/Dockerfile .
           docker push ${{ secrets.DOCKERHUB_IMAGE }}:latest
+
+      - name: Create docker compose file
+        run: |
+          cat <<'EOF' > docker/prod-compose.yaml
+            ${{ secrets.DOCKER_COMPOSE }}
+          EOF
+
+      - name: Deploy to stack
+        run: docker stack deploy -c docker/prod-compose.yaml vegate_stack
