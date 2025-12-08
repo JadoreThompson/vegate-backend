@@ -53,5 +53,6 @@ jobs:
 
           git fetch origin main
           git checkout main
-          git merge --allow-unrelated-histories --no-ff -m "Merge development into main after successful tests" development
+          # git merge --allow-unrelated-histories --no-ff -m "Merge development into main after successful tests" development
+          git merge --no-ff -m "Merge development into main after successful tests" development
           git push origin main
