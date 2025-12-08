@@ -43,7 +43,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
+          # git fetch origin main
+          # git checkout main
+          # git reset --hard development
+          # git push --force origin main
+
           git fetch origin main
           git checkout main
-          git reset --hard development
-          git push --force origin main
+          git merge --allow-unrelated-histories --no-ff -m "Merge development into main after successful tests" development
+          git push origin main
