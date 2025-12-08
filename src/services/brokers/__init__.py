@@ -1,5 +1,5 @@
 from .base import BaseBrokerAPI
-from .alpaca.api import AlpacaAPI
+from .alpaca import AlpacaAPI
 
 
 __all__ = ["BaseBrokerAPI", "AlpacaAPI"]

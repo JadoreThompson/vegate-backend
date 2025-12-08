@@ -18,7 +18,7 @@ from db_models import BrokerConnections
 from engine.enums import BrokerType
 from services import EncryptionService
 from utils.redis import REDIS_CLIENT
-from .models import _AlpacaOAuthPayload
+from .models import AlpacaOAuthPayload
 from .types import _RedisOAuthPayload, AlpacaTradingEnv
 from ..exc import BrokerOAuthError
 from ..base import BaseBrokerAPI
@@ -85,7 +85,7 @@ class AlpacaAPI(HTTPSessMixin, BaseBrokerAPI):
 
         data["env"] = payload["env"]
 
-        oauth_payload = _AlpacaOAuthPayload(**data)
+        oauth_payload = AlpacaOAuthPayload(**data)
         encrypted_payload = EncryptionService.encrypt(
             oauth_payload.model_dump(mode="json"), aad=str(user_id)
         )

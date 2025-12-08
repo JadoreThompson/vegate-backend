@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import depends_db_sess, depends_jwt
 from api.routes.brokers.models import GetOauthUrlResponse
-from api.services.brokers import AlpacaAPI
+from services import AlpacaAPI
 from api.typing import JWTPayload
 from config import DOMAIN, SCHEME, SUB_DOMAIN
 from engine.enums import BrokerType

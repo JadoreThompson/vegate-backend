@@ -5,14 +5,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import depends_db_sess, depends_jwt
 from api.typing import JWTPayload
+from config import RAILWAY_API_KEY, RAILWAY_PROJECT_ID
 from core.enums import StrategyDeploymentStatus
+from services import DeploymentService
 from .models import (
     DeployStrategyRequest,
     DeploymentResponse,
 )
 
 router = APIRouter(prefix="/deployments", tags=["Deployments"])
-
+deployment_service = DeploymentService(
+    api_key=RAILWAY_API_KEY,
+    project_id=RAILWAY_PROJECT_ID,
+    docker_image="wifimemes/vegate-deployment:latest",
+)
 
 @router.post(
     "/strategies/{strategy_id}/deploy",

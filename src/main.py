@@ -52,10 +52,10 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
+
     # import asyncio
     # from pipelines import AlpacaPipeline
-    
+
     # async def func():
 
     #     pl = AlpacaPipeline()
@@ -65,24 +65,26 @@ if __name__ == "__main__":
     # asyncio.run(func())
 
     # import asyncio
+
     # async def main():
     #     from uuid import uuid4
     #     from services import DeploymentService
-        
+
     #     # Configuration
     #     service = DeploymentService(
     #         api_key=RAILWAY_API_KEY,
     #         project_id=RAILWAY_PROJECT_ID,
-    #         docker_image="nginx:latest",  # Your Docker image
-    #         service_name_prefix="bt_",
-    #         environment_id="BACKTEST_ID"
+    #         docker_image="wifimemes/vegate-deploy:latest",  # Your Docker image
     #     )
-    
+
     #     # Deploy with a specific deployment ID
     #     deployment_id = uuid4()
-        
+
     #     try:
-    #         result = await service.deploy(deployment_id)
+    #         result = await service.deploy(
+    #             f"bt_{deployment_id}",
+    #             {"BACKTEST_ID": str(deployment_id), "DEPLOYMENT_TYPE": "backtest"},
+    #         )
     #         print("✓ Deployment successful!")
     #         print(f"  Service ID: {result['service_id']}")
     #         print(f"  Service Name: {result['service_name']}")

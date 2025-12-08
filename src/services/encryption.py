@@ -66,4 +66,5 @@ class EncryptionService:
 
         aesgcm = AESGCM(ENCRYPTION_KEY.encode())
         pt = aesgcm.decrypt(iv, ct, aad_bytes)
-        return json.loads(pt.decode("utf-8"))
+        # return json.loads(pt.decode("utf-8"))
+        return pt.decode("utf-8")
