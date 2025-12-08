@@ -7,7 +7,6 @@ from uuid import UUID
 from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.services import EncryptionService
 from config import (
     ALPACA_OAUTH_CLIENT_ID,
     ALPACA_OAUTH_REDIRECT_URI,
@@ -17,6 +16,7 @@ from config import (
 )
 from db_models import BrokerConnections
 from engine.enums import BrokerType
+from services import EncryptionService
 from utils.redis import REDIS_CLIENT
 from .models import _AlpacaOAuthPayload
 from .types import _RedisOAuthPayload, AlpacaTradingEnv
