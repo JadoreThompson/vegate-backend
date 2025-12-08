@@ -12,7 +12,7 @@ from engine.brokers.exc import (
 from engine.models import OrderRequest, Account
 from engine.enums import OrderSide, OrderType, OrderStatus, TimeInForce
 from engine.ohlcv import OHLCV, Timeframe
-
+from config import ALPACA_API_KEY
 
 # Fixtures
 
