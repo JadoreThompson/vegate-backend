@@ -13,7 +13,6 @@ PARENT_PATH = os.path.dirname(BASE_PATH)
 RESOURCES_PATH = os.path.join(BASE_PATH, "resources")
 
 PYTEST_RUNNING = bool(os.getenv("PYTEST_VERSION"))
-print(PYTEST_RUNNING)
 
 load_dotenv(os.path.join(PARENT_PATH, ".env.test" if PYTEST_RUNNING else '.env'))
 
