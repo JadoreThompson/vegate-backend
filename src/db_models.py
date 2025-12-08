@@ -134,7 +134,7 @@ class Backtests(Base):
         String, nullable=False, default=BacktestStatus.PENDING.value
     )
     created_at: Mapped[datetime] = datetime_tz()
-    server_data: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    server_data: Mapped[dict] = mapped_column(JSONB, nullable=True)
 
     # Relationships
     strategy: Mapped["Strategies"] = relationship(back_populates="backtests")
@@ -168,7 +168,7 @@ class StrategyDeployments(Base):
     stopped_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    server_data: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    server_data: Mapped[dict] = mapped_column(JSONB, nullable=True)
 
     # Relationships
     strategy: Mapped["Strategies"] = relationship(back_populates="strategy_deployments")
