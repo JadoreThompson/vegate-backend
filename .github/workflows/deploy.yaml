@@ -46,7 +46,7 @@ jobs:
           fi
 
       - name: Install UV
-        uses: setup-astral/astral-uv@latest
+        uses: astral-sh/setup-uv@v7
 
       - name: Apply migrations
         run: uv run src/main.py db upgrade
