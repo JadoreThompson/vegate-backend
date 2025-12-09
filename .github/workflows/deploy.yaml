@@ -29,6 +29,13 @@ jobs:
       - name: Deploy to stack
         run: docker stack deploy -c docker/tmp-compose.yaml vegate_stack
 
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@v7
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
       - name: Create env file
         run: |
           FPATH='.env'
@@ -44,12 +51,6 @@ jobs:
             echo "Failed to create $FPATH"
             exit 1
           fi
-
-      - name: Install UV
-        uses: astral-sh/setup-uv@v7
-
-      - name: Checkout code
-        uses: actions/checkout@v4
         
       - name: Build image
         run: docker build -f docker/Dockerfile -t migrate_db .
