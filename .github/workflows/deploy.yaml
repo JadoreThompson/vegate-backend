@@ -22,9 +22,9 @@ jobs:
 
       - name: Create docker compose file
         run: |
-          cat <<'EOF' > docker/prod-compose.yaml
+          cat <<'EOF' > docker/tmp-compose.yaml
             ${{ secrets.DOCKER_COMPOSE }}
           EOF
 
       - name: Deploy to stack
-        run: docker stack deploy -c docker/prod-compose.yaml vegate_stack
+        run: docker stack deploy -c docker/tmp-compose.yaml vegate_stack
