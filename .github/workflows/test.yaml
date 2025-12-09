@@ -5,13 +5,17 @@ on:
     branches: ["development"]
 
 jobs:
-  push_changes:
+  test:
+    name: Run tests
     runs-on: ubuntu-slim
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.PAT_TOKEN }}
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@v7
 
       - name: Run tests
         run: uv run pytest -s -v
