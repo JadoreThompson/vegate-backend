@@ -2,6 +2,8 @@ services:
   postgres:
     image: postgres:16
     restart: unless-stopped
+    networks:
+      - vegate_network
     environment:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
@@ -13,6 +15,8 @@ services:
     restart: unless-stopped
     volumes:
       - redis:/data
+    networks:
+      - vegate_network
     command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
 
   backend:
@@ -22,6 +26,8 @@ services:
       - redis
     ports:
       - 8000:8000
+    networks:
+      - vegate_network
     deploy:
       update_config:
         parallelism: 1
@@ -36,6 +42,6 @@ volumes:
 
 networks:
   vegate_network:
-    attachable: true  
     driver: overlay
+    attachable: true  
     external: true
