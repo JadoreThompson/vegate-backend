@@ -30,7 +30,7 @@ jobs:
       - name: Merge changes
         run: |
           git checkout main
-          git merge --no-ff -m "Merged development" development
+          git merge --allow-unrelated-histories --no-ff -m "Merged development" development
           git push origin main
       
 
