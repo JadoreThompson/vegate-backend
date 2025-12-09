@@ -49,10 +49,6 @@ DB_NAME = os.getenv("DB_NAME")
 DB_HOST_CREDS = f"{DB_HOST}:{DB_PORT}"
 DB_USER_CREDS = f"{DB_USER}:{DB_PASSWORD}"
 
-# Kafka
-KAFKA_HOST = os.getenv("KAFKA_HOST")
-KAFKA_PORT = int(os.getenv("KAFKA_PORT"))
-
 # Redis
 REDIS_HOST = os.getenv("REDIS_HOST")
 REDIS_PORT = int(os.getenv("REDIS_PORT"))
