@@ -42,15 +42,15 @@ jobs:
         run: |
           FPATH='.env'
 
-          cat <<'EOF' > $FNAME
+          cat <<'EOF' > $FPATH
           ${{ secrets.ENV_FILE }}
           EOF
 
-          if [ -s $FNAME ]; then
-            echo "$FNAME created successfully"
+          if [ -s $FPATH ]; then
+            echo "$FPATH created successfully"
             exit 0
           else
-            echo "Failed to create $FNAME"
+            echo "Failed to create $FPATH"
             exit 1
           fi
 
