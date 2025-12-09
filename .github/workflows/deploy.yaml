@@ -23,7 +23,7 @@ jobs:
       - name: Create docker compose file
         run: |
           cat <<'EOF' > docker/tmp-compose.yaml
-            ${{ secrets.DOCKER_COMPOSE }}
+          ${{ secrets.DOCKER_COMPOSE }}
           EOF
 
       - name: Deploy to stack
