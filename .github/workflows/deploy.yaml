@@ -28,3 +28,22 @@ jobs:
 
       - name: Deploy to stack
         run: docker stack deploy -c docker/tmp-compose.yaml vegate_stack
+
+      - name: Create env file
+        run: |
+          FPATH='.env'
+
+          cat <<'EOF' > $FPATH
+          ${{ secrets.ENV_FILE }}
+          EOF
+
+          if [ -s $FPATH ]; then
+            echo "$FPATH created successfully"
+            exit 0
+          else
+            echo "Failed to create $FPATH"
+            exit 1
+          fi
+
+      - name: Apply migrations
+        run: uv run src/main.py db upgrade
