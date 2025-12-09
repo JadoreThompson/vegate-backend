@@ -14,11 +14,11 @@ from .models import (
 )
 
 router = APIRouter(prefix="/deployments", tags=["Deployments"])
-deployment_service = DeploymentService(
-    api_key=RAILWAY_API_KEY,
-    project_id=RAILWAY_PROJECT_ID,
-    docker_image="wifimemes/vegate-deployment:latest",
-)
+# deployment_service = DeploymentService(
+#     api_key=RAILWAY_API_KEY,
+#     project_id=RAILWAY_PROJECT_ID,
+#     docker_image="wifimemes/vegate-deployment:latest",
+# )
 
 @router.post(
     "/strategies/{strategy_id}/deploy",

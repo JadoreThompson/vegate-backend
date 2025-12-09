@@ -29,11 +29,7 @@ from .models import (
 
 
 router = APIRouter(prefix="/backtests", tags=["Backtests"])
-deployment_service = DeploymentService(
-    api_key=RAILWAY_API_KEY,
-    project_id=RAILWAY_PROJECT_ID,
-    docker_image="wifimemes/vegate-deploy:latest",
-)
+deployment_service = DeploymentService()
 
 
 @router.post("/", response_model=BacktestResponse, status_code=201)
@@ -54,13 +50,7 @@ async def create_backtest_endpoint(
         created_at=backtest.created_at,
     )
 
-    deployment_data = await deployment_service.deploy(
-        f"bt_{backtest.backtest_id}",
-        {
-            "DEPLOYMENT_TYPE": DeploymentType.BACKTEST.value,
-            "BACKTEST_ID": str(backtest.backtest_id),
-        },
-    )
+    deployment_data = await deployment_service.deploy(backtest_id=backtest.backtest_id)
     backtest.server_data = deployment_data
     await db_sess.commit()
 

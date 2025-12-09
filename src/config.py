@@ -88,6 +88,8 @@ ALPACA_OAUTH_REDIRECT_URI = "http://localhost:8000/brokers/alpaca/oauth/callback
 # Railway
 RAILWAY_API_KEY = os.getenv("RAILWAY_API_KEY")
 RAILWAY_PROJECT_ID = os.getenv("RAILWAY_PROJECT_ID")
+RAILWAY_SERVICE_IMAGE = os.getenv("RAILWAY_SERVICE_IMAGE")
+RAILWAY_ENVIRONMENT_ID = os.getenv("RAILWAY_ENVIRONMENT_ID")
 
 # Logging
 logging.basicConfig(
