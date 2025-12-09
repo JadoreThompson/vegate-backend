@@ -1,0 +1,30 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ["Build"]
+    types: [completed]
+    branches: ["main"]
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: self-hosted
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Initialise swarm
+        run: docker swarm init || true
+
+      - name: Initialise network
+        run: |
+          docker network inspect vegate_network || 
+            docker network create --attachable --driver overlay vegate_network
+
+      - name: Create docker compose file
+        run: |
+          cat <<'EOF' > docker/prod-compose.yaml
+            ${{ secrets.DOCKER_COMPOSE }}
+          EOF
+
+      - name: Deploy to stack
+        run: docker stack deploy -c docker/prod-compose.yaml vegate_stack
