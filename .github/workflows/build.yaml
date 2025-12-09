@@ -1,16 +1,16 @@
 name: Build and deploy stack
-# on:
-#   push:
-#     branches:
-#       - main
-
 on:
-  workflow_run:
-    workflows: ["Test"]
-    types:
-      - completed
+  push:
     branches:
       - main
+
+# on:
+#   workflow_run:
+#     workflows: ["Test"]
+#     types:
+#       - completed
+#     branches:
+#       - main
 
 jobs:
   build:
