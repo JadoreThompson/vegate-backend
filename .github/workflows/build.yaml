@@ -23,12 +23,13 @@ jobs:
       - name: Fetch branches
         run: |
           git fetch origin development
+          git branch
           # git fetch origin main
       
       - name: Merge changes
         run: |
           # git checkout main
-          git reset --hard development
+          git merge development
           git push origin main
       
 
