@@ -3,6 +3,11 @@ on:
   push:
     branches:
       - main
+    
+  pull_request:
+    types: [closed]
+    branches:
+      - main
 
 # on:
 #   workflow_run:
@@ -14,6 +19,8 @@ on:
 
 jobs:
   build:
+    if: github.event.pull_request.merged == true || github.event_name == 'push'
+    
     name: Build
     runs-on: self-hosted
     steps:
