@@ -105,14 +105,6 @@ handler.setFormatter(
 logger.addHandler(handler)
 del logger
 
-kafka_logger = logging.getLogger("kafka")
-kafka_logger.setLevel(logging.CRITICAL)
-del kafka_logger
-
-aiokafka_logger = logging.getLogger("aiokafka")
-aiokafka_logger.setLevel(logging.CRITICAL)
-del aiokafka_logger
-
 stripe_logger = logging.getLogger("stripe")
 stripe_logger.setLevel(logging.CRITICAL)
 del stripe_logger
