@@ -1,13 +1,11 @@
 name: Build and deploy stack
 on:
   push:
-    branches:
-      - main
+    branches: ["main"]
     
   pull_request:
     types: [closed]
-    branches:
-      - main
+    branches: ["main"]
 
 # on:
 #   workflow_run:
@@ -20,7 +18,7 @@ on:
 jobs:
   build:
     if: github.event.pull_request.merged == true || github.event_name == 'push'
-    
+
     name: Build
     runs-on: self-hosted
     steps:
