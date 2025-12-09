@@ -15,6 +15,9 @@ jobs:
         with:
           token: ${{ secrets.PAT_TOKEN }}
 
+      - name: Make a change
+        run: echo "hello world" > file.txt
+
       - name: Create Pull Request to Main
         if: success()
         uses: peter-evans/create-pull-request@v6
