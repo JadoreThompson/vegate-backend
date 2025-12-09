@@ -12,17 +12,22 @@ jobs:
     runs-on: ubuntu-slim
     name: Something
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
+      
       - name: Something step
         run: echo "I've been triggered"
 
       - name: Fetch branches
         run: |
           git fetch origin development
-          git fetch origin main
+          # git fetch origin main
       
       - name: Merge changes
         run: |
-          git checkout main
+          # git checkout main
           git reset --hard development
           git push origin main
       
