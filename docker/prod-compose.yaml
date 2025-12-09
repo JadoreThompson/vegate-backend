@@ -25,6 +25,26 @@ services:
       - 8000:8000
     networks:
       - vegate_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/public/healthcheck"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+      start_interval: 5s
+    deploy:
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+        delay: 3s
+        monitor: 1m
+
+  crypto_pipeline:
+    image: wifimemes/vegate-backend:latest
+    networks:
+      - vegate_network
+    command: uv run src/main.py pipeline run --broker alpaca --market crypto --symbol BTC/USD
     deploy:
       update_config:
         parallelism: 1
@@ -40,5 +60,5 @@ volumes:
 networks:
   vegate_network:
     driver: overlay
-    attachable: true  
+    attachable: true
     external: true

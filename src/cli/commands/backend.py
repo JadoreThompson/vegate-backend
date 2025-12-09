@@ -27,37 +27,23 @@ def backend():
 
 @backend.command(name="run")
 @click.option(
-    "--host", default="0.0.0.0", help="Server host address", show_default=True
-)
-@click.option("--port", default=8000, type=int, help="Server port", show_default=True)
-@click.option("--reload", is_flag=True, help="Enable auto-reload for development")
-@click.option(
     "--workers",
-    default=1,
+    default=None,
     type=int,
     help="Number of worker processes",
     show_default=True,
 )
-def backend_run(host, port, reload, workers):
+def backend_run(workers):
     """
     Run the backend server.
-
-    Examples:
-      vegate backend run
-      vegate backend run --port 8080 --reload
-      vegate backend run --host 0.0.0.0 --port 8000 --workers 4
     """
     logger.info("Starting Vegate Backend")
-    click.echo(f"Starting server on {host}:{port}")
-
-    if reload:
-        click.echo("Auto-reload enabled (development mode)")
 
     configs = (
         (
             ServerRunner,
             (),
-            {"host": host, "port": port, "reload": reload, "workers": workers},
+            {"host": "0.0.0.0", "port": 8000, "reload": False, "workers": workers},
         ),
     )
 
