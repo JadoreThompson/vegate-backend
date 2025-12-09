@@ -20,16 +20,17 @@ jobs:
       - name: Something step
         run: echo "I've been triggered"
 
-      # - name: Fetch branches
-      #   run: |
-      #     git fetch origin development
-      #     git branch
-      #     # git fetch origin main
+      - name: Fetch branches
+        run: |
+          git fetch origin development
+          git checkout development
+          git branch
+          # git fetch origin main
       
       - name: Merge changes
         run: |
           # git checkout main
-          git merge origin/development
+          git merge --no-ff -m "Merged development" development
           git push origin main
       
 
