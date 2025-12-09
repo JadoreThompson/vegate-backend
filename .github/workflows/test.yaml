@@ -17,5 +17,20 @@ jobs:
       - name: Install UV
         uses: astral-sh/setup-uv@v7
 
+      - name: Create env file
+        run: |
+          FPATH='.env.test'
+
+          cat <<'EOF' > $FPATH
+          ${{ secrets.ENV_FILE }}
+          EOF
+          if [ -s $FPATH ]; then
+            echo "$FPATH created successfully"
+            exit 0
+          else
+            echo "Failed to create $FPATH"
+            exit 1
+          fi
+
       - name: Run tests
         run: uv run pytest -s -v
