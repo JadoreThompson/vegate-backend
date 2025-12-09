@@ -20,13 +20,23 @@ jobs:
         run: |
           echo "Updated at $(date)" >> log.txt
 
-      - name: Commit and push
-        run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git add .
-          git commit -m "Automated update"
-          git push origin HEAD:main -f
-        env:
-          GIT_ASKPASS: ""
-          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+      # - name: Commit and push
+      #   run: |
+      #     git config user.name "github-actions"
+      #     git config user.email "actions@github.com"
+      #     git add .
+      #     git commit -m "Automated update"
+      #     git push origin HEAD:main -f
+      #   env:
+      #     GIT_ASKPASS: ""
+      #     GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+      - name: Create Pull Request to Main
+        if: success()
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
+          branch: release/from-dev
+          base: main
+          title: "Automated Promotion: Dev to Main"
+          body: "Tests passed on dev. Merging to main for deployment."
+          labels: "automated-pr"
