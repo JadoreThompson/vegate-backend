@@ -59,12 +59,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build backend image
+      - name: Build image
         run: |
           docker build --no-cache -t ${{ secrets.DOCKERHUB_IMAGE }}:latest -f docker/Dockerfile .
           docker push ${{ secrets.DOCKERHUB_IMAGE }}:latest
-
-      - name: Build strategy deploy image
-        run: |
-          docker build --no-cache -t ${{ secrets.STRAT_DEPLOY_DOCKERHUB_IMAGE }}:latest -f docker/strat_deploy.Dockerfile .
-          docker push ${{ secrets.STRAT_DEPLOY_DOCKERHUB_IMAGE }}:latest
