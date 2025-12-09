@@ -8,28 +8,13 @@ jobs:
   push_changes:
     runs-on: ubuntu-slim
     permissions:
-      contents: write   # required
-
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.PAT_TOKEN }}  # IMPORTANT
+          token: ${{ secrets.PAT_TOKEN }}
 
-      - name: Make a change
-        run: |
-          echo "Updated at $(date)" >> log.txt
-
-      # - name: Commit and push
-      #   run: |
-      #     git config user.name "github-actions"
-      #     git config user.email "actions@github.com"
-      #     git add .
-      #     git commit -m "Automated update"
-      #     git push origin HEAD:main -f
-      #   env:
-      #     GIT_ASKPASS: ""
-      #     GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
       - name: Create Pull Request to Main
         if: success()
         uses: peter-evans/create-pull-request@v6
