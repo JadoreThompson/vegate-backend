@@ -21,9 +21,6 @@ services:
 
   backend:
     image: wifimemes/vegate-backend:latest
-    depends_on:
-      - postgres
-      - redis
     ports:
       - 8000:8000
     networks:
