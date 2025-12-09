@@ -48,5 +48,11 @@ jobs:
       - name: Install UV
         uses: astral-sh/setup-uv@v7
 
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Build image
+        run: docker build -f docker/Dockerfile -t migrate_db .
+
       - name: Apply migrations
-        run: uv run src/main.py db upgrade
+        run: docker run --network vegate_network --name migate_db --rm migrate_db uv run src/main.py db upgrade
