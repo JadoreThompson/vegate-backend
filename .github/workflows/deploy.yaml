@@ -45,5 +45,8 @@ jobs:
             exit 1
           fi
 
+      - name: Install UV
+        uses: setup-astral/astral-uv@latest
+
       - name: Apply migrations
         run: uv run src/main.py db upgrade
