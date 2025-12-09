@@ -2,7 +2,7 @@
 import sys
 import click
 
-from .commands import backend, backtest, deployment, db
+from .commands import backend, backtest, deployment, db, pipeline
 
 
 @click.group(invoke_without_command=True)
@@ -24,6 +24,7 @@ cli.add_command(backend)
 cli.add_command(backtest)
 cli.add_command(deployment)
 cli.add_command(db)
+cli.add_command(pipeline)
 
 
 if __name__ == "__main__":
