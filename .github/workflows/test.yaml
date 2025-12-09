@@ -22,7 +22,7 @@ jobs:
           FPATH='.env.test'
 
           cat <<'EOF' > $FPATH
-          ${{ secrets.ENV_FILE }}
+          ${{ secrets.ENV_TEST_FILE }}
           EOF
           if [ -s $FPATH ]; then
             echo "$FPATH created successfully"
