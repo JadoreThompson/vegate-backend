@@ -10,6 +10,7 @@ name: Build and deploy stack
 on:
   workflow_run:
     workflows: ["Test"]
+    types: [completed]
     branches: 
       - 'development'
 
