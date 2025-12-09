@@ -1,11 +1,4 @@
 name: Build and deploy stack
-# on:
-#   push:
-#     branches: ["main"]
-    
-#   pull_request:
-#     types: [closed]
-#     branches: ["main"]
 
 on:
   workflow_run:
@@ -21,6 +14,19 @@ jobs:
     steps:
       - name: Something step
         run: echo "I've been triggered"
+
+      - name: Fetch branches
+        run: |
+          git fetch origin development
+          git fetch origin main
+      
+      - name: Merge changes
+        run: |
+          git checkout main
+          git reset --hard development
+          git push origin main
+      
+
   # build:
   #   if: github.event.pull_request.merged == true || github.event_name == 'push'
 
