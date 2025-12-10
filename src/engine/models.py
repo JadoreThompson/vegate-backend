@@ -1,5 +1,6 @@
-from typing import Any
 from datetime import datetime
+from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -11,8 +12,8 @@ class OrderRequest(BaseModel):
     symbol: str
     side: OrderSide
     order_type: OrderType
-    quantity: float | None = Field(None, gt=0)
-    notional: float | None = None
+    quantity: Decimal | None = Field(None, gt=0)
+    notional: Decimal | None = Field(None, gt=0)
     limit_price: float | None = Field(None, gt=0)
     stop_price: float | None = Field(None, gt=0)
     time_in_force: TimeInForce
@@ -37,12 +38,12 @@ class OrderResponse(CustomBaseModel):
     symbol: str
     side: OrderSide
     order_type: OrderType
-    quantity: float
-    filled_quantity: float
+    quantity: Decimal
+    filled_quantity: Decimal
     limit_price: float | None
     stop_price: float | None
     status: OrderStatus
-    created_at: datetime
+    submitted_at: datetime
     filled_at: datetime | None = None
     avg_fill_price: float | None = None
     time_in_force: TimeInForce
@@ -51,5 +52,5 @@ class OrderResponse(CustomBaseModel):
 
 class Account(BaseModel):
     account_id: str
-    equity: float
-    cash: float
+    equity: Decimal
+    cash: Decimal

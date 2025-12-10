@@ -189,7 +189,7 @@ def test_backtest_with_no_trades(
     assert isinstance(result, SpotBacktestResult)
     assert result.total_orders == 0
     assert result.realised_pnl == 0.0
-    assert result.total_return == 0.0
+    assert result.total_return_pct == 0.0
     assert len(result.equity_curve) == 5
 
 
@@ -295,7 +295,7 @@ def test_total_return_calculation_no_trades(
     ):
         result = engine.run()
 
-    assert result.total_return == 0.0
+    assert result.total_return_pct == 0.0
 
 
 def test_total_return_calculation_with_profit(basic_config: BacktestConfig) -> None:
@@ -551,7 +551,7 @@ def test_full_backtest_integration(basic_config: BacktestConfig) -> None:
     # Verify all metrics are calculated
     assert isinstance(result.realised_pnl, float)
     assert isinstance(result.unrealised_pnl, float)
-    assert isinstance(result.total_return, float)
+    assert isinstance(result.total_return_pct, float)
     assert isinstance(result.sharpe_ratio, float)
     assert isinstance(result.max_drawdown, float)
 

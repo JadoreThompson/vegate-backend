@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from engine.enums import Timeframe
 
 
@@ -7,10 +8,10 @@ class OHLCV:
         self,
         symbol: str,
         timestamp: datetime,
-        open: float,
-        high: float,
-        low: float,
-        close: float,
+        open: Decimal,
+        high: Decimal,
+        low: Decimal,
+        close: Decimal,
         volume: int,
         timeframe: Timeframe,
     ):

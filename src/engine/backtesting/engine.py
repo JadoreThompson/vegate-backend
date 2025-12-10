@@ -1,5 +1,8 @@
 import logging
 from datetime import date
+from decimal import Decimal
+
+from pydantic import field_validator
 
 from core.models import CustomBaseModel
 from engine.brokers import BacktestBroker
@@ -21,7 +24,7 @@ class BacktestConfig(CustomBaseModel):
     start_date: date
     end_date: date
     symbol: str
-    starting_balance: float = 100_000.0
+    starting_balance: float | Decimal = 100_000.0
     timeframe: Timeframe
 
 
@@ -29,10 +32,21 @@ class BacktestResult(CustomBaseModel):
     config: BacktestConfig
     realised_pnl: float
     unrealised_pnl: float
-    total_return: float
+    total_return_pct: float
     sharpe_ratio: float
     max_drawdown: float
     equity_curve: EquityCurveT
+
+    @field_validator(
+        "realised_pnl",
+        "unrealised_pnl",
+        "total_return_pct",
+        "sharpe_ratio",
+        "max_drawdown",
+        mode="after",
+    )
+    def round_values(cls, value):
+        return round(value, 2)
 
 
 class SpotBacktestResult(BacktestResult):
@@ -41,11 +55,11 @@ class SpotBacktestResult(BacktestResult):
 
 
 class BacktestEngine:
-    def __init__(self, config: BacktestConfig, strategy: BaseStrategy):
+    def __init__(self, strategy: BaseStrategy, config: BacktestConfig):
         self._config = config
         self._strategy = strategy
         self._broker = BacktestBroker(starting_balance=self._config.starting_balance)
-        self._strategy_runner = StrategyManager(self._strategy, self._broker)
+        self._strategy_manager = StrategyManager(self._strategy, self._broker)
         self._strategy_context = StrategyContext[BacktestBroker](self._broker)
 
         self._equity_curve: EquityCurveT = []
@@ -53,12 +67,18 @@ class BacktestEngine:
 
     def run(self) -> SpotBacktestResult:
         for ohlcv in self._broker.yield_historic_ohlcv(
-            self._config.symbol, self._config.start_date, self._config.end_date
+            self._config.symbol,
+            self._config.timeframe,
+            start_date=self._config.start_date,
+            end_date=self._config.end_date,
         ):
             account = self._broker.get_account()
             self._equity_curve.append((ohlcv.timestamp, account.equity))
             self._cash_balance_curve.append((ohlcv.timestamp, account.cash))
-            self._strategy_runner.on_candle(self._strategy_context)
+
+            self._strategy_context._current_candle = ohlcv
+            self._broker.process_pending_orders()
+            self._strategy_manager.on_candle(self._strategy_context)
 
         return self._calculate_results()
 
@@ -78,25 +98,27 @@ class BacktestEngine:
 
         # Calculate risk metrics
         sharpe = calculate_sharpe_ratio(self._equity_curve)
-        max_dd, max_dd_pct = calculate_max_drawdown(
-            self._equity_curve, self._cash_balance_curve
-        )
+
+        if self._equity_curve and self._cash_balance_curve:
+            max_dd, max_dd_pct = calculate_max_drawdown(
+                self._equity_curve, self._cash_balance_curve
+            )
+        else:
+            max_dd, max_dd_pct = 0.0, 0.0
 
         # Get all orders from broker
         all_orders = list(self._broker._orders.values())
 
-        # Calculate realized and unrealized PnL
-        realised_pnl = 0.0
-        unrealised_pnl = 0.0
+        unrealised_pnl = Decimal("0.0")
 
-        for order in all_orders:
-            if order.status == OrderStatus.FILLED:
-                if order.side == OrderSide.SELL and order.avg_fill_price:
-                    realised_pnl += order.quantity * order.avg_fill_price
-                elif order.side == OrderSide.BUY and order.avg_fill_price:
-                    realised_pnl -= order.quantity * order.avg_fill_price
-
-        unrealised_pnl = account.equity - self._config.starting_balance - realised_pnl
+        # Convert account equity and starting balance to Decimal for calculation
+        equity_dec = (
+            account.equity
+            if isinstance(account.equity, Decimal)
+            else Decimal(str(account.equity))
+        )
+        starting_dec = Decimal(str(self._config.starting_balance))
+        unrealised_pnl = equity_dec - starting_dec - Decimal(str(total_return))
 
         logger.info(
             f"Backtest complete: Return=${total_return:.2f} ({total_return_pct:.2f}%), "
@@ -105,9 +127,9 @@ class BacktestEngine:
 
         return SpotBacktestResult(
             config=self._config,
-            realised_pnl=realised_pnl,
-            unrealised_pnl=unrealised_pnl,
-            total_return=total_return_pct,
+            realised_pnl=total_return,
+            unrealised_pnl=float(unrealised_pnl),
+            total_return_pct=total_return_pct,
             sharpe_ratio=sharpe,
             max_drawdown=max_dd_pct,
             equity_curve=self._equity_curve,

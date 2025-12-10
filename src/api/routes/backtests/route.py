@@ -6,8 +6,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import depends_db_sess, depends_jwt
 from api.typing import JWTPayload
-from config import RAILWAY_API_KEY, RAILWAY_PROJECT_ID
-from core.enums import DeploymentType
 from db_models import Strategies
 from services import DeploymentService
 from .controller import (
@@ -82,11 +80,10 @@ async def get_backtest_endpoint(
         metrics = BacktestMetrics(
             realised_pnl=backtest.metrics.get("realised_pnl", 0.0),
             unrealised_pnl=backtest.metrics.get("unrealised_pnl", 0.0),
-            total_return=backtest.metrics.get("total_return", 0.0),
+            total_return_pct=backtest.metrics.get("total_return_pct", 0.0),
             sharpe_ratio=backtest.metrics.get("sharpe_ratio", 0.0),
             max_drawdown=backtest.metrics.get("max_drawdown", 0.0),
-            win_rate=backtest.metrics.get("win_rate", 0.0),
-            total_trades=backtest.metrics.get("total_trades", 0),
+            total_trades=backtest.metrics.get("total_orders", 0),
         )
 
     return BacktestDetailResponse(
@@ -174,9 +171,7 @@ async def get_backtest_orders_endpoint(
 ):
     """Get all orders/trades for a backtest with pagination."""
     orders = await get_backtest_orders(jwt.sub, backtest_id, db_sess, skip, limit)
-    await db_sess.commit()
-
-    return [
+    rsp_body = [
         OrderResponse(
             order_id=o.order_id,
             symbol=o.symbol,
@@ -186,7 +181,7 @@ async def get_backtest_orders_endpoint(
             filled_quantity=o.filled_quantity,
             limit_price=o.limit_price,
             stop_price=o.stop_price,
-            average_fill_price=o.average_fill_price,
+            average_fill_price=o.avg_fill_price,
             status=o.status,
             time_in_force=o.time_in_force,
             submitted_at=o.submitted_at,
@@ -196,3 +191,7 @@ async def get_backtest_orders_endpoint(
         )
         for o in orders
     ]
+
+    await db_sess.commit()
+
+    return rsp_body

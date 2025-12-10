@@ -2,15 +2,16 @@ import logging
 import os
 from uuid import UUID
 
-from sqlalchemy import update
+from sqlalchemy import insert, update
 
 from config import BASE_PATH
 from core.enums import BacktestStatus
-from db_models import Backtests, Strategies
+from db_models import Backtests, Orders, Strategies
 from engine.backtesting import BacktestConfig, BacktestEngine
 from engine.enums import Timeframe
 from utils.db import get_db_sess_sync
 from .base_runner import BaseRunner
+
 
 logger = logging.getLogger(__name__)
 
@@ -21,19 +22,19 @@ class BacktestRunner(BaseRunner):
     """
 
     def __init__(self, backtest_id: str | UUID):
-        self.backtest_id = UUID(str(backtest_id))
+        self._backtest_id = UUID(str(backtest_id))
 
     def run(self) -> None:
         """The main entry point for the backtest process."""
-        logger.info(f"Starting BacktestRunner for ID '{self.backtest_id}'")
+        logger.info(f"Starting BacktestRunner for ID '{self._backtest_id}'")
 
         db_backtest = None
         db_strategy = None
 
         with get_db_sess_sync() as db_sess:
-            db_backtest = db_sess.get(Backtests, self.backtest_id)
+            db_backtest = db_sess.get(Backtests, self._backtest_id)
             if db_backtest is None:
-                logger.error(f"Backtest object not found for ID: {self.backtest_id}")
+                logger.error(f"Backtest object not found for ID: {self._backtest_id}")
                 return
 
             logger.info("Backtest object found")
@@ -41,7 +42,7 @@ class BacktestRunner(BaseRunner):
             db_strategy = db_sess.get(Strategies, db_backtest.strategy_id)
             if db_strategy is None:
                 logger.error(
-                    f"Strategy for backtest {self.backtest_id} not found with ID: {db_backtest.strategy_id}"
+                    f"Strategy for backtest {self._backtest_id} not found with ID: {db_backtest.strategy_id}"
                 )
                 db_backtest.status = BacktestStatus.FAILED
                 db_sess.commit()
@@ -69,20 +70,26 @@ class BacktestRunner(BaseRunner):
         )
 
         strategy = Strategy()
-
-        bt = BacktestEngine(bt_config, strategy)
+        bt = BacktestEngine(strategy, bt_config)
         result = bt.run()
 
-        logger.info(f"Backtest {self.backtest_id} completed. Result: {result}")
+        logger.info(f"Backtest {self._backtest_id} completed. Result: {result}")
+        
+        records = []
+        for o in result.orders:
+            d = o.model_dump(mode='json', exclude={'broker_metadata'})
+            d['backtest_id'] = self._backtest_id
+            records.append(d)
 
         with get_db_sess_sync() as db_sess:
+            db_sess.execute(insert(Orders), records)
             db_sess.execute(
                 update(Backtests)
-                .where(Backtests.backtest_id == self.backtest_id)
+                .where(Backtests.backtest_id == self._backtest_id)
                 .values(
                     status=BacktestStatus.COMPLETED,
                     metrics=result.model_dump(mode="json", exclude={"config"}),
                 )
             )
             db_sess.commit()
-            logger.info(f"Metrics updated for backtest {self.backtest_id}")
+            logger.info(f"Metrics updated for backtest {self._backtest_id}")

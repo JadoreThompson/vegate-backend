@@ -25,7 +25,10 @@ class StrategyManager:
         self._cleanup()
 
     def on_candle(self, context: StrategyContext) -> None:
-        self._strategy.on_candle(context)
+        try:
+            self._strategy.on_candle(context)
+        except Exception as e:
+            self._logger.error(f"Error during strategy on candle : {e}", exc_info=True)
 
     def _setup(self) -> None:
         """
@@ -42,16 +45,13 @@ class StrategyManager:
         self._logger.info("Setting up strategy runner...")
 
         try:
-            # Register signal handler for graceful shutdown on Ctrl+C
             self._original_sigint_handler = signal.signal(
                 signal.SIGINT, self._signal_handler
             )
 
-            # Connect to broker
             self._logger.debug("Connecting to broker...")
             self._broker.connect()
 
-            # Call strategy startup
             self._logger.debug("Calling strategy.startup()...")
             try:
                 self._strategy.startup()

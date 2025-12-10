@@ -1,9 +1,11 @@
 import logging
+from multiprocessing import Process
 from uuid import UUID
 
 from aiohttp import ClientSession
 
 from config import (
+    IS_PRODUCTION,
     RAILWAY_API_KEY,
     RAILWAY_ENVIRONMENT_ID,
     RAILWAY_PROJECT_ID,
@@ -26,6 +28,7 @@ class DeploymentService:
             "Authorization": f"Bearer {RAILWAY_API_KEY}",
         }
         self._http_sess = ClientSession()
+        self._process: Process | None = None
 
     async def deploy(
         self, backtest_id: UUID | None = None, deployment_id: UUID | None = None
@@ -33,6 +36,7 @@ class DeploymentService:
         """
         Create a new Railway service and deploy it with the given deployment_id.
         """
+            
         start_command = f"uv run src/main.py "
 
         if backtest_id is not None:
@@ -42,8 +46,28 @@ class DeploymentService:
             name = f"dp_{deployment_id}"
             start_command += f"deplyoment run --deployment-id {deployment_id}"
         else:
-            raise ValueError(f"Neither deployment_id nor backtest_id were provided")
+            raise ValueError("Neither deployment_id nor backtest_id were provided")
 
+        if not IS_PRODUCTION:
+            from runners import BacktestRunner, DeploymentRunner
+            
+            if self._process is not None and self._process.is_alive():
+                self._process.kill()
+                self._process.join(timeout=3)
+            
+            if backtest_id is not None:
+                runner = BacktestRunner(backtest_id)
+            elif deployment_id is not None:
+                runner = DeploymentRunner(deployment_id)
+
+            self._process = Process(target=runner.run, name=type(runner).__name__, daemon=True)
+            self._process.start()
+
+            return {
+                "service_name": name,
+                "environment": "development"
+            }
+        
         service_id = await self._create_service(name)
         await self._update_service(service_id, start_command)
         await self._deploy_service(service_id)
@@ -51,6 +75,7 @@ class DeploymentService:
         return {
             "service_id": service_id,
             "service_name": name,
+            "environment": "production"
         }
 
     async def _execute_query(self, query: str, variables: dict | None = None) -> dict:
@@ -128,3 +153,8 @@ class DeploymentService:
         result = await self._execute_query(query, variables)
 
         return result
+
+    def __del__(self):
+        if not IS_PRODUCTION and self._process is not None and self._process.is_alive():
+            self._process.kill()
+            self._process.join(timeout=3)

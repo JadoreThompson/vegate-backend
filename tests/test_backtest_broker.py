@@ -781,5 +781,5 @@ def test_order_timestamps(broker_with_candle: BacktestBroker) -> None:
 
     response = broker_with_candle.submit_order(order)
 
-    assert response.created_at == broker_with_candle._current_candle.timestamp
+    assert response.submitted_at == broker_with_candle._current_candle.timestamp
     assert response.filled_at == broker_with_candle._current_candle.timestamp

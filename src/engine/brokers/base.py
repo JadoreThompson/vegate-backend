@@ -1,6 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import date
 from typing import Generator
 
 from engine.enums import Timeframe
@@ -154,8 +154,8 @@ class BaseBroker(ABC):
         symbol: str,
         timeframe: Timeframe,
         prev_bars: int | None = None,
-        start_date: datetime | None = None,
-        end_date: datetime | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> list[OHLCV]: ...
 
     @abstractmethod
@@ -164,8 +164,8 @@ class BaseBroker(ABC):
         symbol: str,
         timeframe: Timeframe,
         prev_bars: int | None = None,
-        start_date: datetime | None = None,
-        end_date: datetime | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> Generator[OHLCV, None, None]: ...
 
     @abstractmethod

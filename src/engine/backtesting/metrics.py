@@ -1,4 +1,5 @@
 import logging
+from decimal import Decimal
 
 import numpy as np
 
@@ -38,8 +39,11 @@ def calculate_sharpe_ratio(
         return 0.0
 
     try:
-        # Extract equity values
-        equity_values = [equity for _, equity in equity_curve]
+        # Extract equity values and convert Decimal to float
+        equity_values = [
+            float(equity) if isinstance(equity, Decimal) else equity
+            for _, equity in equity_curve
+        ]
 
         # Calculate period returns
         returns = []
@@ -106,13 +110,20 @@ def calculate_max_drawdown(
     """
 
     try:
-        equity_values = [equity for _, equity in equity_curve]
+        # Extract equity values and convert Decimal to float
+        equity_values = [
+            float(equity) if isinstance(equity, Decimal) else equity
+            for _, equity in equity_curve
+        ]
 
         # If cash curve is provided, use it for additional context
         # This allows tracking actual cash balance at each point in time
         cash_values = None
         if cash_curve:
-            cash_values = [cash for _, cash in cash_curve]
+            cash_values = [
+                float(cash) if isinstance(cash, Decimal) else cash
+                for _, cash in cash_curve
+            ]
             if len(cash_values) != len(equity_values):
                 logger.warning(
                     "Cash curve length doesn't match equity curve, ignoring cash data"
@@ -172,7 +183,7 @@ def calculate_win_rate(trades: list) -> float:
         return 0.0
 
     try:
-        winning_trades = sum(1 for trade in trades if trade.pnl > 0)
+        winning_trades = sum(1 for trade in trades if float(trade.pnl) > 0)
         total_trades = len(trades)
 
         win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0.0
@@ -185,7 +196,7 @@ def calculate_win_rate(trades: list) -> float:
 
 
 def calculate_total_return(
-    initial_capital: float, final_capital: float
+    initial_capital: float | Decimal, final_capital: float | Decimal
 ) -> tuple[float, float]:
     """
     Calculate total return from initial and final capital.
@@ -201,10 +212,20 @@ def calculate_total_return(
         ret_dollars, ret_percent = calculate_total_return(100000, 110000)
     """
     try:
-        return_dollars = final_capital - initial_capital
-        return_percent = (
-            (return_dollars / initial_capital * 100) if initial_capital > 0 else 0.0
+        # Convert to float if Decimal
+        init_cap = (
+            float(initial_capital)
+            if isinstance(initial_capital, Decimal)
+            else initial_capital
         )
+        final_cap = (
+            float(final_capital)
+            if isinstance(final_capital, Decimal)
+            else final_capital
+        )
+
+        return_dollars = final_cap - init_cap
+        return_percent = (return_dollars / init_cap * 100) if init_cap > 0 else 0.0
 
         return float(return_dollars), float(return_percent)
 

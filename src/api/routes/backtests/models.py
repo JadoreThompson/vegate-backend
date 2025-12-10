@@ -35,10 +35,9 @@ class BacktestResponse(CustomBaseModel):
 class BacktestMetrics(BaseModel):
     realised_pnl: float
     unrealised_pnl: float
-    total_return: float
+    total_return_pct: float
     sharpe_ratio: float
     max_drawdown: float
-    win_rate: float
     total_trades: int
 
 
