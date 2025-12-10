@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -127,8 +127,8 @@ class Backtests(Base):
         Numeric(precision=15, scale=2), nullable=False
     )
     metrics: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    start_date: Mapped[datetime]= mapped_column(Date(), nullable=False)
-    end_date: Mapped[datetime]= mapped_column(Date(), nullable=False)
+    start_date: Mapped[date] = mapped_column(Date(), nullable=False)
+    end_date: Mapped[date] = mapped_column(Date(), nullable=False)
     timeframe: Mapped[Timeframe] = mapped_column(String, nullable=False)
     status: Mapped[BacktestStatus] = mapped_column(
         String, nullable=False, default=BacktestStatus.PENDING.value
@@ -199,7 +199,7 @@ class Orders(Base):
     stop_price: Mapped[Decimal | None] = mapped_column(
         Numeric(precision=15, scale=2), nullable=True
     )
-    average_fill_price: Mapped[Decimal | None] = mapped_column(
+    avg_fill_price: Mapped[Decimal | None] = mapped_column(
         Numeric(precision=15, scale=2), nullable=True
     )
     status: Mapped[str] = mapped_column(String, nullable=False)
