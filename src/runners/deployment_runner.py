@@ -1,16 +1,16 @@
+import asyncio
 import json
 import logging
 import os
 from uuid import UUID
 
-from alpaca.trading.client import TradingClient
 from sqlalchemy import update
 
 from config import BASE_PATH
 from core.enums import StrategyDeploymentStatus
 from db_models import BrokerConnections, StrategyDeployments, Strategies
 from engine.brokers import BaseBroker, AlpacaBroker
-from engine.enums import BrokerType, Timeframe
+from engine.enums import BrokerType, MarketType, Timeframe
 from engine.strategy import StrategyContext, StrategyManager
 from services import EncryptionService
 from services.brokers.alpaca import AlpacaOAuthPayload
@@ -31,7 +31,10 @@ class DeploymentRunner(BaseRunner):
         self._strategy_manager: StrategyManager | None = None
         self._broker: BaseBroker | None = None
 
-    def run(self) -> None:
+    def run(self):
+        asyncio.run(self._run())
+
+    async def _run(self) -> None:
         """The main entry point for the deployment process."""
         logger.info(f"Starting DeploymentRunner for ID '{self.deployment_id}'")
 
@@ -97,7 +100,9 @@ class DeploymentRunner(BaseRunner):
             strategy = Strategy()
             logger.info("Strategy instance created")
 
-            self._broker = self._initialise_broker(db_broker_conn)
+            self._broker = self._initialise_broker(
+                db_broker_conn, db_deployment.market_type
+            )
             logger.info("Broker initialised")
 
             self._strategy_manager = StrategyManager(strategy, self._broker)
@@ -109,9 +114,10 @@ class DeploymentRunner(BaseRunner):
             with self._strategy_manager:
                 logger.info("Strategy manager started, entering trading loop")
 
-                for candle in self._broker.yield_ohlcv(
+                async for candle in self._broker.yield_ohlcv_async(
                     symbol=db_deployment.symbol, timeframe=timeframe
                 ):
+                    logger.info(f"Got candle {candle}")
                     context._current_candle = candle
                     self._strategy_manager.on_candle(context)
 
@@ -126,7 +132,9 @@ class DeploymentRunner(BaseRunner):
         finally:
             logger.info(f"Deployment {self.deployment_id} finished")
 
-    def _initialise_broker(self, broker_conn: BrokerConnections) -> AlpacaBroker:
+    def _initialise_broker(
+        self, broker_conn: BrokerConnections, market_type: MarketType
+    ) -> AlpacaBroker:
         """
         Initialize the broker client with OAuth credentials.
 
@@ -138,16 +146,22 @@ class DeploymentRunner(BaseRunner):
         """
 
         if broker_conn.broker == BrokerType.ALPACA:
-            return self._initialise_alpaca_broker(broker_conn)
+            return self._initialise_alpaca_broker(broker_conn, market_type)
         else:
             raise ValueError(f"Unsupported broker: {broker_conn.broker}")
 
-    def _initialise_alpaca_broker(self, broker_conn: BrokerConnections):
-        decrypted = EncryptionService.decrypt(broker_conn.oauth_payload, str(broker_conn.user_id))
+    def _initialise_alpaca_broker(
+        self, broker_conn: BrokerConnections, market_type: MarketType
+    ):
+        decrypted = EncryptionService.decrypt(
+            broker_conn.oauth_payload, str(broker_conn.user_id)
+        )
         oauth_payload = AlpacaOAuthPayload(**json.loads(decrypted))
-
-        client = TradingClient(oauth_token=oauth_payload.access_token)
-        broker = AlpacaBroker(client)
+        broker = AlpacaBroker(
+            oauth_token=oauth_payload.access_token,
+            is_crypto=market_type == MarketType.CRYPTO,
+            paper=oauth_payload.env == "paper",
+        )
 
         return broker
 

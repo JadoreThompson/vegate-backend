@@ -1,8 +1,21 @@
+import asyncio
+import json
 import logging
-from typing import Optional, List
-from datetime import datetime
+import threading
+from typing import AsyncGenerator, Optional, List, Generator
+from datetime import datetime, date, timedelta
+from decimal import Decimal
 
+import websockets
+from alpaca.common.exceptions import APIError
+from alpaca.data.live import StockDataStream, CryptoDataStream
 from alpaca.trading.client import TradingClient
+from alpaca.trading.enums import (
+    OrderSide as AlpacaOrderSide,
+    TimeInForce as AlpacaTimeInForce,
+    OrderType as AlpacaOrderType,
+    OrderStatus as AlpacaOrderStatus,
+)
 from alpaca.trading.requests import (
     MarketOrderRequest,
     LimitOrderRequest,
@@ -10,13 +23,8 @@ from alpaca.trading.requests import (
     StopLimitOrderRequest,
     GetOrdersRequest,
 )
-from alpaca.trading.enums import (
-    OrderSide as AlpacaOrderSide,
-    TimeInForce as AlpacaTimeInForce,
-    OrderType as AlpacaOrderType,
-    OrderStatus as AlpacaOrderStatus,
-)
-from alpaca.common.exceptions import APIError
+
+from config import BACKEND_DOMAIN, BACKEND_SUB_DOMAIN, BARS_WS_TOKEN, IS_PRODUCTION
 
 from .base import BaseBroker
 from .exc import (
@@ -25,8 +33,9 @@ from .exc import (
     OrderRejectedError,
     InsufficientFundsError,
     RateLimitError,
-    ConnectionError as BrokerConnectionError,
+    BrokerConnectionError,
 )
+from .http import HTTPSessMixin
 from ..models import (
     OrderRequest,
     OrderResponse,
@@ -36,26 +45,65 @@ from ..models import (
     OrderStatus,
     TimeInForce,
 )
+from ..enums import BrokerType, Timeframe
+from ..ohlcv import OHLCV
+
 
 logger = logging.getLogger(__name__)
 
 
-class AlpacaBroker(BaseBroker):
-    def __init__(self, client: TradingClient):
-        self._client = client
+class AlpacaBroker(HTTPSessMixin, BaseBroker):
+    def __init__(
+        self,
+        oauth_token: str | None = None,
+        api_key: str | None = None,
+        secret_key: str | None = None,
+        is_crypto: bool = False,
+        paper: bool = True,
+    ):
+        super().__init__()
+        self._oauth_token = oauth_token
+        self._api_key = api_key
+        self._secret_key = secret_key
+        self._is_crypto = is_crypto
+        self._paper = paper
+        self._base_url = "https://data.alpaca.markets"
+
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._stream_client: CryptoDataStream | StockDataStream = None
+        self._ev: threading.Event = threading.Event()
+        self._candle: OHLCV | None = None
+        self._ws: websockets.ClientConnection | None = None
 
     def connect(self) -> None:
-
         try:
             self._apply_rate_limit()
 
-            # Test connection by fetching account
+            self._client = TradingClient(
+                api_key=self._api_key,
+                secret_key=self._secret_key,
+                oauth_token=self._oauth_token,
+            )
+            # Test client
             self._client.get_account()
 
-            self._connected = True
-            logger.info(
-                f"Connected to Alpaca ({'paper' if self.paper else 'live'} trading)"
+            if self._is_crypto:
+                stream_cls = CryptoDataStream
+            else:
+                stream_cls = StockDataStream
+
+            websocket_params = None
+            if self._oauth_token is not None:
+                websocket_params = {"Authorization": f"Bearer {self._oauth_token}"}
+            self._stream_client = stream_cls(
+                api_key=self._api_key,
+                secret_key=self._secret_key,
+                websocket_params=websocket_params,
+                raw_data=True,
             )
+
+            self._connected = True
+            logger.info("Connected to Alpaca")
 
         except APIError as e:
             if e.status_code == 401:
@@ -364,9 +412,200 @@ class AlpacaBroker(BaseBroker):
                 "alpaca_time_in_force": str(alpaca_order.time_in_force),
             },
         )
-    
-    def get_historic_olhcv(self, symbol, timeframe, prev_bars = None, start_date = None, end_date = None):
-        return super().get_historic_olhcv(symbol, timeframe, prev_bars, start_date, end_date)
+
+    def get_historic_ohlcv(
+        self,
+        symbol: str,
+        timeframe: Timeframe,
+        prev_bars: int | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> list[OHLCV]:
+        """
+        Get historical OHLCV data from Alpaca.
+
+        Args:
+            symbol: Trading symbol
+            timeframe: Timeframe for bars (1m, 5m, 15m, 30m, 1h, 1d)
+            prev_bars: Number of bars to fetch (if start_date not provided)
+            start_date: Start date for historical data
+            end_date: End date for historical data (defaults to today)
+
+        Returns:
+            List of OHLCV objects
+        """
+
+        return list(
+            self.yield_historic_ohlcv(
+                symbol=symbol,
+                timeframe=timeframe,
+                start_date=start_date,
+                end_date=end_date,
+            )
+        )
+
+    def yield_historic_ohlcv(
+        self,
+        symbol: str,
+        timeframe: Timeframe,
+        prev_bars: int | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> Generator[OHLCV, None, None]:
+        """
+        Generator that yields historical OHLCV data from Alpaca.
+
+        This method fetches data in chunks to avoid memory issues with large datasets.
+
+        Args:
+            symbol: Trading symbol
+            timeframe: Timeframe for bars
+            prev_bars: Number of bars to fetch (if start_date not provided)
+            start_date: Start date for historical data
+            end_date: End date for historical data
+
+        Yields:
+            OHLCV objects one at a time
+        """
+        if start_date is None and prev_bars is not None:
+            end_date = end_date or date.today()
+            days_back = self._estimate_days_for_bars(prev_bars, timeframe)
+            start_date = end_date - timedelta(days=days_back)
+        elif start_date is None:
+            raise BrokerError("Either prev_bars or start_date must be provided")
+
+        end_date = end_date or date.today()
+        fmt_start = start_date.isoformat()
+        fmt_end = end_date.isoformat()
+        page_count = 0
+
+        result = []
+        while True:
+            page_count += 1
+            params = (
+                {"start": fmt_start, "end": fmt_end}
+                if not next_page_token
+                else {"page_token": next_page_token}
+            )
+
+            if self._is_crypto:
+                endpoint = f"{self._base_url}/v1beta3/crypto/us/bars"
+                params["symbols"] = [symbol]
+            else:
+                endpoint = f"{self._base_url}/v2/stocks/{symbol}/bars"
+
+            logger.debug(f"Fetching page {page_count} for {symbol}")
+            rsp = self._http_sess.get(endpoint, params=params)
+            rsp.raise_for_status()
+            data = rsp.json()
+
+            if self._is_crypto:
+                candles = data.get("bars", {}).get(symbol)
+            else:
+                candles = data.get("bars", [])
+
+            if not candles:
+                logger.info(f"No more bars available for {symbol}")
+                break
+
+            logger.debug(f"Retrieved {len(candles)} bars on page {page_count}")
+
+            for d in candles:
+                yield OHLCV(
+                    symbol=symbol,
+                    timeframe=datetime.fromtimestamp(d["t"]),
+                    open=d["o"],
+                    high=d["h"],
+                    low=d["l"],
+                    close=d["c"],
+                )
+
+            next_page_token = data.get("next_page_token")
+            if not next_page_token:
+                logger.info(
+                    f"Completed fetching historical data for {symbol} - {page_count} pages processed"
+                )
+                break
+
+        return result
+
+    async def yield_ohlcv_async(
+        self, symbol: str, timeframe: Timeframe
+    ) -> AsyncGenerator[OHLCV, None]:
+        """
+        Generator that yields real-time OHLCV data from Alpaca.
+
+        This method continuously yields the latest bar data. For real-time streaming,
+        you would typically use Alpaca's WebSocket API. This implementation polls
+        for the latest bar periodically.
+
+        Args:
+            symbol: Trading symbol
+            timeframe: Timeframe for bars
+
+        Yields:
+            OHLCV objects as they become available
+        """
+
+        scheme = "wss" if IS_PRODUCTION else "ws"
+        market = "crypto" if self._is_crypto else "stocks"
+
+        async with websockets.connect(
+            f"{scheme}://{BACKEND_SUB_DOMAIN}{BACKEND_DOMAIN}/markets/{market}/bars"
+        ) as ws:
+            await ws.send(json.dumps({"token": BARS_WS_TOKEN}), text=True)
+
+            msg = await ws.recv()
+
+            payload = json.loads(msg)
+
+            if not (
+                payload.get("type") == "message"
+                and payload.get("message") == "connected"
+            ):
+                raise BrokerConnectionError("Failed to connect to market bars server")
+
+            await ws.send(
+                json.dumps(
+                    {
+                        "action": "subscribe",
+                        "broker": BrokerType.ALPACA,
+                        "symbols": [[symbol, timeframe]],
+                    }
+                )
+            )
+
+            to_decimal = lambda v: Decimal(str(v))
+
+            while True:
+                msg = await ws.recv()
+                payload = json.loads(msg)
+                yield OHLCV(
+                    symbol=payload["symbol"],
+                    timestamp=datetime.fromisoformat(payload["timestamp"]),
+                    open=to_decimal(payload["open"]),
+                    high=to_decimal(payload["high"]),
+                    low=to_decimal(payload["low"]),
+                    close=to_decimal(payload["close"]),
+                    volume=to_decimal(payload["volume"]),
+                    timeframe=payload["timeframe"],
+                )
+
+    def _estimate_days_for_bars(self, num_bars: int, timeframe: Timeframe) -> int:
+        """Estimate number of days needed to get the requested number of bars."""
+        # Account for market hours and non-trading days
+        seconds_per_bar = timeframe.get_seconds()
+
+        if timeframe == Timeframe.D1:
+            # Daily bars: account for weekends (roughly 5 trading days per 7 calendar days)
+            return int(num_bars * 1.4) + 7
+        else:
+            # Intraday bars: account for trading hours (6.5 hours per day) and weekends
+            trading_seconds_per_day = 6.5 * 3600
+            bars_per_day = trading_seconds_per_day / seconds_per_bar
+            days_needed = num_bars / bars_per_day
+            # Add buffer for weekends
+            return int(days_needed * 1.4) + 7
 
     def _handle_api_error(self, error: APIError, operation: str):
         """Handle Alpaca API errors and convert to our exceptions."""

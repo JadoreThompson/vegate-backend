@@ -385,7 +385,7 @@ class BacktestBroker(BaseBroker):
 
         return Account(account_id=self._account_id, equity=equity, cash=self._cash)
 
-    def get_historic_olhcv(
+    def get_historic_ohlcv(
         self, symbol, timeframe, prev_bars=None, start_date=None, end_date=None
     ) -> list[OHLCV]:
         if start_date is None and end_date is not None:

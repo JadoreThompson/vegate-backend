@@ -155,6 +155,7 @@ class StrategyDeployments(Base):
         ForeignKey("broker_connections.connection_id"),
         nullable=False,
     )
+    market_type: Mapped[MarketType] = mapped_column(String, nullable=False)
     symbol: Mapped[str] = mapped_column(String, nullable=False)
     timeframe: Mapped[str] = mapped_column(String, nullable=False)
     starting_balance: Mapped[Decimal] = mapped_column(

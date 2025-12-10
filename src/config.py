@@ -14,7 +14,7 @@ RESOURCES_PATH = os.path.join(BASE_PATH, "resources")
 
 PYTEST_RUNNING = bool(os.getenv("PYTEST_VERSION"))
 
-load_dotenv(os.path.join(PARENT_PATH, ".env.test" if PYTEST_RUNNING else '.env'))
+load_dotenv(os.path.join(PARENT_PATH, ".env.test" if PYTEST_RUNNING else ".env"))
 
 IS_PRODUCTION = bool(os.getenv("IS_PRODUCTION"))
 
@@ -28,17 +28,22 @@ JWT_EXPIRY_SECS = int(os.getenv("JWT_EXPIRY_SECS"))
 PAGE_SIZE = 10
 if IS_PRODUCTION:
     SCHEME = "https"
-    SUB_DOMAIN = "api."
-    DOMAIN = "domain.com"
+    FRONTEND_SUB_DOMAIN = "www."
+    BACKEND_SUB_DOMAIN = "api."
+    FRONTEND_DOMAIN = "domain.com"
+    BACKEND_DOMAIN = FRONTEND_DOMAIN
 else:
     SCHEME = "http"
-    SUB_DOMAIN = ""
-    DOMAIN = "localhost:5173"
+    FRONTEND_SUB_DOMAIN = ""
+    BACKEND_SUB_DOMAIN = ""
+    FRONTEND_DOMAIN = "localhost:5173"
+    BACKEND_DOMAIN = "localhost:8000"
 
 # Security
 PW_HASH_SALT = os.getenv("PW_HASH_SALT")
 ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
 ENCRYPTION_IV_LEN = int(os.getenv("ENCRYPTION_IV_LEN"))
+BARS_WS_TOKEN = "your-token"
 
 # DB
 DB_HOST = os.getenv("DB_HOST")
@@ -58,11 +63,9 @@ REDIS_DB = 0
 # Keys
 REDIS_EMAIL_VERIFICATION_KEY_PREFIX = os.getenv("REDIS_EMAIL_VERIFICATION_KEY_PREFIX")
 REDIS_EMAIL_VERIFCATION_EXPIRY_SECS = 900
-
 REDIS_STRIPE_INVOICE_METADATA_KEY_PREFIX = os.getenv(
     "REDIS_STRIPE_INVOICE_METADATA_KEY_PREFIX"
 )
-
 REDIS_ALPACA_OAUTH_PREFIX = os.getenv("REDIS_ALPACA_OAUTH_PREFIX")
 REDIS_ALPACA_OAUTH_TTL_SECS = int(os.getenv("REDIS_ALPACA_OAUTH_TTL_SECS"))
 

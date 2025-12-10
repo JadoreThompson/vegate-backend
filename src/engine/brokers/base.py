@@ -1,7 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 from datetime import date
-from typing import Generator
+from typing import AsyncGenerator, Generator
 
 from engine.enums import Timeframe
 from engine.ohlcv import OHLCV
@@ -149,7 +149,7 @@ class BaseBroker(ABC):
         pass
 
     @abstractmethod
-    def get_historic_olhcv(
+    def get_historic_ohlcv(
         self,
         symbol: str,
         timeframe: Timeframe,
@@ -168,10 +168,15 @@ class BaseBroker(ABC):
         end_date: date | None = None,
     ) -> Generator[OHLCV, None, None]: ...
 
-    @abstractmethod
     def yield_ohlcv(
         self, symbol: str, timeframe: Timeframe
-    ) -> Generator[OHLCV, None, None]: ...
+    ) -> Generator[OHLCV, None, None]:
+        raise NotImplementedError()
+
+    async def yield_ohlcv_async(
+        self, symbol: str, timeframe: Timeframe
+    ) -> AsyncGenerator[OHLCV, None]:
+        raise NotImplementedError()
 
     def _apply_rate_limit(self) -> None:
         """

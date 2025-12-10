@@ -6,7 +6,7 @@ from .exc import (
     OrderRejectedError,
     InsufficientFundsError,
     RateLimitError,
-    ConnectionError,
+    BrokerConnectionError,
     SymbolNotFoundError,
     DataNotAvailableError,
 )
@@ -21,7 +21,7 @@ __all__ = [
     "OrderRejectedError",
     "InsufficientFundsError",
     "RateLimitError",
-    "ConnectionError",
+    "BrokerConnectionError",
     "SymbolNotFoundError",
     "DataNotAvailableError",
     # Brokers

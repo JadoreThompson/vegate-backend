@@ -18,6 +18,7 @@ from .controller import (
 from .models import DeployStrategyRequest, DeploymentResponse
 from api.routes.backtests.models import OrderResponse
 
+
 router = APIRouter(prefix="/deployments", tags=["Deployments"])
 deployment_service = DeploymentService()
 
@@ -52,6 +53,7 @@ async def deploy_strategy_endpoint(
         strategy_id=deployment.strategy_id,
         broker_connection_id=deployment.broker_connection_id,
         symbol=deployment.symbol,
+        market_type=deployment.market_type,
         timeframe=deployment.timeframe,
         status=deployment.status,
         error_message=deployment.error_message,
@@ -92,6 +94,7 @@ async def list_strategy_deployments_endpoint(
             strategy_id=d.strategy_id,
             broker_connection_id=d.broker_connection_id,
             symbol=d.symbol,
+            market_type=d.market_type,
             timeframe=d.timeframe,
             starting_balance=d.starting_balance or 0,
             status=d.status,
@@ -135,6 +138,7 @@ async def get_deployment_endpoint(
         strategy_id=deployment.strategy_id,
         broker_connection_id=deployment.broker_connection_id,
         symbol=deployment.symbol,
+        market_type=deployment.market_type,
         timeframe=deployment.timeframe,
         starting_balance=deployment.starting_balance or 0,
         status=deployment.status,
@@ -165,6 +169,7 @@ async def stop_deployment_endpoint(
         strategy_id=deployment.strategy_id,
         broker_connection_id=deployment.broker_connection_id,
         symbol=deployment.symbol,
+        market_type=deployment.market_type,
         timeframe=deployment.timeframe,
         starting_balance=deployment.starting_balance or 0,
         status=deployment.status,
@@ -197,6 +202,7 @@ async def list_all_deployments_endpoint(
             strategy_id=d.strategy_id,
             broker_connection_id=d.broker_connection_id,
             symbol=d.symbol,
+            market_type=d.market_type,
             timeframe=d.timeframe,
             starting_balance=d.starting_balance or 0,
             status=d.status,

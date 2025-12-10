@@ -6,7 +6,7 @@ from api.dependencies import depends_db_sess, depends_jwt
 from api.routes.brokers.models import GetOauthUrlResponse
 from services import AlpacaAPI
 from api.typing import JWTPayload
-from config import DOMAIN, SCHEME, SUB_DOMAIN
+from config import FRONTEND_DOMAIN, SCHEME, FRONTEND_SUB_DOMAIN
 from engine.enums import BrokerType
 
 
@@ -16,7 +16,7 @@ alpaca_api = AlpacaAPI()
 
 @router.get("/oauth", response_model=GetOauthUrlResponse)
 async def get_oauth_url(jwt: JWTPayload = Depends(depends_jwt())):
-    url = await alpaca_api.get_oauth_url(jwt.sub, 'paper')
+    url = await alpaca_api.get_oauth_url(jwt.sub, "paper")
     return GetOauthUrlResponse(url=url)
 
 
@@ -37,5 +37,5 @@ async def oauth_callback(
     query_params = "&".join(f"{k}={v}" for k, v in params)
 
     return RedirectResponse(
-        f"{SCHEME}://{SUB_DOMAIN}{DOMAIN}/brokers/oauth?{query_params}"
+        f"{SCHEME}://{FRONTEND_SUB_DOMAIN}{FRONTEND_DOMAIN}/brokers/oauth?{query_params}"
     )
