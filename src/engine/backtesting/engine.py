@@ -6,7 +6,7 @@ from pydantic import field_validator
 
 from core.models import CustomBaseModel
 from engine.brokers import BacktestBroker
-from engine.enums import Timeframe, OrderStatus, OrderSide
+from engine.enums import Timeframe
 from engine.models import OrderResponse
 from engine.strategy import BaseStrategy, StrategyContext, StrategyManager
 from .metrics import (
@@ -91,12 +91,10 @@ class BacktestEngine:
         """
         account = self._broker.get_account()
 
-        # Calculate returns
         total_return, total_return_pct = calculate_total_return(
-            self._config.starting_balance, account.equity
+            self._config.starting_balance, account.cash
         )
 
-        # Calculate risk metrics
         sharpe = calculate_sharpe_ratio(self._equity_curve)
 
         if self._equity_curve and self._cash_balance_curve:
@@ -106,19 +104,9 @@ class BacktestEngine:
         else:
             max_dd, max_dd_pct = 0.0, 0.0
 
-        # Get all orders from broker
         all_orders = list(self._broker._orders.values())
-
-        unrealised_pnl = Decimal("0.0")
-
-        # Convert account equity and starting balance to Decimal for calculation
-        equity_dec = (
-            account.equity
-            if isinstance(account.equity, Decimal)
-            else Decimal(str(account.equity))
-        )
         starting_dec = Decimal(str(self._config.starting_balance))
-        unrealised_pnl = equity_dec - starting_dec - Decimal(str(total_return))
+        unrealised_pnl = account.equity - starting_dec - Decimal(str(total_return))
 
         logger.info(
             f"Backtest complete: Return=${total_return:.2f} ({total_return_pct:.2f}%), "

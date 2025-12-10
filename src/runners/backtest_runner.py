@@ -74,12 +74,21 @@ class BacktestRunner(BaseRunner):
         result = bt.run()
 
         logger.info(f"Backtest {self._backtest_id} completed. Result: {result}")
-        
+
         records = []
         for o in result.orders:
-            d = o.model_dump(mode='json', exclude={'broker_metadata'})
-            d['backtest_id'] = self._backtest_id
+            d = o.model_dump(mode="json", exclude={"broker_metadata"})
+            d["backtest_id"] = self._backtest_id
             records.append(d)
+
+        equity_curve = result.equity_curve
+        n = len(equity_curve)
+        if n > 5:
+            indices = [0, n * 1 // 4, n * 2 // 4, n * 3 // 4, n - 1]
+            equity_curve = [equity_curve[i] for i in indices]
+        
+        result.equity_curve = equity_curve
+        metrics = result.model_dump(mode="json", exclude={"config"})
 
         with get_db_sess_sync() as db_sess:
             db_sess.execute(insert(Orders), records)
@@ -88,7 +97,7 @@ class BacktestRunner(BaseRunner):
                 .where(Backtests.backtest_id == self._backtest_id)
                 .values(
                     status=BacktestStatus.COMPLETED,
-                    metrics=result.model_dump(mode="json", exclude={"config"}),
+                    metrics=metrics,
                 )
             )
             db_sess.commit()

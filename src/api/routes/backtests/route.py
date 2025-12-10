@@ -84,6 +84,7 @@ async def get_backtest_endpoint(
             sharpe_ratio=backtest.metrics.get("sharpe_ratio", 0.0),
             max_drawdown=backtest.metrics.get("max_drawdown", 0.0),
             total_trades=backtest.metrics.get("total_orders", 0),
+            equity_curve=backtest.metrics.get("equity_curve", [])
         )
 
     return BacktestDetailResponse(
