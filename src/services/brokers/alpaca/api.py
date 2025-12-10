@@ -4,7 +4,7 @@ import string
 from urllib.parse import quote
 from uuid import UUID
 
-from sqlalchemy import insert
+from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import (
@@ -98,17 +98,24 @@ class AlpacaAPI(HTTPSessMixin, BaseBrokerAPI):
         rsp = await self._http_sess.get(f"{base_url}{endpoint}", headers=headers)
         rsp.raise_for_status()
         data = await rsp.json()
-        account_id = data["id"]
+        account_id = data["account_number"]
 
         # Persisting
-        await db_sess.execute(
-            insert(BrokerConnections).values(
-                user_id=user_id,
-                broker=BrokerType.ALPACA,
-                oauth_payload=encrypted_payload,
-                broker_account_id=account_id,
+        existing_conn = await db_sess.scalar(
+            select(BrokerConnections).where(
+                BrokerConnections.broker == BrokerType.ALPACA,
+                BrokerConnections.broker_account_id == account_id,
             )
         )
+        if existing_conn is None:
+            await db_sess.execute(
+                insert(BrokerConnections).values(
+                    user_id=user_id,
+                    broker=BrokerType.ALPACA,
+                    oauth_payload=encrypted_payload,
+                    broker_account_id=account_id,
+                )
+            )
         await db_sess.commit()
 
     @staticmethod

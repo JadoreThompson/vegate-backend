@@ -27,13 +27,11 @@ async def list_broker_connections_endpoint(
     including connection IDs, broker types, and account IDs.
     """
     connections = await list_broker_connections(jwt.sub, db_sess)
-
     return [
         BrokerConnectionResponse(
             connection_id=c.connection_id,
             broker=c.broker,
             broker_account_id=c.broker_account_id,
-            created_at=None,  # We don't have created_at in the BrokerConnections model
         )
         for c in connections
     ]

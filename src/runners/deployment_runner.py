@@ -104,14 +104,15 @@ class DeploymentRunner(BaseRunner):
             logger.info("Strategy manager initialised")
 
             context = StrategyContext(self._broker)
+            timeframe = Timeframe(db_deployment.timeframe)
 
             with self._strategy_manager:
                 logger.info("Strategy manager started, entering trading loop")
-                timeframe = Timeframe(db_deployment.timeframe)
 
-                for _ in self._broker.yield_ohlcv(
+                for candle in self._broker.yield_ohlcv(
                     symbol=db_deployment.symbol, timeframe=timeframe
                 ):
+                    context._current_candle = candle
                     self._strategy_manager.on_candle(context)
 
         except KeyboardInterrupt:
@@ -142,7 +143,7 @@ class DeploymentRunner(BaseRunner):
             raise ValueError(f"Unsupported broker: {broker_conn.broker}")
 
     def _initialise_alpaca_broker(self, broker_conn: BrokerConnections):
-        decrypted = EncryptionService.decrypt(broker_conn, str(broker_conn.user_id))
+        decrypted = EncryptionService.decrypt(broker_conn.oauth_payload, str(broker_conn.user_id))
         oauth_payload = AlpacaOAuthPayload(**json.loads(decrypted))
 
         client = TradingClient(oauth_token=oauth_payload.access_token)

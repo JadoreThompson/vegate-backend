@@ -17,4 +17,3 @@ class BrokerConnectionResponse(CustomBaseModel):
     connection_id: UUID
     broker: BrokerType
     broker_account_id: str
-    created_at: datetime = None

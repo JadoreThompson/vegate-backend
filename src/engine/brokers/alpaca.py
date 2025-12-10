@@ -364,6 +364,9 @@ class AlpacaBroker(BaseBroker):
                 "alpaca_time_in_force": str(alpaca_order.time_in_force),
             },
         )
+    
+    def get_historic_olhcv(self, symbol, timeframe, prev_bars = None, start_date = None, end_date = None):
+        return super().get_historic_olhcv(symbol, timeframe, prev_bars, start_date, end_date)
 
     def _handle_api_error(self, error: APIError, operation: str):
         """Handle Alpaca API errors and convert to our exceptions."""
