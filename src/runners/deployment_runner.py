@@ -47,7 +47,7 @@ class DeploymentRunner(BaseRunner):
                     return
 
                 logger.info(
-                    f"Deployment found. Ticker: {db_deployment.ticker}, "
+                    f"Deployment found. Ticker: {db_deployment.symbol}, "
                     f"Timeframe: {db_deployment.timeframe}"
                 )
 
@@ -106,11 +106,11 @@ class DeploymentRunner(BaseRunner):
             context = StrategyContext(self._broker)
 
             with self._strategy_manager:
-                logger.info("Strategy manager started, entering trading loop")                
+                logger.info("Strategy manager started, entering trading loop")
                 timeframe = Timeframe(db_deployment.timeframe)
 
                 for _ in self._broker.yield_ohlcv(
-                    symbol=db_deployment.ticker, timeframe=timeframe
+                    symbol=db_deployment.symbol, timeframe=timeframe
                 ):
                     self._strategy_manager.on_candle(context)
 

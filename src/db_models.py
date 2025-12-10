@@ -155,13 +155,12 @@ class StrategyDeployments(Base):
         ForeignKey("broker_connections.connection_id"),
         nullable=False,
     )
-    ticker: Mapped[str] = mapped_column(String, nullable=False)
+    symbol: Mapped[str] = mapped_column(String, nullable=False)
     timeframe: Mapped[str] = mapped_column(String, nullable=False)
     starting_balance: Mapped[Decimal] = mapped_column(
-        Numeric(precision=15, scale=2), nullable=False
+        Numeric(precision=15, scale=2), nullable=True
     )
-    status: Mapped[StrategyDeploymentStatus] = mapped_column(String, nullable=False)
-    config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    status: Mapped[StrategyDeploymentStatus] = mapped_column(String, nullable=False, default=StrategyDeploymentStatus.PENDING.value)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = datetime_tz()
     updated_at: Mapped[datetime] = datetime_tz(onupdate=get_datetime)
