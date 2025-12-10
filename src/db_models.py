@@ -236,7 +236,7 @@ class Ticks(Base):
     )
 
     tick_id: Mapped[UUID] = uuid_pk()
-    source: Mapped[str] = mapped_column(String, nullable=False)
+    source: Mapped[BrokerType] = mapped_column(String, nullable=False)
     symbol: Mapped[str] = mapped_column(String, nullable=False)
     market_type: Mapped[MarketType] = mapped_column(String, nullable=False)
     price: Mapped[Decimal] = mapped_column(

@@ -12,3 +12,4 @@ alembic.ini
 prod-compose.parsed.yaml
 rec.py
 misc
+user_strategy.py
