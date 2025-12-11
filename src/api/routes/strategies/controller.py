@@ -340,7 +340,7 @@ Check for:
         raise HTTPException(409, "Strategy with this name already exists.")
 
     new_strategy = Strategies(
-        user_id=user_id, name=data.name, description=data.description, code=output.code
+        user_id=user_id, name=data.name, description=data.description, code=output.code, prompt=data.prompt,
     )
     db_sess.add(new_strategy)
     await db_sess.flush()

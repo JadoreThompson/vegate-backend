@@ -102,6 +102,7 @@ class Strategies(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = datetime_tz()
     updated_at: Mapped[datetime] = datetime_tz(nullable=False, onupdate=get_datetime)
+    prompt: Mapped[str] = mapped_column(Text, nullable=False)
     code: Mapped[str] = mapped_column(Text, nullable=False)
     metrics: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 

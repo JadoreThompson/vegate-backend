@@ -28,6 +28,7 @@ class StrategyResponse(CustomBaseModel):
 
 class StrategyDetailResponse(StrategyResponse):
     code: str
+    prompt: str
 
 
 class StrategyMetrics(BaseModel):

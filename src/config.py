@@ -36,7 +36,7 @@ else:
     SCHEME = "http"
     FRONTEND_SUB_DOMAIN = ""
     BACKEND_SUB_DOMAIN = ""
-    FRONTEND_DOMAIN = "localhost:5173"
+    FRONTEND_DOMAIN = "localhost:5900"
     BACKEND_DOMAIN = "localhost:8000"
 
 # Security

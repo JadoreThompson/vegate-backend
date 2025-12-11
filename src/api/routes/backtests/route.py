@@ -4,8 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.dependencies import depends_db_sess, depends_jwt
+from api.dependencies import CSVQuery, depends_db_sess, depends_jwt
 from api.typing import JWTPayload
+from core.enums import BacktestStatus
 from db_models import Strategies
 from services import DeploymentService
 from .controller import (
@@ -102,11 +103,15 @@ async def get_backtest_endpoint(
 async def list_backtests_endpoint(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
+    # status: list[BacktestStatus] | None = Query(None),
+    status: list[BacktestStatus] | None = CSVQuery("status", BacktestStatus, None),
+    # symbols: list[str] | None = Query(None),
+    symbols: list[str] | None = CSVQuery("symbols", str, None),
     jwt: JWTPayload = Depends(depends_jwt()),
     db_sess: AsyncSession = Depends(depends_db_sess),
 ):
     """List all backtests with pagination."""
-    backtests = await list_backtests(jwt.sub, db_sess, skip, limit)
+    backtests = await list_backtests(jwt.sub, db_sess, status, symbols, skip, limit)
     res = [
         BacktestResponse(
             backtest_id=b.backtest_id,
