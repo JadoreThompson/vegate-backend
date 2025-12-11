@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import CSVQuery, depends_db_sess, depends_jwt
+from api.shared.models import OrderResponse
 from api.typing import JWTPayload
 from core.enums import BacktestStatus
 from db_models import Strategies
@@ -22,8 +23,7 @@ from .models import (
     BacktestDetailResponse,
     BacktestMetrics,
     BacktestResponse,
-    BacktestUpdate,
-    OrderResponse,
+    BacktestUpdate
 )
 
 

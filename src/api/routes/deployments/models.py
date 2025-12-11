@@ -1,10 +1,10 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from api.shared.models import PerformanceMetrics
 from core.enums import StrategyDeploymentStatus
 from core.models import CustomBaseModel
 from engine.enums import MarketType
@@ -34,3 +34,7 @@ class DeploymentResponse(CustomBaseModel):
     created_at: datetime
     updated_at: datetime
     stopped_at: datetime | None
+
+
+class DeploymentDetailResponse(DeploymentResponse):
+    metrics: PerformanceMetrics

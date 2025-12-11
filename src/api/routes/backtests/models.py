@@ -46,20 +46,3 @@ class BacktestMetrics(BaseModel):
 class BacktestDetailResponse(BacktestResponse):
     metrics: BacktestMetrics | None
 
-
-class OrderResponse(CustomBaseModel):
-    order_id: UUID
-    symbol: str
-    side: str
-    order_type: str
-    quantity: Decimal
-    filled_quantity: Decimal
-    limit_price: Decimal | None
-    stop_price: Decimal | None
-    average_fill_price: Decimal | None
-    status: str
-    time_in_force: str
-    submitted_at: datetime
-    filled_at: datetime | None
-    client_order_id: str | None
-    broker_order_id: str | None

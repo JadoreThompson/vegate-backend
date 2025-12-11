@@ -16,7 +16,7 @@ from .controller import (
     stop_deployment,
 )
 from .models import DeployStrategyRequest, DeploymentResponse
-from api.routes.backtests.models import OrderResponse
+from api.shared.models import OrderResponse, PerformanceMetrics
 
 
 router = APIRouter(prefix="/deployments", tags=["Deployments"])
