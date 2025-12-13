@@ -117,6 +117,7 @@ class BacktestBroker(BaseBroker):
         if order.side == OrderSide.BUY:
             if order.notional is not None:
                 required_cash = order.notional
+                order_quantity = order.notional // fill_price
             else:
                 required_cash = fill_price * order_quantity
 
@@ -142,7 +143,7 @@ class BacktestBroker(BaseBroker):
         # Execute trade
         if status == OrderStatus.FILLED:
             if order.side == OrderSide.BUY:
-                self._cash -= fill_price * order_quantity
+                self._cash -= required_cash
             else:
                 self._cash += fill_price * order_quantity
 
@@ -181,6 +182,17 @@ class BacktestBroker(BaseBroker):
         Returns:
             Pending order response
         """
+        status = OrderStatus.PENDING
+
+        if (
+            order.side == OrderSide.BUY
+            and order.limit_price >= self._current_candle.close
+        ) or (
+            order.side == OrderSide.SELL
+            and order.limit_price <= self._current_candle.close
+        ):
+            status = OrderStatus.REJECTED
+
         response = OrderResponse(
             order_id=order_id,
             client_order_id=order.client_order_id,
@@ -189,7 +201,7 @@ class BacktestBroker(BaseBroker):
             order_type=order.order_type,
             quantity=order.quantity,
             filled_quantity=0.0,
-            status=OrderStatus.PENDING,
+            status=status,
             submitted_at=self._current_candle.timestamp,
             avg_fill_price=None,
             limit_price=order.limit_price,
@@ -197,9 +209,14 @@ class BacktestBroker(BaseBroker):
             time_in_force=order.time_in_force,
         )
 
-        self._pending_orders[order_id] = (order, response)
+        if status == OrderStatus.PENDING:
+            self._pending_orders[order_id] = (order, response)
+            term = "pending"
+        else:
+            term = "rejected"
+
         self._logger.debug(
-            f"Limit order {order_id} pending: {order.side.value} @ ${order.limit_price:.2f}"
+            f"Limit order {order_id} {term}: {order.side.value} @ ${order.limit_price:.2f}"
         )
 
         return response
@@ -215,6 +232,17 @@ class BacktestBroker(BaseBroker):
         Returns:
             Pending order response
         """
+        status = OrderStatus.PENDING
+
+        if (
+            order.side == OrderSide.BUY
+            and order.stop_price <= self._current_candle.close
+        ) or (
+            order.side == OrderSide.SELL
+            and order.stop_price >= self._current_candle.close
+        ):
+            status = OrderStatus.REJECTED
+
         response = OrderResponse(
             order_id=order_id,
             client_order_id=order.client_order_id,
@@ -223,7 +251,7 @@ class BacktestBroker(BaseBroker):
             order_type=order.order_type,
             quantity=order.quantity,
             filled_quantity=0.0,
-            status=OrderStatus.PENDING,
+            status=status,
             submitted_at=self._current_candle.timestamp,
             avg_fill_price=None,
             stop_price=order.stop_price,
@@ -231,9 +259,14 @@ class BacktestBroker(BaseBroker):
             time_in_force=order.time_in_force,
         )
 
-        self._pending_orders[order_id] = (order, response)
+        if status == OrderStatus.PENDING:
+            self._pending_orders[order_id] = (order, response)
+            term = "pending"
+        else:
+            term = "rejected"
+
         self._logger.debug(
-            f"Stop order {order_id} pending: {order.side.value} @ ${order.stop_price:.2f}"
+            f"Stop order {order_id} {term}: {order.side.value} @ ${order.stop_price:.2f}"
         )
 
         return response
@@ -320,14 +353,17 @@ class BacktestBroker(BaseBroker):
             qty = 0.0
 
             for order in self._orders.values():
-                if order.status not in {OrderStatus.PARTIALLY_FILLED, OrderStatus.FILLED}:
+                if order.status not in {
+                    OrderStatus.PARTIALLY_FILLED,
+                    OrderStatus.FILLED,
+                }:
                     continue
 
                 if order.side == OrderSide.SELL:
                     qty -= order.filled_quantity
                 else:
                     qty += order.filled_quantity
-            
+
             equity += price * qty
 
         return Account(account_id=self._account_id, equity=equity, cash=self._cash)

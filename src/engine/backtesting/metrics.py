@@ -131,7 +131,6 @@ def calculate_max_drawdown(
             # Calculate drawdown from peak
             dd = peak - equity
             dd_pct = (dd / peak * 100) if peak > 0 else 0.0
-
             # Log cash balance at drawdown points if available
             if cash_values and dd > 0:
                 cash_at_time = cash_values[i]
@@ -144,7 +143,7 @@ def calculate_max_drawdown(
                 max_dd = dd
                 max_dd_pct = dd_pct
 
-        return max_dd, max_dd_pct
+        return -max_dd, -max_dd_pct
 
     except Exception as e:
         logger.error(f"Error calculating max drawdown: {e}", exc_info=True)
