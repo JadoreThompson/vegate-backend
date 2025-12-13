@@ -39,10 +39,6 @@ class OrderResponse(CustomBaseModel):
     broker_order_id: str | None
 
 
-# class EquityCurve(BaseModel):
-#     equity_curve: EquityCurveT
-
-
 class PerformanceMetrics(BaseModel):
     realised_pnl: float
     unrealised_pnl: float

@@ -103,9 +103,7 @@ async def get_backtest_endpoint(
 async def list_backtests_endpoint(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
-    # status: list[BacktestStatus] | None = Query(None),
     status: list[BacktestStatus] | None = CSVQuery("status", BacktestStatus, None),
-    # symbols: list[str] | None = Query(None),
     symbols: list[str] | None = CSVQuery("symbols", str, None),
     jwt: JWTPayload = Depends(depends_jwt()),
     db_sess: AsyncSession = Depends(depends_db_sess),

@@ -1,6 +1,6 @@
 import asyncio
-from functools import partial
 import logging
+from functools import partial
 
 from alpaca.data.live import CryptoDataStream, StockDataStream
 from alpaca.data.models import Trade
@@ -38,16 +38,6 @@ class AlpacaListener:
             self._logger.error("An error occured running the clients", exc_info=e)
 
     def listen(self, market_type: MarketType, symbols: list[str]):
-        # if market_type == MarketType.CRYPTO:
-        #     client = self._crypto_stream_client
-        #     handler = partial(self._handle_trade, MarketType.CRYPTO)
-
-        # elif market_type == MarketType.STOCKS:
-        #     client = self._stock_stream_client
-        #     handler = partial(self._handle_trade, MarketType.STOCKS)
-
-        # client.subscribe_trades(handler, *list(set(symbols)))
-
         client_map = {
             MarketType.CRYPTO: self._crypto_stream_client,
             MarketType.STOCKS: self._stock_stream_client,

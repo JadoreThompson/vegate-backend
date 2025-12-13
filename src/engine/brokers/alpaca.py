@@ -95,13 +95,6 @@ class AlpacaBroker(HTTPSessMixin, BaseBroker):
             self._trading_client.get_account()
 
             loop = asyncio.get_running_loop()
-            # self._stream_client = TradingStream(
-            #     api_key=self._api_key,
-            #     secret_key=self._secret_key,
-            #     oauth_token=self._oauth_token
-            # )
-            # self._stream_task = loop.create_task(self._stream_client.run())
-            # self._stream_client.subscribe_trade_updates(self._handle_trade_update)
             self._stream_task = loop.create_task(self._listen_trade_updates())
 
             self._connected = True

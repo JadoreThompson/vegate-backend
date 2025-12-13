@@ -107,8 +107,6 @@ class DeploymentRunner(BaseRunner):
             strategy = Strategy()
             self._logger.info("Strategy instance created")
 
-            # broker = self._initialise_broker(db_broker_conn, db_deployment.market_type)
-            # self._broker = ProxyBroker(broker, self._deployment_id)
             self._broker = self._initialise_broker(db_broker_conn, db_deployment.market_type)
             self._logger.info("Broker initialised")
 

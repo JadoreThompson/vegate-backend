@@ -14,7 +14,6 @@ from config import ALPACA_API_KEY, ALPACA_SECRET_KEY, REDIS_CANDLE_CLOSE_EVENTS_
 from core.events import CandleCloseEvent
 from core.models import OHLCV
 from engine.enums import BrokerType, Timeframe
-from services import OHLCBuilder
 from utils.redis import REDIS_CLIENT
 from .models import SubscribeRequest
 
@@ -46,10 +45,6 @@ class ConnectionManager:
         )
 
     async def initialise(self):
-        # await self._restore()
-        # Start the OHLC builder for reliabili
-
-        # Start listening to candle close events instead of direct Alpaca stream
         asyncio.create_task(self._listen_candle_close_events())
         logger.debug("Started listening to candle close events")
 
@@ -145,22 +140,6 @@ class ConnectionManager:
                 f"Broadcasted candle close: {symbol} {timeframe.value} to {len(conns)} clients"
             )
 
-    # OLD IMPLEMENTATION - Direct Alpaca stream (kept for reference)
-    # def _launch_alpaca_listener(self):
-    #     self._alpaca_crypto_stream_client.subscribe_bars(
-    #         self._handle_alpaca_bar, *CRYPTO_SYMBOLS
-    #     )
-    #     self._alpaca_stock_stream_client.subscribe_bars(
-    #         self._handle_alpaca_bar, *STOCK_SYMBOLS
-    #     )
-    #     asyncio.get_running_loop().create_task(
-    #         self._alpaca_crypto_stream_client._run_forever()
-    #     )
-    #     asyncio.get_running_loop().create_task(
-    #         self._alpaca_stock_stream_client._run_forever()
-    #     )
-
-    # OLD IMPLEMENTATION - Direct Alpaca bar handling (kept for reference)
     async def _handle_alpaca_bar_old(self, bar: AlpacaBar):
         broker = BrokerType.ALPACA
         symbol = bar.symbol

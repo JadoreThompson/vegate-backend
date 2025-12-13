@@ -151,39 +151,6 @@ def calculate_max_drawdown(
         return 0.0, 0.0
 
 
-# def calculate_win_rate(trades: list) -> float:
-#     """
-#     Calculate win rate from trade history.
-
-#     Win rate is the percentage of profitable trades.
-
-#     Args:
-#         trades: list of TradeRecord objects with pnl attribute
-
-#     Returns:
-#         Win rate as percentage (0-100)
-
-#     Example:
-#         trades = [trade1, trade2, trade3]  # TradeRecord objects
-#         win_rate = calculate_win_rate(trades)
-#     """
-#     if not trades:
-#         logger.warning("No trades for win rate calculation")
-#         return 0.0
-
-#     try:
-#         winning_trades = sum(1 for trade in trades if float(trade.pnl) > 0)
-#         total_trades = len(trades)
-
-#         win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0.0
-
-#         return float(win_rate)
-
-#     except Exception as e:
-#         logger.error(f"Error calculating win rate: {e}", exc_info=True)
-#         return 0.0
-
-
 def calculate_total_return(
     initial_capital: float, final_capital: float
 ) -> tuple[float, float]:

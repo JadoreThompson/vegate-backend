@@ -27,22 +27,5 @@ class BrokerTradeEvent(CustomBaseModel):
     broker_metadata: dict[str, Any] | None = None
 
 
-# class CandleCloseEvent(CustomBaseModel):
-#     """
-#     Emitted when an OHLC candle closes.
-#     Contains the complete candle data for a specific timeframe.
-#     """
-
-#     broker: BrokerType
-#     symbol: str
-#     timeframe: Timeframe
-#     timestamp: str  # ISO format datetime
-#     open: str  # Decimal as string
-#     high: str  # Decimal as string
-#     low: str  # Decimal as string
-#     close: str  # Decimal as string
-#     volume: int
-
-
 class CandleCloseEvent(OHLCV):
     broker: BrokerType

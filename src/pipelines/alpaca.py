@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timedelta
-from decimal import Decimal
 from typing import Type
 
 from aiohttp import ClientSession
@@ -23,8 +22,6 @@ from .base import BasePipeline
 from .rate_limiter import RateLimiter
 
 
-
-
 class AlpacaPipeline(BasePipeline):
     """
     Pipeline for ingesting market data from Alpaca.
@@ -32,7 +29,6 @@ class AlpacaPipeline(BasePipeline):
     Handles both historical data fetching and live streaming for stocks and crypto.
     Methods are organized in logical groups for better maintainability.
     """
-
 
     def __init__(self):
         self._source = "alpaca"
@@ -89,7 +85,7 @@ class AlpacaPipeline(BasePipeline):
                 self._loop_historical(symbol, MarketType.CRYPTO, start_date, end_date)
             )
             while True:
-                await self._stream_trades(symbol, CryptoDataStream, MarketType.CRYPTO)
+                await self._stream_trades(symbol, MarketType.CRYPTO)
         finally:
             if task is not None and not task.done():
                 task.cancel()
@@ -234,40 +230,16 @@ class AlpacaPipeline(BasePipeline):
             .on_conflict_do_nothing(index_elements=["source", "key"])
         )
         await db_sess.commit()
-        self._logger.info(f"Inserted {len(records)} {market_type.value} trades for {symbol}")
+        self._logger.info(
+            f"Inserted {len(records)} {market_type.value} trades for {symbol}"
+        )
 
-    async def _stream_trades(
-        self,
-        symbol: str,
-        stream_class: Type[StockDataStream] | Type[CryptoDataStream],
-        market_type: MarketType,
-    ):
-        """Stream live trades from Redis pub/sub and ingest to database."""        
-        # self._logger.info(f"Starting live {market_type.value} stream for {symbol}")
-        # stream = stream_class(ALPACA_API_KEY, ALPACA_SECRET_KEY, raw_data=True)
-        # trades = []
+    async def _stream_trades(self, symbol: str, market_type: MarketType):
+        """Stream live trades from Redis pub/sub and ingest to database."""
 
-        # async def handle_trade(trade):
-        #     nonlocal trades
-        #     self._logger.debug(
-        #         f"Received live trade for {symbol}: price={trade.get('p')}, size={trade.get('s')}"
-        #     )
-
-        #     trades.append(trade)
-
-        #     if len(trades) == 1000:
-        #         async with get_db_sess() as db_sess:
-        #             await self._ingest_live_trades(trades, market_type, db_sess)
-        #         trades = []
-
-        # stream.subscribe_trades(handle_trade, symbol)
-        # self._logger.info(f"Live stream connected for {symbol} ({market_type.value})")
-        # await stream._run_forever()
-
-        # NEW IMPLEMENTATION - Redis pub/sub based
         batch = []
         batch_size = 1000
-    
+
         async with REDIS_CLIENT.pubsub() as ps:
             await ps.subscribe(REDIS_BROKER_TRADE_EVENTS_KEY)
             async for msg in ps.listen():
@@ -276,7 +248,7 @@ class AlpacaPipeline(BasePipeline):
 
                 try:
                     event = BrokerTradeEvent(**json.loads(msg["data"]))
-                    if event.broker != BrokerType.ALPACA:
+                    if event.broker != BrokerType.ALPACA or event.symbol != symbol:
                         continue
 
                     batch.append(event)
@@ -302,34 +274,15 @@ class AlpacaPipeline(BasePipeline):
 
         await db_sess.commit()
 
-
     @staticmethod
     def _generate_trade_key(trade: BrokerTradeEvent) -> str:
         """Generate unique key for trade deduplication."""
-        # OLD IMPLEMENTATION - dict based
-        # timestamp = datetime.fromisoformat(trade["t"]).timestamp()
-        # return f"{timestamp}:{trade['p']}:{trade['s']}"
-
-        # NEW IMPLEMENTATION - BrokerTradeEvent based
         return f"{trade.timestamp}:{trade['p']}:{trade['s']}"
 
     def _parse_live_trade(
         self, trade: BrokerTradeEvent, market_type: MarketType
     ) -> dict:
         """Parse live trade event into database record format."""
-        # OLD IMPLEMENTATION - dict based
-        # return {
-        #     "source": self._source,
-        #     "symbol": trade["S"],
-        #     "market_type": market_type,
-        #     "price": Decimal(str(trade["p"])),
-        #     "size": trade["s"],
-        #     "timestamp": datetime.fromisoformat(trade["t"]).timestamp(),
-        #     "created_at": get_datetime(),
-        #     "key": self._generate_trade_key(trade),
-        # }
-
-        # NEW IMPLEMENTATION - BrokerTradeEvent based
         return {
             "source": self._source,
             "symbol": trade.symbol,
@@ -345,7 +298,9 @@ class AlpacaPipeline(BasePipeline):
         self, symbol: str, market_type: MarketType
     ) -> datetime | None:
         """Query the most recent timestamp for a symbol from the database."""
-        self._logger.debug(f"Querying last timestamp for {symbol} ({market_type.value})")
+        self._logger.debug(
+            f"Querying last timestamp for {symbol} ({market_type.value})"
+        )
         async with get_db_sess() as db_sess:
             last_timestamp = await db_sess.scalar(
                 select(func.max(Ticks.timestamp))
