@@ -694,12 +694,6 @@ wheels = [
 ]
 
 [[package]]
-name = "ibapi"
-version = "9.81.1.post1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/cc/78/8f1322aa1be1fe7d747d06d445ede80141e873525120bde809ccae5484fa/ibapi-9.81.1.post1.tar.gz", hash = "sha256:49f6678bf4cced996920f32ad4b48e6897749ac30ba14a661082285f4ec09cd6", size = 61109, upload-time = "2020-12-06T03:18:39.916Z" }
-
-[[package]]
 name = "idna"
 version = "3.11"
 source = { registry = "https://pypi.org/simple" }
@@ -1564,7 +1558,6 @@ dependencies = [
     { name = "cryptography" },
     { name = "discord-py" },
     { name = "fastapi" },
-    { name = "ibapi" },
     { name = "kafka-python" },
     { name = "psycopg2-binary" },
     { name = "pydantic", extra = ["email"] },
@@ -1592,7 +1585,6 @@ requires-dist = [
     { name = "cryptography", specifier = ">=46.0.3" },
     { name = "discord-py", specifier = ">=2.6.4" },
     { name = "fastapi", specifier = ">=0.119.0" },
-    { name = "ibapi", specifier = ">=9.81.1.post1" },
     { name = "kafka-python", specifier = ">=2.2.15" },
     { name = "psycopg2-binary", specifier = ">=2.9.11" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.12.0" },

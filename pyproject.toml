@@ -15,7 +15,6 @@ dependencies = [
     "cryptography>=46.0.3",
     "discord-py>=2.6.4",
     "fastapi>=0.119.0",
-    "ibapi>=9.81.1.post1",
     "kafka-python>=2.2.15",
     "psycopg2-binary>=2.9.11",
     "pydantic-ai-slim[mistral]>=1.27.0",
@@ -30,12 +29,6 @@ dependencies = [
     "uvicorn>=0.37.0",
     "websockets>=15.0.1",
 ]
-
-[project.scripts]
-vegate = "cli.main:cli"
-
-[tool.uv]
-package = true
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
