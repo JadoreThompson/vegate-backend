@@ -1,5 +1,6 @@
-from typing import Any
 from datetime import datetime
+from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -12,7 +13,7 @@ class OrderRequest(BaseModel):
     side: OrderSide
     order_type: OrderType
     quantity: float | None = Field(None, gt=0)
-    notional: float | None = None
+    notional: float | None = Field(None, gt=0)
     limit_price: float | None = Field(None, gt=0)
     stop_price: float | None = Field(None, gt=0)
     time_in_force: TimeInForce
@@ -42,7 +43,7 @@ class OrderResponse(CustomBaseModel):
     limit_price: float | None
     stop_price: float | None
     status: OrderStatus
-    created_at: datetime
+    submitted_at: datetime
     filled_at: datetime | None = None
     avg_fill_price: float | None = None
     time_in_force: TimeInForce

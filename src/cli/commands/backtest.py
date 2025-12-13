@@ -7,7 +7,7 @@ import click
 
 from runners import BacktestRunner
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("commands.backtest")
 
 
 @click.group()

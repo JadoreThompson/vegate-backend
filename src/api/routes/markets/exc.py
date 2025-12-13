@@ -1,0 +1,2 @@
+class WsAuthenticationError(Exception):
+    pass

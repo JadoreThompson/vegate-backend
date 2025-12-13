@@ -51,6 +51,9 @@ jobs:
             echo "Failed to create $FPATH"
             exit 1
           fi
+
+      - name: Create alembic ini file
+        run: cat alembic.ini.example > alembic.ini
         
       - name: Build image
         run: docker build -f docker/Dockerfile -t migrate_db .

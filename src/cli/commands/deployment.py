@@ -7,7 +7,7 @@ import click
 
 from runners import DeploymentRunner
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("commands.deployment")
 
 
 @click.group()

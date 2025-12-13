@@ -1,4 +1,5 @@
 from datetime import datetime
 
 
-EquityCurveT = list[tuple[datetime, float]]
+EquityCurvePoint = tuple[datetime, float]
+EquityCurve = list[EquityCurvePoint]

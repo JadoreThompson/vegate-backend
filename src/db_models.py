@@ -1,18 +1,19 @@
-from datetime import datetime
-from decimal import Decimal
+from datetime import date, datetime
 from uuid import UUID
 
 from sqlalchemy import (
     UUID as SaUUID,
     BigInteger,
     Index,
+    Integer,
+    Numeric,
     String,
     DateTime,
     ForeignKey,
     Text,
     Date,
-    Numeric,
     UniqueConstraint,
+    Float,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, mapped_column, Mapped, relationship
@@ -102,6 +103,7 @@ class Strategies(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = datetime_tz()
     updated_at: Mapped[datetime] = datetime_tz(nullable=False, onupdate=get_datetime)
+    prompt: Mapped[str] = mapped_column(Text, nullable=False)
     code: Mapped[str] = mapped_column(Text, nullable=False)
     metrics: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
@@ -123,12 +125,12 @@ class Backtests(Base):
         SaUUID(as_uuid=True), ForeignKey("strategies.strategy_id"), nullable=False
     )
     symbol: Mapped[str] = mapped_column(String, nullable=False)
-    starting_balance: Mapped[Decimal] = mapped_column(
-        Numeric(precision=15, scale=2), nullable=False
+    starting_balance: Mapped[float] = mapped_column(
+        Float, nullable=False
     )
     metrics: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    start_date: Mapped[datetime]= mapped_column(Date(), nullable=False)
-    end_date: Mapped[datetime]= mapped_column(Date(), nullable=False)
+    start_date: Mapped[date] = mapped_column(Date(), nullable=False)
+    end_date: Mapped[date] = mapped_column(Date(), nullable=False)
     timeframe: Mapped[Timeframe] = mapped_column(String, nullable=False)
     status: Mapped[BacktestStatus] = mapped_column(
         String, nullable=False, default=BacktestStatus.PENDING.value
@@ -155,13 +157,15 @@ class StrategyDeployments(Base):
         ForeignKey("broker_connections.connection_id"),
         nullable=False,
     )
-    ticker: Mapped[str] = mapped_column(String, nullable=False)
+    market_type: Mapped[MarketType] = mapped_column(String, nullable=False)
+    symbol: Mapped[str] = mapped_column(String, nullable=False)
     timeframe: Mapped[str] = mapped_column(String, nullable=False)
-    starting_balance: Mapped[Decimal] = mapped_column(
-        Numeric(precision=15, scale=2), nullable=False
+    starting_balance: Mapped[float] = mapped_column(
+        Float, nullable=True
     )
-    status: Mapped[StrategyDeploymentStatus] = mapped_column(String, nullable=False)
-    config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    status: Mapped[StrategyDeploymentStatus] = mapped_column(
+        String, nullable=False, default=StrategyDeploymentStatus.PENDING.value
+    )
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = datetime_tz()
     updated_at: Mapped[datetime] = datetime_tz(onupdate=get_datetime)
@@ -187,20 +191,20 @@ class Orders(Base):
     symbol: Mapped[str] = mapped_column(String, nullable=False)
     side: Mapped[str] = mapped_column(String, nullable=False)
     order_type: Mapped[str] = mapped_column(String, nullable=False)
-    quantity: Mapped[Decimal] = mapped_column(
-        Numeric(precision=15, scale=8), nullable=False
+    quantity: Mapped[float] = mapped_column(
+        Float, nullable=False
     )
-    filled_quantity: Mapped[Decimal] = mapped_column(
-        Numeric(precision=15, scale=8), nullable=False, default=0
+    filled_quantity: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0
     )
-    limit_price: Mapped[Decimal | None] = mapped_column(
-        Numeric(precision=15, scale=2), nullable=True
+    limit_price: Mapped[float | None] = mapped_column(
+        Float, nullable=True
     )
-    stop_price: Mapped[Decimal | None] = mapped_column(
-        Numeric(precision=15, scale=2), nullable=True
+    stop_price: Mapped[float | None] = mapped_column(
+        Float, nullable=True
     )
-    average_fill_price: Mapped[Decimal | None] = mapped_column(
-        Numeric(precision=15, scale=2), nullable=True
+    avg_fill_price: Mapped[float | None] = mapped_column(
+        Float, nullable=True
     )
     status: Mapped[str] = mapped_column(String, nullable=False)
     time_in_force: Mapped[str] = mapped_column(String, nullable=False, default="day")
@@ -210,6 +214,7 @@ class Orders(Base):
     )
     client_order_id: Mapped[str | None] = mapped_column(String, nullable=True)
     broker_order_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    broker_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     # Foreign keys (nullable for backtest vs live)
     backtest_id: Mapped[UUID | None] = mapped_column(
@@ -236,13 +241,29 @@ class Ticks(Base):
     )
 
     tick_id: Mapped[UUID] = uuid_pk()
-    source: Mapped[str] = mapped_column(String, nullable=False)
+    source: Mapped[BrokerType] = mapped_column(String, nullable=False)
     symbol: Mapped[str] = mapped_column(String, nullable=False)
     market_type: Mapped[MarketType] = mapped_column(String, nullable=False)
-    price: Mapped[Decimal] = mapped_column(
-        Numeric(precision=15, scale=2), nullable=False
-    )
-    size: Mapped[int] = mapped_column(BigInteger, nullable=True)
+    price: Mapped[float] = mapped_column(Float, nullable=False)
+    size: Mapped[float] = mapped_column(Float, nullable=True)
     timestamp: Mapped[int] = mapped_column(BigInteger, nullable=False)
     created_at: Mapped[datetime] = datetime_tz()
     key: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class OHLCs(Base):
+    __tablename__ = 'ohlc_levels'
+    __table_args__ = (
+        Index('idx_ohlc_levels_source_symbol', 'source', 'symbol'),
+    )
+
+    ohlc_id: Mapped[UUID] = uuid_pk()
+    source: Mapped[str] = mapped_column(String, nullable=False)
+    symbol: Mapped[str] = mapped_column(String, nullable=False)
+    open: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False)
+    high: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False)
+    low: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False)
+    close: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False)
+    timeframe: Mapped[Timeframe] = mapped_column(String, nullable=False)
+    timestamp: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = datetime_tz()

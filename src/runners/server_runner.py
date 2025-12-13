@@ -1,5 +1,5 @@
 import uvicorn
-from .base_runner import BaseRunner
+from .base import BaseRunner
 
 
 class ServerRunner(BaseRunner):

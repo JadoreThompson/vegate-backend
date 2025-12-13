@@ -83,7 +83,7 @@ class InsufficientFundsError(BrokerError):
     pass
 
 
-class ConnectionError(BrokerError):
+class BrokerConnectionError(BrokerError):
     """
     Raised when connection to broker cannot be established or is lost.
 

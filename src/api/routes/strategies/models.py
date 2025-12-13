@@ -4,7 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from core.models import CustomBaseModel
-from engine.backtesting.types import EquityCurveT
+from engine.backtesting.types import EquityCurve
 
 
 class StrategyCreate(BaseModel):
@@ -28,6 +28,7 @@ class StrategyResponse(CustomBaseModel):
 
 class StrategyDetailResponse(StrategyResponse):
     code: str
+    prompt: str
 
 
 class StrategyMetrics(BaseModel):
@@ -36,7 +37,7 @@ class StrategyMetrics(BaseModel):
     total_return: float
     sharpe_ratio: float
     max_drawdown: float
-    equity_curve: EquityCurveT
+    equity_curve: EquityCurve
 
 
 class StrategySummaryResponse(StrategyResponse):

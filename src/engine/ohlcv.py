@@ -11,7 +11,7 @@ class OHLCV:
         high: float,
         low: float,
         close: float,
-        volume: int,
+        volume: float,
         timeframe: Timeframe,
     ):
         self.symbol = symbol

@@ -15,19 +15,39 @@ class StrategyManager:
         self._is_running = False
         self._shutdown_called = False
         self._original_sigint_handler = None
-        self._logger = logging.getLogger(__name__)
+        self._logger = logging.getLogger(type(self).__name__)
+
+    @property
+    def supports_async(self):
+        return self._broker.supports_disconnect_async
 
     def __enter__(self):
-        self._setup()
+        if self._broker.supports_disconnect_async:
+            raise ValueError("Broker supports async. Use async context manager instead")
+        self.setup()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self._cleanup()
+        self.cleanup()
+
+    async def __aenter__(self):
+        if not self._broker.supports_disconnect_async:
+            raise ValueError(
+                "Broker doesn't support async. Use sync context manager instead"
+            )
+        self.setup()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.cleanup_async()
 
     def on_candle(self, context: StrategyContext) -> None:
-        self._strategy.on_candle(context)
+        try:
+            self._strategy.on_candle(context)
+        except Exception as e:
+            self._logger.error(f"Error during strategy on candle : {e}", exc_info=True)
 
-    def _setup(self) -> None:
+    def setup(self) -> None:
         """
         Set up the execution environment.
 
@@ -39,19 +59,14 @@ class StrategyManager:
         Raises:
             Exception: If setup fails
         """
-        self._logger.info("Setting up strategy runner...")
-
         try:
-            # Register signal handler for graceful shutdown on Ctrl+C
             self._original_sigint_handler = signal.signal(
                 signal.SIGINT, self._signal_handler
             )
 
-            # Connect to broker
             self._logger.debug("Connecting to broker...")
             self._broker.connect()
 
-            # Call strategy startup
             self._logger.debug("Calling strategy.startup()...")
             try:
                 self._strategy.startup()
@@ -64,10 +79,17 @@ class StrategyManager:
         except Exception as e:
             self._logger.error(f"Setup failed: {e}", exc_info=True)
             # Ensure cleanup happens even if setup fails
-            self._cleanup()
+            self.cleanup()
             raise
 
-    def _cleanup(self) -> None:
+    def _restore_sigint_handler(self):
+        if self._original_sigint_handler is not None:
+            signal.signal(signal.SIGINT, self._original_sigint_handler)
+
+        self._is_running = False
+        self._shutdown_called = True
+
+    def cleanup(self) -> None:
         """
         Clean up resources and ensure strategy shutdown.
 
@@ -101,11 +123,37 @@ class StrategyManager:
                 self._logger.error(f"Broker disconnect failed: {e}", exc_info=True)
 
             # Restore original signal handler
-            if self._original_sigint_handler is not None:
-                signal.signal(signal.SIGINT, self._original_sigint_handler)
+            self._restore_sigint_handler()
+            self._logger.info("Cleanup complete")
 
-            self._is_running = False
-            self._shutdown_called = True
+    async def cleanup_async(self):
+        if self._shutdown_called:
+            return
+
+        self._logger.info("Cleaning up strategy runner...")
+
+        try:
+            # Call strategy shutdown (always, even on errors)
+            self._logger.debug("Calling strategy.shutdown()...")
+            try:
+                self._strategy.shutdown()
+                self._logger.info("Strategy shutdown completed successfully")
+            except Exception as e:
+                self._logger.error(
+                    f"Strategy shutdown failed (continuing cleanup): {e}", exc_info=True
+                )
+
+        finally:
+            # Disconnect broker (always, even if shutdown fails)
+            try:
+                self._logger.debug("Disconnecting from broker...")
+                await self._broker.disconnect_async()
+                self._logger.info("Broker disconnected")
+            except Exception as e:
+                self._logger.error(f"Broker disconnect failed: {e}", exc_info=True)
+
+            # Restore original signal handler
+            self._restore_sigint_handler()
             self._logger.info("Cleanup complete")
 
     def _signal_handler(self, signum, frame):
@@ -117,5 +165,5 @@ class StrategyManager:
             frame: Current stack frame
         """
         self._logger.warning("Received interrupt signal, shutting down gracefully...")
-        self._cleanup()
+        self.cleanup()
         sys.exit(0)

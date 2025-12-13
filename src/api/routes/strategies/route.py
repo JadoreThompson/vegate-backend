@@ -63,6 +63,7 @@ async def get_strategy_endpoint(
         name=strategy.name,
         description=strategy.description,
         code=strategy.code,
+        prompt=strategy.prompt,
         created_at=strategy.created_at,
         updated_at=strategy.updated_at,
     )

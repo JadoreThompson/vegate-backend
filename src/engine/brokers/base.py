@@ -1,7 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime
-from typing import Generator
+from datetime import date
+from typing import AsyncGenerator, Generator
 
 from engine.enums import Timeframe
 from engine.ohlcv import OHLCV
@@ -11,13 +11,16 @@ from engine.models import OrderRequest, OrderResponse, Account
 class BaseBroker(ABC):
     def __init__(self):
         self._connected = False
-        self._logger = logging.getLogger(self.__class__.__name__)
+        self._logger = logging.getLogger(type(self).__name__)
+
+    @property
+    def supports_disconnect_async(self) -> bool:
+        return False
 
     @abstractmethod
     def connect(self) -> None:
         pass
 
-    @abstractmethod
     def disconnect(self) -> None:
         """
         Gracefully disconnect from broker.
@@ -30,7 +33,10 @@ class BaseBroker(ABC):
         This method should not raise exceptions and should be safe
         to call multiple times.
         """
-        pass
+        raise NotImplementedError()
+
+    async def disconnect_async():
+        raise NotImplementedError()
 
     def __enter__(self):
         """
@@ -84,6 +90,10 @@ class BaseBroker(ABC):
             BrokerError: For other submission errors
         """
         pass
+
+    def _on_order_submit(self, response: OrderResponse) -> None: ...
+
+    def _on_order_update(self, data: dict) -> None: ...
 
     @abstractmethod
     def cancel_order(self, order_id: str) -> bool:
@@ -149,13 +159,13 @@ class BaseBroker(ABC):
         pass
 
     @abstractmethod
-    def get_historic_olhcv(
+    def get_historic_ohlcv(
         self,
         symbol: str,
         timeframe: Timeframe,
         prev_bars: int | None = None,
-        start_date: datetime | None = None,
-        end_date: datetime | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> list[OHLCV]: ...
 
     @abstractmethod
@@ -164,14 +174,19 @@ class BaseBroker(ABC):
         symbol: str,
         timeframe: Timeframe,
         prev_bars: int | None = None,
-        start_date: datetime | None = None,
-        end_date: datetime | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> Generator[OHLCV, None, None]: ...
 
-    @abstractmethod
     def yield_ohlcv(
         self, symbol: str, timeframe: Timeframe
-    ) -> Generator[OHLCV, None, None]: ...
+    ) -> Generator[OHLCV, None, None]:
+        raise NotImplementedError()
+
+    async def yield_ohlcv_async(
+        self, symbol: str, timeframe: Timeframe
+    ) -> AsyncGenerator[OHLCV, None]:
+        raise NotImplementedError()
 
     def _apply_rate_limit(self) -> None:
         """
