@@ -404,6 +404,23 @@ class AlpacaBroker(HTTPSessMixin, BaseBroker):
         Yields:
             OHLCV objects one at a time
         """
+
+        def _convert_tf(tf: Timeframe):
+            tf_map = {
+                Timeframe.m1: "1Min",
+                Timeframe.m5: "5Min",
+                Timeframe.m15: "15Min",
+                Timeframe.m30: "30Min",
+                Timeframe.H1: "1Hour",
+                Timeframe.H4: "4Hour",
+                Timeframe.D1: "1Day",
+                Timeframe.W1: "1Week",
+                Timeframe.M1: "1Month",
+                Timeframe.Y1: "12Month",
+            }
+
+            return tf_map[tf]
+
         if start_date is None and prev_bars is not None:
             end_date = end_date or date.today()
             days_back = self._estimate_days_for_bars(prev_bars, timeframe)
@@ -416,7 +433,16 @@ class AlpacaBroker(HTTPSessMixin, BaseBroker):
         fmt_end = end_date.isoformat()
         page_count = 0
 
+        if self._oauth_token:
+            headers = {"Authorization": f"Bearer {self._oauth_token}"}
+        else:
+            headers = {
+                "APCA-API-KEY-ID": self._api_key,
+                "APCA-API-SECRET-KEY": self._secret_key,
+            }
+
         result = []
+        next_page_token = None
         while True:
             page_count += 1
             params = (
@@ -429,17 +455,21 @@ class AlpacaBroker(HTTPSessMixin, BaseBroker):
                 endpoint = f"{self._base_url}/v1beta3/crypto/us/bars"
                 params["symbols"] = [symbol]
             else:
-                endpoint = f"{self._base_url}/v2/stocks/{symbol}/bars"
+                endpoint = (
+                    f"{self._base_url}/v2/stocks/bars?"
+                    "feed=iex&"
+                    f"symbols={symbol}&"
+                    f"timeframe={_convert_tf(timeframe)}"
+                )
 
             self._logger.debug(f"Fetching page {page_count} for {symbol}")
-            rsp = self._http_sess.get(endpoint, params=params)
+            rsp = self._http_sess.get(endpoint, headers=headers, params=params)
+            if not rsp.ok:
+                print(rsp.text)
             rsp.raise_for_status()
-            data = rsp.json()
+            data = rsp.json()            
 
-            if self._is_crypto:
-                candles = data.get("bars", {}).get(symbol)
-            else:
-                candles = data.get("bars", [])
+            candles = data.get("bars", {}).get(symbol)
 
             if not candles:
                 self._logger.debug(f"No more bars available for {symbol}")
@@ -447,14 +477,16 @@ class AlpacaBroker(HTTPSessMixin, BaseBroker):
 
             self._logger.debug(f"Retrieved {len(candles)} bars on page {page_count}")
 
-            for d in candles:
+            for c in candles:
                 yield OHLCV(
                     symbol=symbol,
-                    timeframe=datetime.fromtimestamp(d["t"]),
-                    open=d["o"],
-                    high=d["h"],
-                    low=d["l"],
-                    close=d["c"],
+                    timestamp=datetime.fromisoformat(c["t"]),
+                    timeframe=timeframe,
+                    open=c["o"],
+                    high=c["h"],
+                    low=c["l"],
+                    close=c["c"],
+                    volume=c['v']
                 )
 
             next_page_token = data.get("next_page_token")
