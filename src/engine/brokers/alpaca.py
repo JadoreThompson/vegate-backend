@@ -5,7 +5,6 @@ from typing import AsyncGenerator, Optional, List, Generator
 from datetime import datetime, date, timedelta
 from uuid import UUID
 
-from sqlalchemy import insert, select, update
 import websockets
 from alpaca.common.exceptions import APIError
 from alpaca.trading.stream import TradingStream
@@ -24,11 +23,11 @@ from alpaca.trading.requests import (
     StopLimitOrderRequest,
     GetOrdersRequest,
 )
+from sqlalchemy import insert, select, update
 
 from config import BACKEND_DOMAIN, BACKEND_SUB_DOMAIN, BARS_WS_TOKEN, IS_PRODUCTION
 from db_models import Orders, StrategyDeployments
-from utils.db import get_db_sess, get_db_sess_sync
-
+from utils.db import get_db_sess_sync
 from .base import BaseBroker
 from .exc import (
     BrokerError,
@@ -38,8 +37,8 @@ from .exc import (
     RateLimitError,
     BrokerConnectionError,
 )
-from ..enums import BrokerType, Timeframe
 from .http import HTTPSessMixin
+from ..enums import BrokerType, Timeframe
 from ..models import (
     OrderRequest,
     OrderResponse,
@@ -50,8 +49,6 @@ from ..models import (
     TimeInForce,
 )
 from ..ohlcv import OHLCV
-
-
 
 
 class AlpacaBroker(HTTPSessMixin, BaseBroker):
@@ -164,7 +161,9 @@ class AlpacaBroker(HTTPSessMixin, BaseBroker):
             # Convert response to our format
             response = self._convert_order_from_alpaca(alpaca_response)
 
-            self._logger.debug(f"Submitted order: {response.order_id} for {order.symbol}")
+            self._logger.debug(
+                f"Submitted order: {response.order_id} for {order.symbol}"
+            )
             self._on_order_submit(response)
             return response
 
@@ -173,14 +172,14 @@ class AlpacaBroker(HTTPSessMixin, BaseBroker):
         except Exception as e:
             self._log_error("submit_order", e)
             raise BrokerError(f"Failed to submit order: {e}") from e
-        
+
     def _on_order_submit(self, order_response: OrderResponse):
         if self._recorded_starting_balance:
             return
-        
+
         self._recorded_starting_balance = True
         account = self.get_account()
-        
+
         with get_db_sess_sync() as db_sess:
             db_sess.execute(
                 update(StrategyDeployments).values(starting_balance=account.cash)
@@ -211,11 +210,13 @@ class AlpacaBroker(HTTPSessMixin, BaseBroker):
         # NOTE: Only supports fill events. Also assumes
         # this payload is a fill event.
         order = payload["data"]["order"]
-        if payload['data']['event'] != 'fill':
+        if payload["data"]["event"] != "fill":
             return
-        
+
         with get_db_sess_sync() as db_sess:
-            db_order = db_sess.scalar(select(Orders).where(Orders.broker_order_id == order['id']))
+            db_order = db_sess.scalar(
+                select(Orders).where(Orders.broker_order_id == order["id"])
+            )
             if order is None:
                 self._logger.debug("Failed to find order object")
                 return
@@ -224,7 +225,7 @@ class AlpacaBroker(HTTPSessMixin, BaseBroker):
             db_order.avg_fill_price = float(order["filled_avg_price"])
             db_order.filled_at = datetime.fromisoformat(order["filled_at"])
             db_order.broker_metadata = payload["data"]
-            db_order.status = self._convert_status_from_alpaca(order['status'])
+            db_order.status = self._convert_status_from_alpaca(order["status"])
             db_sess.commit()
 
         self._logger.debug("Successfully updated order object")
@@ -579,9 +580,7 @@ class AlpacaBroker(HTTPSessMixin, BaseBroker):
 
     @staticmethod
     def _convert_status_from_alpaca(status: str):
-        status_map = {
-            'filled': OrderStatus.FILLED
-        }
+        status_map = {"filled": OrderStatus.FILLED}
 
         return status_map[status]
 

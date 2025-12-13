@@ -265,6 +265,8 @@ class DeploymentRunner(BaseRunner):
             broker_conn.oauth_payload, str(broker_conn.user_id)
         )
         oauth_payload = AlpacaOAuthPayload(**json.loads(decrypted))
+        # with open("oauth.json", "w") as f:
+        #     f.write(oauth_payload.model_dump_json())
         broker = AlpacaBroker(
             self._deployment_id,
             oauth_token=oauth_payload.access_token,
