@@ -12,9 +12,12 @@ from .exc import (
 )
 from .backtest import BacktestBroker
 
+
 __all__ = [
-    # Base classes
+    # Brokers
     "BaseBroker",
+    "AlpacaBroker",
+    "BacktestBroker",
     # Exceptions
     "BrokerError",
     "AuthenticationError",
@@ -24,7 +27,4 @@ __all__ = [
     "BrokerConnectionError",
     "SymbolNotFoundError",
     "DataNotAvailableError",
-    # Brokers
-    "AlpacaBroker",
-    "BacktestBroker",
 ]

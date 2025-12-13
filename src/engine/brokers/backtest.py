@@ -22,23 +22,16 @@ from .base import BaseBroker
 from .exc import BrokerError, OrderRejectedError
 
 
-logger = logging.getLogger(__name__)
-
-
 class BacktestBroker(BaseBroker):
-    def __init__(self, starting_balance: float | Decimal):
-        self._cash = (
-            Decimal(str(starting_balance))
-            if not isinstance(starting_balance, Decimal)
-            else starting_balance
-        )
+    def __init__(self, starting_balance: float):
+        self._cash = starting_balance
         self._orders: list[OrderResponse] = []
         self._orders: dict[str, OrderResponse] = {}
         self._pending_orders: dict[str, tuple[OrderRequest, OrderResponse]] = {}
         self._current_candle: OHLCV | None = None
         self._account_id = f"ac_{uuid4()}"
         self._source = BrokerType.ALPACA.value
-        logger.info(f"SimulatedBroker initialized: capital=${starting_balance:,.2f}")
+        self._logger = logging.getLogger(type(self).__name__)
 
     def connect(self) -> None:
         """
@@ -48,7 +41,7 @@ class BacktestBroker(BaseBroker):
         method is required by the BaseBroker interface.
         """
         self._connected = True
-        logger.debug("SimulatedBroker connected")
+        self._logger.debug("SimulatedBroker connected")
 
     def disconnect(self) -> None:
         """
@@ -57,7 +50,7 @@ class BacktestBroker(BaseBroker):
         Cleans up any resources. Safe to call multiple times.
         """
         self._connected = False
-        logger.debug("SimulatedBroker disconnected")
+        self._logger.debug("SimulatedBroker disconnected")
 
     def submit_order(self, order: OrderRequest) -> OrderResponse:
         """
@@ -82,7 +75,7 @@ class BacktestBroker(BaseBroker):
 
         order_id = str(uuid4())
 
-        logger.debug(
+        self._logger.debug(
             f"Submitting order {order_id}: {order.side.value} {order.quantity} "
             f"{order.symbol} @ {order.order_type.value}"
         )
@@ -116,22 +109,14 @@ class BacktestBroker(BaseBroker):
         Raises:
             InsufficientFundsError: If insufficient funds
         """
-        fill_price = Decimal(str(self._current_candle.close))
-        order_quantity = (
-            Decimal(str(order.quantity))
-            if not isinstance(order.quantity, Decimal)
-            else order.quantity
-        )
+        fill_price = self._current_candle.close
+        order_quantity = order.quantity
         status = OrderStatus.FILLED
 
         # Check buying power for purchases
         if order.side == OrderSide.BUY:
             if order.notional is not None:
-                required_cash = (
-                    Decimal(str(order.notional))
-                    if not isinstance(order.notional, Decimal)
-                    else order.notional
-                )
+                required_cash = order.notional
             else:
                 required_cash = fill_price * order_quantity
 
@@ -139,8 +124,13 @@ class BacktestBroker(BaseBroker):
                 status = OrderStatus.REJECTED
 
         # Check position for sells
-        if order.side == OrderSide.SELL:
-            total_assets = sum(order.filled_quantity for order in self._orders.values())
+        elif order.side == OrderSide.SELL:
+            total_assets = sum(
+                order.filled_quantity
+                for order in self._orders.values()
+                if order.side == OrderSide.BUY
+                and order.status in {OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED}
+            )
             if total_assets < order_quantity:
                 status = OrderStatus.REJECTED
 
@@ -150,14 +140,17 @@ class BacktestBroker(BaseBroker):
             quantity = order.quantity
 
         # Execute trade
-        if order.side == OrderSide.BUY:
-            self._cash -= fill_price * order_quantity
-        else:
-            self._cash += fill_price * order_quantity
+        if status == OrderStatus.FILLED:
+            if order.side == OrderSide.BUY:
+                self._cash -= fill_price * order_quantity
+            else:
+                self._cash += fill_price * order_quantity
 
-        logger.info(
-            f"Order {order_id} filled: {order.side.value} {quantity} "
-            f"{order.symbol} @ ${fill_price:.2f}"
+        term = "filled" if status == OrderStatus.FILLED else "rejected"
+
+        self._logger.info(
+            f"Order {order_id} {term}: {order.side.value} {quantity} "
+            f"{order.symbol} @ ${fill_price:.2f} cash: {self._cash}"
         )
 
         return OrderResponse(
@@ -205,7 +198,7 @@ class BacktestBroker(BaseBroker):
         )
 
         self._pending_orders[order_id] = (order, response)
-        logger.debug(
+        self._logger.debug(
             f"Limit order {order_id} pending: {order.side.value} @ ${order.limit_price:.2f}"
         )
 
@@ -239,53 +232,11 @@ class BacktestBroker(BaseBroker):
         )
 
         self._pending_orders[order_id] = (order, response)
-        logger.debug(
+        self._logger.debug(
             f"Stop order {order_id} pending: {order.side.value} @ ${order.stop_price:.2f}"
         )
 
         return response
-
-    def process_pending_orders(self) -> None:
-        """Process pending limit and stop orders against current prices."""
-        filled_orders = []
-
-        for order_id, (order_req, _) in self._pending_orders.items():
-            current_price = self._current_candle.close
-            should_fill = False
-
-            # Check limit order conditions
-            if order_req.order_type == OrderType.LIMIT:
-                if (
-                    order_req.side == OrderSide.BUY
-                    and current_price <= order_req.limit_price
-                ):
-                    should_fill = True
-                elif (
-                    order_req.side == OrderSide.SELL
-                    and current_price >= order_req.limit_price
-                ):
-                    should_fill = True
-
-            # Check stop order conditions
-            elif order_req.order_type == OrderType.STOP:
-                if (
-                    order_req.side == OrderSide.BUY
-                    and current_price >= order_req.stop_price
-                ):
-                    should_fill = True
-                elif (
-                    order_req.side == OrderSide.SELL
-                    and current_price <= order_req.stop_price
-                ):
-                    should_fill = True
-
-            if should_fill:
-                fill_resp = self._execute_market_order(order_id, order_req)
-                self._orders[order_id] = fill_resp
-                filled_orders.append(order_id)
-
-        for order_id in filled_orders:
-            self._pending_orders.pop(order_id)
 
     def cancel_order(self, order_id: str) -> bool:
         """
@@ -301,7 +252,7 @@ class BacktestBroker(BaseBroker):
             _, response = self._pending_orders[order_id]
             response.status = OrderStatus.CANCELLED
             self._pending_orders.pop(order_id)
-            logger.info(f"Order {order_id} cancelled")
+            self._logger.info(f"Order {order_id} cancelled")
             return True
 
         if order_id in self._orders and (order := self._orders[order_id]).status in {
@@ -309,15 +260,10 @@ class BacktestBroker(BaseBroker):
             OrderStatus.PENDING,
         }:
             order.status = OrderStatus.CANCELLED
-            logger.info(f"Order {order_id} cancelled")
+            self._logger.info(f"Order {order_id} cancelled")
             return True
 
         return False
-
-    def cancel_all_orders(self):
-        for order in tuple(self._orders.values()):
-            if order.status in {OrderStatus.PARTIALLY_FILLED, OrderStatus.PENDING}:
-                self.cancel_order(order.order_id)
 
     def get_order(self, order_id: str) -> OrderResponse:
         """
@@ -370,18 +316,19 @@ class BacktestBroker(BaseBroker):
         equity = self._cash
 
         if self._current_candle is not None:
-            price = Decimal(str(self._current_candle.close))
+            price = self._current_candle.close
+            qty = 0.0
 
             for order in self._orders.values():
-                if order.side == OrderSide.SELL:
+                if order.status not in {OrderStatus.PARTIALLY_FILLED, OrderStatus.FILLED}:
                     continue
 
-                qty = (
-                    order.quantity
-                    if isinstance(order.quantity, Decimal)
-                    else Decimal(str(order.quantity))
-                )
-                equity += qty * price
+                if order.side == OrderSide.SELL:
+                    qty -= order.filled_quantity
+                else:
+                    qty += order.filled_quantity
+            
+            equity += price * qty
 
         return Account(account_id=self._account_id, equity=equity, cash=self._cash)
 
@@ -599,3 +546,50 @@ class BacktestBroker(BaseBroker):
         if current_candle is not None:
             self._current_candle = current_candle
             yield current_candle
+
+    def process_pending_orders(self) -> None:
+        """Process pending limit and stop orders against current prices."""
+        filled_orders = []
+
+        for order_id, (order_req, _) in self._pending_orders.items():
+            current_price = self._current_candle.close
+            should_fill = False
+
+            # Check limit order conditions
+            if order_req.order_type == OrderType.LIMIT:
+                if (
+                    order_req.side == OrderSide.BUY
+                    and current_price <= order_req.limit_price
+                ):
+                    should_fill = True
+                elif (
+                    order_req.side == OrderSide.SELL
+                    and current_price >= order_req.limit_price
+                ):
+                    should_fill = True
+
+            # Check stop order conditions
+            elif order_req.order_type == OrderType.STOP:
+                if (
+                    order_req.side == OrderSide.BUY
+                    and current_price >= order_req.stop_price
+                ):
+                    should_fill = True
+                elif (
+                    order_req.side == OrderSide.SELL
+                    and current_price <= order_req.stop_price
+                ):
+                    should_fill = True
+
+            if should_fill:
+                fill_resp = self._execute_market_order(order_id, order_req)
+                self._orders[order_id] = fill_resp
+                filled_orders.append(order_id)
+
+        for order_id in filled_orders:
+            self._pending_orders.pop(order_id)
+
+    def cancel_all_orders(self):
+        for order in tuple(self._orders.values()):
+            if order.status in {OrderStatus.PARTIALLY_FILLED, OrderStatus.PENDING}:
+                self.cancel_order(order.order_id)

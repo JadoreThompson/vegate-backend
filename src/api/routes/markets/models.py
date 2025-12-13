@@ -3,7 +3,6 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from core.models import CustomBaseModel
 from engine.enums import BrokerType, Timeframe
 
 
@@ -21,13 +20,3 @@ class UnsubscribeRequest(BaseModel):
     broker: BrokerType
     symbols: list[tuple[str, Timeframe]]
 
-
-class OHLCV(CustomBaseModel):
-    symbol: str
-    timestamp: datetime
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: float
-    timeframe: Timeframe

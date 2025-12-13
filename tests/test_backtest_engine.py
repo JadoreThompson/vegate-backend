@@ -94,7 +94,7 @@ def basic_config() -> BacktestConfig:
         end_date=datetime(2024, 1, 10),
         symbol="AAPL",
         starting_balance=10000.0,
-        timeframe=Timeframe.M1,
+        timeframe=Timeframe.m1,
     )
 
 
@@ -116,7 +116,7 @@ def sample_ohlcv_data() -> list[OHLCV]:
             low=price - 1.0,
             close=price,
             volume=1000,
-            timeframe=Timeframe.M1,
+            timeframe=Timeframe.m1,
         )
         data.append(ohlcv)
 
@@ -140,7 +140,7 @@ def constant_price_ohlcv_data() -> list[OHLCV]:
             low=100.0,
             close=100.0,
             volume=1000,
-            timeframe=Timeframe.M1,
+            timeframe=Timeframe.m1,
         )
         data.append(ohlcv)
 
@@ -317,7 +317,7 @@ def test_total_return_calculation_with_profit(basic_config: BacktestConfig) -> N
             low=price,
             close=price,
             volume=1000,
-            timeframe=Timeframe.M1,
+            timeframe=Timeframe.m1,
         )
         data.append(ohlcv)
 
@@ -352,7 +352,7 @@ def test_realized_pnl_calculation(basic_config: BacktestConfig) -> None:
             low=price,
             close=price,
             volume=1000,
-            timeframe=Timeframe.M1,
+            timeframe=Timeframe.m1,
         )
         data.append(ohlcv)
 
@@ -464,7 +464,7 @@ def test_backtest_with_single_candle(basic_config: BacktestConfig) -> None:
             low=100.0,
             close=100.0,
             volume=1000,
-            timeframe=Timeframe.M1,
+            timeframe=Timeframe.m1,
         )
     ]
 
@@ -532,7 +532,7 @@ def test_full_backtest_integration(basic_config: BacktestConfig) -> None:
             low=price - 0.5,
             close=price,
             volume=1000,
-            timeframe=Timeframe.M1,
+            timeframe=Timeframe.m1,
         )
         data.append(ohlcv)
 
@@ -563,7 +563,7 @@ def test_backtest_config_validation() -> None:
         end_date=datetime(2024, 1, 10),
         symbol="AAPL",
         starting_balance=10000.0,
-        timeframe=Timeframe.M1,
+        timeframe=Timeframe.m1,
     )
 
     assert config.start_date < config.end_date

@@ -11,13 +11,16 @@ from engine.models import OrderRequest, OrderResponse, Account
 class BaseBroker(ABC):
     def __init__(self):
         self._connected = False
-        self._logger = logging.getLogger(self.__class__.__name__)
+        self._logger = logging.getLogger(type(self).__name__)
+
+    @property
+    def supports_disconnect_async(self) -> bool:
+        return False
 
     @abstractmethod
     def connect(self) -> None:
         pass
 
-    @abstractmethod
     def disconnect(self) -> None:
         """
         Gracefully disconnect from broker.
@@ -30,7 +33,10 @@ class BaseBroker(ABC):
         This method should not raise exceptions and should be safe
         to call multiple times.
         """
-        pass
+        raise NotImplementedError()
+
+    async def disconnect_async():
+        raise NotImplementedError()
 
     def __enter__(self):
         """
@@ -84,6 +90,10 @@ class BaseBroker(ABC):
             BrokerError: For other submission errors
         """
         pass
+
+    def _on_order_submit(self, response: OrderResponse) -> None: ...
+
+    def _on_order_update(self, data: dict) -> None: ...
 
     @abstractmethod
     def cancel_order(self, order_id: str) -> bool:

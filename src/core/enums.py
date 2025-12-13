@@ -18,9 +18,10 @@ class StrategyDeploymentStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
     ERROR = "error"
+    STOP_REQUESTED = "stop_requested"
     STOPPED = "stopped"
 
 
-class DeploymentType(str, Enum):
-    BACKTEST = "backtest"
-    LIVE = "live"
+class DeploymentEventType(str, Enum):
+    START = "start"
+    STOP = "stop"

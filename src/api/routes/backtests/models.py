@@ -1,19 +1,18 @@
 from datetime import datetime, date
-from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 from core.enums import BacktestStatus
 from core.models import CustomBaseModel
-from engine.backtesting import EquityCurveT
+from engine.backtesting import EquityCurve
 from engine.enums import Timeframe
 
 
 class BacktestCreate(BaseModel):
     strategy_id: UUID
     symbol: str = Field(min_length=1, max_length=10)
-    starting_balance: Decimal = Field(gt=0)
+    starting_balance: float = Field(gt=0, le=100_000)
     timeframe: Timeframe
     start_date: date
     end_date: date
@@ -28,7 +27,7 @@ class BacktestResponse(CustomBaseModel):
     backtest_id: UUID
     strategy_id: UUID
     symbol: str
-    starting_balance: Decimal
+    starting_balance: float
     status: BacktestStatus
     created_at: datetime
 
@@ -40,9 +39,8 @@ class BacktestMetrics(BaseModel):
     sharpe_ratio: float
     max_drawdown: float
     total_trades: int
-    equity_curve: EquityCurveT
+    equity_curve: EquityCurve
 
 
 class BacktestDetailResponse(BacktestResponse):
     metrics: BacktestMetrics | None
-

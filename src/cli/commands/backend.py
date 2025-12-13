@@ -8,9 +8,9 @@ from typing import Type
 
 import click
 
-from runners import BaseRunner, ServerRunner
+from runners import BaseRunner, ListenerRunner, ServerRunner
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("commands.backend")
 
 
 def run_runner(runner_cls: Type[BaseRunner], *args, **kw):
@@ -37,7 +37,6 @@ def backend_run(workers):
     """
     Run the backend server.
     """
-    logger.info("Starting Vegate Backend")
 
     configs = (
         (
@@ -45,6 +44,7 @@ def backend_run(workers):
             (),
             {"host": "0.0.0.0", "port": 8000, "reload": False, "workers": workers},
         ),
+        (ListenerRunner, (), {}),
     )
 
     ps: list[Process] = [

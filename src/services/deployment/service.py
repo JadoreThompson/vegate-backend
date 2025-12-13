@@ -15,7 +15,6 @@ from config import (
 from .exc import DeploymentError
 
 
-logger = logging.getLogger(__name__)
 
 
 class DeploymentService:
@@ -29,6 +28,7 @@ class DeploymentService:
         }
         self._http_sess = ClientSession()
         self._process: Process | None = None
+        self._logger = logging.getLogger(type(self).__name__)
 
     async def deploy(
         self, backtest_id: UUID | None = None, deployment_id: UUID | None = None
@@ -119,7 +119,7 @@ class DeploymentService:
             }
         }
 
-        logger.info("Creating service")
+        self._logger.info("Creating service")
         result = await self._execute_query(query, variables)
         return result["serviceCreate"]["id"]
 
@@ -134,7 +134,7 @@ class DeploymentService:
         """
 
         variables = {"input": {"startCommand": start_command}, "serviceId": service_id}
-        logger.info(f"Updating service '{service_id}'")
+        self._logger.info(f"Updating service '{service_id}'")
         await self._execute_query(query, variables)
 
     async def _deploy_service(self, service_id: str):
@@ -149,7 +149,7 @@ class DeploymentService:
         """
 
         variables = {"serviceId": service_id, "environmentId": RAILWAY_ENVIRONMENT_ID}
-        logger.info(f"Deploying service '{service_id}'")
+        self._logger.info(f"Deploying service '{service_id}'")
         result = await self._execute_query(query, variables)
 
         return result

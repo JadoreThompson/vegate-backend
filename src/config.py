@@ -68,6 +68,9 @@ REDIS_STRIPE_INVOICE_METADATA_KEY_PREFIX = os.getenv(
 )
 REDIS_ALPACA_OAUTH_PREFIX = os.getenv("REDIS_ALPACA_OAUTH_PREFIX")
 REDIS_ALPACA_OAUTH_TTL_SECS = int(os.getenv("REDIS_ALPACA_OAUTH_TTL_SECS"))
+REDIS_DEPLOYMENT_EVENTS_KEY = os.getenv("REDIS_DEPLOYMENT_EVENTS_KEY")
+REDIS_BROKER_TRADE_EVENTS_KEY = os.getenv("REDIS_BROKER_TRADES_KEY")
+REDIS_CANDLE_CLOSE_EVENTS_KEY = "candle_close_events"
 
 # LLM
 LLM_API_KEY = os.getenv("LLM_API_KEY")
@@ -105,7 +108,7 @@ logger.setLevel(logging.INFO)
 
 handler = logging.StreamHandler(sys.stdout)
 handler.setFormatter(
-    logging.Formatter("%(asctime)s - [%(levelname)s] - %(module)s - %(message)s")
+    logging.Formatter("%(asctime)s - [%(levelname)s] - %(name)s - %(message)s")
 )
 logger.addHandler(handler)
 del logger

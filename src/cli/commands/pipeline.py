@@ -9,7 +9,7 @@ import click
 from engine.enums import BrokerType, MarketType
 from pipelines import AlpacaPipeline
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("commands.pipeline")
 
 
 @click.group()
@@ -53,7 +53,6 @@ def pipeline_run(broker, market, symbol, verbose):
     market_enum = MarketType(market)
 
     click.echo(f"Starting {market} pipeline for {symbol} via {broker}")
-    logger.info(f"Pipeline: broker={broker}, market={market}, symbol={symbol}")
 
     try:
         if broker_enum == BrokerType.ALPACA:
@@ -74,7 +73,6 @@ def pipeline_run(broker, market, symbol, verbose):
 
     except KeyboardInterrupt:
         click.echo("\nPipeline stopped by user")
-        logger.info("Pipeline interrupted by user")
     except Exception as e:
         click.echo(f"Error running pipeline: {e}", err=True)
         logger.exception("Pipeline failed")

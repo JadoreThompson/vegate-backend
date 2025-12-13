@@ -34,7 +34,7 @@ def broker_with_candle(broker: BacktestBroker) -> BacktestBroker:
         low=98.0,
         close=100.0,
         volume=1000,
-        timeframe=Timeframe.M1,
+        timeframe=Timeframe.m1,
     )
     return broker
 

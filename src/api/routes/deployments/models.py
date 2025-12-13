@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from api.shared.models import PerformanceMetrics
 from core.enums import StrategyDeploymentStatus
 from core.models import CustomBaseModel
+from engine.backtesting.types import EquityCurve
 from engine.enums import MarketType
 
 
@@ -28,7 +29,7 @@ class DeploymentResponse(CustomBaseModel):
     market_type: MarketType
     symbol: str
     timeframe: str
-    starting_balance: Decimal | None = None
+    starting_balance: float | None = None
     status: StrategyDeploymentStatus
     error_message: str | None
     created_at: datetime

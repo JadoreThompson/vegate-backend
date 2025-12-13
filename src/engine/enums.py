@@ -4,12 +4,16 @@ from enum import Enum
 class Timeframe(str, Enum):
     """Supported timeframes for OHLC data."""
 
-    M1 = "1m"
-    M5 = "5m"
-    M15 = "15m"
-    M30 = "30m"
+    m1 = "1m"
+    m5 = "5m"
+    m15 = "15m"
+    m30 = "30m"
     H1 = "1h"
+    H4 = "4h"
     D1 = "1d"
+    W1 = "1w"
+    M1 = "1M"
+    Y1 = "1y"
 
     def get_seconds(self) -> int:
         unit = self.value[-1]
@@ -21,6 +25,12 @@ class Timeframe(str, Enum):
             return amount * 3600
         elif unit == "d":
             return amount * 86400
+        elif unit  == "w":
+            return amount * 604800
+        elif unit == "M":
+            return amount * 2592000
+        elif unit == 'y':
+            return amount * 31_536_000
         else:
             raise ValueError(f"Unknown timeframe unit: {unit}")
 

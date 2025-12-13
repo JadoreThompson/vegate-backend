@@ -2,10 +2,10 @@ from .engine import BacktestEngine, BacktestConfig, BacktestResult
 from .metrics import (
     calculate_sharpe_ratio,
     calculate_max_drawdown,
-    calculate_win_rate,
+    # calculate_win_rate,
     calculate_total_return,
 )
-from .types import EquityCurveT
+from .types import EquityCurve
 
 
 __all__ = [
@@ -16,8 +16,8 @@ __all__ = [
     # Metrics
     "calculate_sharpe_ratio",
     "calculate_max_drawdown",
-    "calculate_win_rate",
+    # "calculate_win_rate",
     "calculate_total_return",
     # Types
-    "EquityCurveT"
+    "EquityCurve",
 ]

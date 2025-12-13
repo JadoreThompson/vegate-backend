@@ -62,8 +62,6 @@ async def list_backtests(
         .order_by(Backtests.created_at.desc())
     )
 
-    import pprint; pprint.pprint(locals())
-
     if status is not None:
         stmt = stmt.where(Backtests.status.in_(status))
     if symbols is not None:

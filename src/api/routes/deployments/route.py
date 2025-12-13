@@ -1,21 +1,24 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import depends_db_sess, depends_jwt
 from api.typing import JWTPayload
 from core.enums import StrategyDeploymentStatus
+from db_models import Strategies
 from services import DeploymentService
 from .controller import (
     create_deployment,
     get_deployment,
     get_deployment_orders,
+    get_deployment_with_metrics,
     list_all_deployments,
     list_strategy_deployments,
     stop_deployment,
 )
-from .models import DeployStrategyRequest, DeploymentResponse
+from .models import DeployStrategyRequest, DeploymentResponse, DeploymentDetailResponse
 from api.shared.models import OrderResponse, PerformanceMetrics
 
 
@@ -47,7 +50,7 @@ async def deploy_strategy_endpoint(
         deployment_id=deployment.deployment_id
     )
     deployment.server_data = deployment_data
-    
+
     rsp_body = DeploymentResponse(
         deployment_id=deployment.deployment_id,
         strategy_id=deployment.strategy_id,
@@ -119,13 +122,13 @@ async def get_deployment_endpoint(
     Returns full details of a specific deployment including status,
     configuration, and error messages if any.
     """
-    deployment = await get_deployment(deployment_id, db_sess)
+    # deployment = await get_deployment(deployment_id, db_sess)
+    deployment, metrics = await get_deployment_with_metrics(
+        jwt.sub, deployment_id, db_sess
+    )
+    print(metrics)
     if not deployment:
         raise HTTPException(status_code=404, detail="Deployment not found")
-
-    # Verify ownership through strategy relationship
-    from sqlalchemy import select
-    from db_models import Strategies
 
     strategy = await db_sess.scalar(
         select(Strategies).where(Strategies.strategy_id == deployment.strategy_id)
@@ -149,6 +152,49 @@ async def get_deployment_endpoint(
     )
 
 
+@router.get("/{deployment_id}/details", response_model=DeploymentDetailResponse)
+async def get_deployment_details_endpoint(
+    deployment_id: UUID,
+    jwt: JWTPayload = Depends(depends_jwt()),
+    db_sess: AsyncSession = Depends(depends_db_sess),
+):
+    """
+    Get detailed deployment information including performance metrics.
+
+    This endpoint calculates real-time performance metrics from the deployment's
+    order history, including:
+    - Realised and unrealised PnL
+    - Total return percentage
+    - Sharpe ratio
+    - Maximum drawdown
+    - Trade count
+    - Equity curve
+
+    Note: Metrics are calculated on-demand from orders for accuracy.
+    """
+    deployment, metrics = await get_deployment_with_metrics(
+        jwt.sub, deployment_id, db_sess
+    )
+
+    print(metrics)
+
+    return DeploymentDetailResponse(
+        deployment_id=deployment.deployment_id,
+        strategy_id=deployment.strategy_id,
+        broker_connection_id=deployment.broker_connection_id,
+        symbol=deployment.symbol,
+        market_type=deployment.market_type,
+        timeframe=deployment.timeframe,
+        starting_balance=deployment.starting_balance or 0,
+        status=deployment.status,
+        error_message=deployment.error_message,
+        created_at=deployment.created_at,
+        updated_at=deployment.updated_at,
+        stopped_at=deployment.stopped_at,
+        metrics=metrics,
+    )
+
+
 @router.post("/{deployment_id}/stop", response_model=DeploymentResponse)
 async def stop_deployment_endpoint(
     deployment_id: UUID,
@@ -162,9 +208,7 @@ async def stop_deployment_endpoint(
     Can only stop deployments that are currently RUNNING or PENDING.
     """
     deployment = await stop_deployment(jwt.sub, deployment_id, db_sess)
-    await db_sess.commit()
-
-    return DeploymentResponse(
+    rsp_body = DeploymentResponse(
         deployment_id=deployment.deployment_id,
         strategy_id=deployment.strategy_id,
         broker_connection_id=deployment.broker_connection_id,
@@ -178,6 +222,9 @@ async def stop_deployment_endpoint(
         updated_at=deployment.updated_at,
         stopped_at=deployment.stopped_at,
     )
+    await db_sess.commit()
+
+    return rsp_body
 
 
 @router.get("/", response_model=list[DeploymentResponse])

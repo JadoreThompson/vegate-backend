@@ -10,16 +10,19 @@ from alpaca.data.models import Bar as AlpacaBar
 from fastapi import WebSocket
 from pydantic import ValidationError
 
-from config import ALPACA_API_KEY, ALPACA_SECRET_KEY
+from config import ALPACA_API_KEY, ALPACA_SECRET_KEY, REDIS_CANDLE_CLOSE_EVENTS_KEY
+from core.events import CandleCloseEvent
+from core.models import OHLCV
 from engine.enums import BrokerType, Timeframe
+from services import OHLCBuilder
 from utils.redis import REDIS_CLIENT
-from .models import SubscribeRequest, OHLCV
+from .models import SubscribeRequest
 
 
 CRYPTO_SYMBOLS = ("BTC/USD",)
 STOCK_SYMBOLS = ("AAPL",)
 
-logger = logging.getLogger("bars_connection_manager")
+logger = logging.getLogger("markets.connection_manager")
 
 
 class ConnectionManager:
@@ -35,12 +38,20 @@ class ConnectionManager:
                 )
             )
         )
-        self._alpaca_crypto_stream_client = CryptoDataStream(api_key=ALPACA_API_KEY, secret_key=ALPACA_SECRET_KEY)
-        self._alpaca_stock_stream_client = StockDataStream(api_key=ALPACA_API_KEY, secret_key=ALPACA_SECRET_KEY)
+        self._alpaca_crypto_stream_client = CryptoDataStream(
+            api_key=ALPACA_API_KEY, secret_key=ALPACA_SECRET_KEY
+        )
+        self._alpaca_stock_stream_client = StockDataStream(
+            api_key=ALPACA_API_KEY, secret_key=ALPACA_SECRET_KEY
+        )
 
     async def initialise(self):
-        await self._restore()
-        self._launch_alpaca_listener()
+        # await self._restore()
+        # Start the OHLC builder for reliabili
+
+        # Start listening to candle close events instead of direct Alpaca stream
+        asyncio.create_task(self._listen_candle_close_events())
+        logger.debug("Started listening to candle close events")
 
     def subscribe(self, ws: WebSocket, data: SubscribeRequest) -> None:
         for symbol, tf in data.symbols:
@@ -67,7 +78,7 @@ class ConnectionManager:
             try:
                 candle = OHLCV(**json.loads(data))
             except ValidationError:
-                logger.info(f"Failed to restore key '{key}', value '{data}'")
+                logger.debug(f"Failed to restore key '{key}', value '{data}'")
                 continue
 
             broker, symbol, tf = key.split(":", 2)
@@ -79,17 +90,78 @@ class ConnectionManager:
                 f"restored successfully"
             )
 
-    def _launch_alpaca_listener(self):
-        self._alpaca_crypto_stream_client.subscribe_bars(
-            self._handle_alpaca_bar, *CRYPTO_SYMBOLS
-        )
-        self._alpaca_stock_stream_client.subscribe_bars(
-            self._handle_alpaca_bar, *STOCK_SYMBOLS
-        )
-        asyncio.get_running_loop().create_task(self._alpaca_crypto_stream_client._run_forever())
-        asyncio.get_running_loop().create_task(self._alpaca_stock_stream_client._run_forever())
+    async def _listen_candle_close_events(self):
+        """Listen to candle close events from OHLCBuilder and broadcast to connected clients."""
+        pubsub = REDIS_CLIENT.pubsub()
+        await pubsub.subscribe(REDIS_CANDLE_CLOSE_EVENTS_KEY)
+        logger.debug(f"Subscribed to {REDIS_CANDLE_CLOSE_EVENTS_KEY}")
 
-    async def _handle_alpaca_bar(self, bar: AlpacaBar):
+        try:
+            async for message in pubsub.listen():
+                if message["type"] != "message":
+                    continue
+
+                try:
+                    event_data = json.loads(message["data"])
+                    event = CandleCloseEvent(**event_data)
+                    await self._handle_candle_close(event)
+                except (json.JSONDecodeError, ValidationError) as e:
+                    logger.error(f"Failed to parse candle close event: {e}")
+                    continue
+                except Exception as e:
+                    logger.exception(f"Error handling candle close event: {e}")
+                    continue
+        finally:
+            await pubsub.unsubscribe()
+            await pubsub.aclose()
+
+    async def _handle_candle_close(self, event: CandleCloseEvent):
+        """Handle a candle close event and broadcast to subscribers."""
+
+        broker = event.broker
+        symbol = event.symbol
+        timeframe = event.timeframe
+
+        ohlcv = OHLCV(
+            symbol=symbol,
+            timestamp=event.timestamp,
+            open=event.open,
+            high=event.high,
+            low=event.low,
+            close=event.close,
+            volume=event.volume,
+            timeframe=timeframe,
+        )
+
+        self._current_bars[broker][symbol][timeframe] = ohlcv
+
+        conns = self._connections[broker][symbol][timeframe]
+        if conns:
+            redis_key = self._get_redis_key(broker, symbol, timeframe)
+            await self._broadcast_proxy(
+                redis_key, conns.copy(), ohlcv.model_dump_json()
+            )
+            logger.debug(
+                f"Broadcasted candle close: {symbol} {timeframe.value} to {len(conns)} clients"
+            )
+
+    # OLD IMPLEMENTATION - Direct Alpaca stream (kept for reference)
+    # def _launch_alpaca_listener(self):
+    #     self._alpaca_crypto_stream_client.subscribe_bars(
+    #         self._handle_alpaca_bar, *CRYPTO_SYMBOLS
+    #     )
+    #     self._alpaca_stock_stream_client.subscribe_bars(
+    #         self._handle_alpaca_bar, *STOCK_SYMBOLS
+    #     )
+    #     asyncio.get_running_loop().create_task(
+    #         self._alpaca_crypto_stream_client._run_forever()
+    #     )
+    #     asyncio.get_running_loop().create_task(
+    #         self._alpaca_stock_stream_client._run_forever()
+    #     )
+
+    # OLD IMPLEMENTATION - Direct Alpaca bar handling (kept for reference)
+    async def _handle_alpaca_bar_old(self, bar: AlpacaBar):
         broker = BrokerType.ALPACA
         symbol = bar.symbol
 
@@ -115,8 +187,8 @@ class ConnectionManager:
                         timeframe=tf,
                     )
                     bars[tf] = current_bar
-                
-                if current_bar is not None and tf == Timeframe.M1:
+
+                if current_bar is not None and tf == Timeframe.m1:
                     redis_key = self._get_redis_key(broker, symbol, tf)
                     coros.append(
                         (redis_key, conns[tf].copy(), bars[tf].model_dump_json())

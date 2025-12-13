@@ -118,6 +118,9 @@ class AlpacaAPI(HTTPSessMixin, BaseBrokerAPI):
             )
         await db_sess.commit()
 
+    async def get_order(self, order_id, oauth_payload: AlpacaOAuthPayload):
+        await self._http_sess.get()
+
     @staticmethod
     def _get_base_url(env: AlpacaTradingEnv):
         if env == "live":

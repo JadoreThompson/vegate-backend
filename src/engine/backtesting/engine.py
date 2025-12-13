@@ -14,17 +14,14 @@ from .metrics import (
     calculate_max_drawdown,
     calculate_total_return,
 )
-from .types import EquityCurveT
-
-
-logger = logging.getLogger(__name__)
+from .types import EquityCurve
 
 
 class BacktestConfig(CustomBaseModel):
     start_date: date
     end_date: date
     symbol: str
-    starting_balance: float | Decimal = 100_000.0
+    starting_balance: float = 100_000.0
     timeframe: Timeframe
 
 
@@ -35,7 +32,7 @@ class BacktestResult(CustomBaseModel):
     total_return_pct: float
     sharpe_ratio: float
     max_drawdown: float
-    equity_curve: EquityCurveT
+    equity_curve: EquityCurve
 
     @field_validator(
         "realised_pnl",
@@ -62,8 +59,9 @@ class BacktestEngine:
         self._strategy_manager = StrategyManager(self._strategy, self._broker)
         self._strategy_context = StrategyContext[BacktestBroker](self._broker)
 
-        self._equity_curve: EquityCurveT = []
-        self._cash_balance_curve: EquityCurveT = []
+        self._equity_curve: EquityCurve = []
+        self._cash_balance_curve: EquityCurve = []
+        self._logger = logging.getLogger(type(self).__name__)
 
     def run(self) -> SpotBacktestResult:
         for ohlcv in self._broker.yield_historic_ohlcv(
@@ -105,10 +103,10 @@ class BacktestEngine:
             max_dd, max_dd_pct = 0.0, 0.0
 
         all_orders = list(self._broker._orders.values())
-        starting_dec = Decimal(str(self._config.starting_balance))
-        unrealised_pnl = account.equity - starting_dec - Decimal(str(total_return))
+        starting_bal = self._config.starting_balance
+        unrealised_pnl = account.equity - starting_bal - total_return
 
-        logger.info(
+        self._logger.info(
             f"Backtest complete: Return=${total_return:.2f} ({total_return_pct:.2f}%), "
             f"Sharpe={sharpe:.2f}, MaxDD=${max_dd:.2f} ({max_dd_pct:.2f}%)"
         )
@@ -116,7 +114,7 @@ class BacktestEngine:
         return SpotBacktestResult(
             config=self._config,
             realised_pnl=total_return,
-            unrealised_pnl=float(unrealised_pnl),
+            unrealised_pnl=unrealised_pnl,
             total_return_pct=total_return_pct,
             sharpe_ratio=sharpe,
             max_drawdown=max_dd_pct,

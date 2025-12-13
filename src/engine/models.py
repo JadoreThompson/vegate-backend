@@ -12,8 +12,8 @@ class OrderRequest(BaseModel):
     symbol: str
     side: OrderSide
     order_type: OrderType
-    quantity: Decimal | None = Field(None, gt=0)
-    notional: Decimal | None = Field(None, gt=0)
+    quantity: float | None = Field(None, gt=0)
+    notional: float | None = Field(None, gt=0)
     limit_price: float | None = Field(None, gt=0)
     stop_price: float | None = Field(None, gt=0)
     time_in_force: TimeInForce
@@ -38,8 +38,8 @@ class OrderResponse(CustomBaseModel):
     symbol: str
     side: OrderSide
     order_type: OrderType
-    quantity: Decimal
-    filled_quantity: Decimal
+    quantity: float
+    filled_quantity: float
     limit_price: float | None
     stop_price: float | None
     status: OrderStatus
@@ -52,5 +52,5 @@ class OrderResponse(CustomBaseModel):
 
 class Account(BaseModel):
     account_id: str
-    equity: Decimal
-    cash: Decimal
+    equity: float
+    cash: float
