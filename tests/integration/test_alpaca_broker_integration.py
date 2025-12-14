@@ -333,7 +333,3 @@ async def test_estimate_days_for_bars(broker):
     # Test intraday bars
     days = broker._estimate_days_for_bars(100, Timeframe.m1)
     assert days >= 1
-
-
-# if __name__ == "__main__":
-#     pytest.main([__file__, "-v", "-m", "integration"])

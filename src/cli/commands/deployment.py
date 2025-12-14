@@ -1,5 +1,3 @@
-"""Deployment commands."""
-
 import sys
 import logging
 

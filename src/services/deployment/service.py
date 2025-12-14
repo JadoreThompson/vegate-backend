@@ -15,8 +15,6 @@ from config import (
 from .exc import DeploymentError
 
 
-
-
 class DeploymentService:
     def __init__(
         self,
@@ -36,7 +34,7 @@ class DeploymentService:
         """
         Create a new Railway service and deploy it with the given deployment_id.
         """
-            
+
         start_command = f"uv run src/main.py "
 
         if backtest_id is not None:
@@ -50,24 +48,23 @@ class DeploymentService:
 
         if not IS_PRODUCTION:
             from runners import BacktestRunner, DeploymentRunner
-            
+
             if self._process is not None and self._process.is_alive():
                 self._process.kill()
                 self._process.join(timeout=3)
-            
+
             if backtest_id is not None:
                 runner = BacktestRunner(backtest_id)
             elif deployment_id is not None:
                 runner = DeploymentRunner(deployment_id)
 
-            self._process = Process(target=runner.run, name=type(runner).__name__, daemon=True)
+            self._process = Process(
+                target=runner.run, name=type(runner).__name__, daemon=True
+            )
             self._process.start()
 
-            return {
-                "service_name": name,
-                "environment": "development"
-            }
-        
+            return {"service_name": name, "environment": "development"}
+
         service_id = await self._create_service(name)
         await self._update_service(service_id, start_command)
         await self._deploy_service(service_id)
@@ -75,7 +72,7 @@ class DeploymentService:
         return {
             "service_id": service_id,
             "service_name": name,
-            "environment": "production"
+            "environment": "production",
         }
 
     async def _execute_query(self, query: str, variables: dict | None = None) -> dict:

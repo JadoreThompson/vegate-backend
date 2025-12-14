@@ -1,5 +1,3 @@
-"""Pipeline commands for tick data ingestion."""
-
 import sys
 import asyncio
 import logging
@@ -8,6 +6,7 @@ import click
 
 from engine.enums import BrokerType, MarketType
 from pipelines import AlpacaPipeline
+from pipelines.listeners.alpaca import AlpacaListener
 
 logger = logging.getLogger("commands.pipeline")
 
@@ -57,17 +56,35 @@ def pipeline_run(broker, market, symbol, verbose):
     try:
         if broker_enum == BrokerType.ALPACA:
             inst = AlpacaPipeline()
+            listener = AlpacaListener()
         else:
             raise ValueError(f"Unsupported broker type: {broker}")
 
         async def run_pipeline():
-            async with inst:
-                if market_enum == MarketType.CRYPTO:
-                    await inst.run_crypto_pipeline(symbol)
-                elif market_enum == MarketType.STOCKS:
-                    await inst.run_stocks_pipeline(symbol)
-                else:
-                    raise ValueError(f"Unsupported market type: {market}")
+            listener.initialise()
+            task = None
+            
+            try:
+                task = asyncio.create_task(listener.run())
+                listener.listen(market_enum, [symbol])
+
+                async with inst:
+                    if market_enum == MarketType.CRYPTO:
+                        await inst.run_crypto_pipeline(symbol)
+                    elif market_enum == MarketType.STOCKS:
+                        await inst.run_stocks_pipeline(symbol)
+                    else:
+                        raise ValueError(f"Unsupported market type: {market}")
+            except Exception:
+                if task is not None and not task.done():
+                    task.cancel()
+                    
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+                raise 
+
 
         asyncio.run(run_pipeline())
 

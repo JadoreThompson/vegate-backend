@@ -1,5 +1,3 @@
-"""Backend server commands."""
-
 import sys
 import time
 import logging

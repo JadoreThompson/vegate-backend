@@ -3,7 +3,7 @@ from typing import Any, Callable, Type, TypeVar
 from fastapi import Depends, Request
 
 from api.exc import JWTError
-from api.typing import JWTPayload
+from api.types import JWTPayload
 from api.services import JWTService
 from config import COOKIE_ALIAS
 from utils.db import smaker

@@ -1,5 +1,3 @@
-"""Backtest commands."""
-
 import sys
 import logging
 

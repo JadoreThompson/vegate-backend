@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import depends_db_sess, depends_jwt
-from api.typing import JWTPayload
+from api.types import JWTPayload
 from .controller import (
     delete_broker_connection,
     get_broker_connection,

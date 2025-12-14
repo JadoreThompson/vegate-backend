@@ -5,7 +5,7 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import depends_db_sess, depends_jwt
-from api.typing import JWTPayload
+from api.types import JWTPayload
 from db_models import Strategies
 from .controller import (
     create_strategy,
