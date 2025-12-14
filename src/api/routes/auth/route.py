@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import depends_db_sess, depends_jwt
 from api.services import JWTService
-from api.typing import JWTPayload
+from api.types import JWTPayload
 from config import (
     PW_HASH_SALT,
     REDIS_EMAIL_VERIFICATION_KEY_PREFIX,

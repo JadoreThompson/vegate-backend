@@ -15,8 +15,6 @@ from utils.db import get_db_sess
 from utils.redis import REDIS_CLIENT
 
 
-
-
 class OHLCBuilder:
     """
     Listens to trade events from Redis pub/sub and builds OHLC objects for each timeframe.

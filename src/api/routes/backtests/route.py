@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import CSVQuery, depends_db_sess, depends_jwt
 from api.shared.models import OrderResponse
-from api.typing import JWTPayload
+from api.types import JWTPayload
 from core.enums import BacktestStatus
 from db_models import Strategies
 from services import DeploymentService
@@ -66,8 +66,6 @@ async def get_backtest_endpoint(
     backtest = await get_backtest(backtest_id, db_sess)
     if not backtest:
         raise HTTPException(status_code=404, detail="Backtest not found")
-
-    # Verify ownership through strategy relationshi
 
     strategy = await db_sess.scalar(
         select(Strategies).where(Strategies.strategy_id == backtest.strategy_id)

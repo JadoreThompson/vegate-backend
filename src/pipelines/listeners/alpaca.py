@@ -19,14 +19,12 @@ class AlpacaListener:
         self._logger= logging.getLogger(type(self).__name__)
 
     def initialise(self):
-        print(1)
         self._crypto_stream_client = self._crypto_stream_client or CryptoDataStream(
             api_key=ALPACA_API_KEY, secret_key=ALPACA_SECRET_KEY
         )
         self._stock_stream_client = self._stock_stream_client or StockDataStream(
             api_key=ALPACA_API_KEY, secret_key=ALPACA_SECRET_KEY
         )
-        print(2)
 
     async def run(self):
         try:

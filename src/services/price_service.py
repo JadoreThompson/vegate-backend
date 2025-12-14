@@ -6,12 +6,11 @@ from engine.enums import BrokerType
 from utils.redis import REDIS_CLIENT
 
 
-
-
 class PriceService:
     """
     Service for managing current market prices in Redis.
     """
+
     _logger = logging.getLogger("PriceService")
 
     @staticmethod
@@ -29,9 +28,7 @@ class PriceService:
         return f"price:{broker.value}:{symbol}"
 
     @classmethod
-    async def set_price(
-        cls, broker: BrokerType, symbol: str, price: float
-    ) -> None:
+    async def set_price(cls, broker: BrokerType, symbol: str, price: float) -> None:
         """
         Set the current price for a broker/symbol pair.
 

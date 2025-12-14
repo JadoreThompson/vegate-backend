@@ -1,24 +1,10 @@
 from datetime import datetime
-from typing import Generic, TypeVar
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
 from core.models import CustomBaseModel
 from engine.backtesting.types import EquityCurve
-
-
-T = TypeVar("T")
-
-
-class PaginationMeta(BaseModel):
-    page: int
-    size: int
-    has_next: bool
-
-
-class PaginatedResponse(PaginationMeta, Generic[T]):
-    data: list[T]
 
 
 class OrderResponse(CustomBaseModel):

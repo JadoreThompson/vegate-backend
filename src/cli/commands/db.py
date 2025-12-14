@@ -1,5 +1,3 @@
-"""Database management commands."""
-
 import sys
 import subprocess
 
