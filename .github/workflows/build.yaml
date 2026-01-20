@@ -36,6 +36,9 @@ jobs:
       #       -u ${{ secrets.DOCKERHUB_USERNAME }}
       #       -p ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Whoami
+        run: whoami
+
       - name: Build Image
         run: |
           TAG=$(openssl rand -hex 16)
