@@ -277,7 +277,7 @@ class AlpacaPipeline(BasePipeline):
     @staticmethod
     def _generate_trade_key(trade: BrokerTradeEvent) -> str:
         """Generate unique key for trade deduplication."""
-        return f"{trade.timestamp}:{trade['p']}:{trade['s']}"
+        return f"{trade['t']}:{trade['p']}:{trade['s']}"
 
     def _parse_live_trade(
         self, trade: BrokerTradeEvent, market_type: MarketType
