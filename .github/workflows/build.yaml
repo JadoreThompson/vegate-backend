@@ -53,6 +53,9 @@ jobs:
           docker push wifimemes/vegate-backend:latest
           docker push wifimemes/vegate-backend:$TAG
 
+      - name: Initialise swarm manager
+        run: docker swarm init || true
+
       - name: Create network
         run: |
           if ! docker network inspect vegate_network >/dev/null 2>&1; then
@@ -60,9 +63,6 @@ jobs:
               --driver overlay \
               --attachable vegate_network
           fi
-
-      - name: Initialise swarm manager
-        run: docker swarm init || true
 
       - name: Create docker compose
         run: |
