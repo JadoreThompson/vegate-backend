@@ -30,6 +30,7 @@ class BacktestRunner(BaseRunner):
 
         db_backtest = None
         db_strategy = None
+        metrics = None
 
         try:
             with get_db_sess_sync() as db_sess:

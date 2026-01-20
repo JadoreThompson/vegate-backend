@@ -204,6 +204,7 @@ Convert the user's strategy description into working Python code following these
 - Uses forbidden libraries → populate the `error` field
 - Attempts unsafe operations → populate the `error` field
 - Is valid → populate the `code` field with complete, working strategy code
+- Ensure the code is syntactically correct
 
 Always include necessary imports and ensure the class is named `Strategy`.
 """
@@ -318,13 +319,16 @@ Review this strategy code for security and compliance:
 ```
 
 Check for:
-1. Forbidden imports (only allow engine.*, standard library)
+1. Forbidden imports (only allow engine.* and standard library imports being used
+    to interact with external services with either well or il intentions)
 2. Dangerous operations (file I/O, network, subprocess)
 3. Required structure (Strategy class, BaseStrategy inheritance, on_candle method)
 """
 
     validation_result = await validator_agent.run(validation_prompt)
     validation = validation_result.output
+
+    print(validation_result)
 
     if not validation.is_valid:
         violation_details = "\n".join(f"- {v}" for v in validation.violations)
