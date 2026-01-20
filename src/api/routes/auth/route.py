@@ -15,9 +15,9 @@ from config import (
     REDIS_EMAIL_VERIFICATION_KEY_PREFIX,
     REDIS_EMAIL_VERIFCATION_EXPIRY_SECS,
 )
-from utils.redis import REDIS_CLIENT
-from services import EmailService
 from db_models import Users
+from services.email import BrevoEmailService
+from utils.redis import REDIS_CLIENT
 from utils.utils import get_datetime
 from .controller import gen_verification_code
 from .models import (
@@ -33,7 +33,7 @@ from .models import (
 
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
-em_service = EmailService("No-Reply", "no-reply@domain.com")
+em_service = BrevoEmailService("Vegate", "no-reply@jadore.dev")
 pw_hasher = PasswordHasher()
 
 
@@ -135,13 +135,13 @@ async def verify_email(
 ):
     key = f"{REDIS_EMAIL_VERIFICATION_KEY_PREFIX}{str(jwt.sub)}"
     code = await REDIS_CLIENT.get(key)
-    await REDIS_CLIENT.delete(key)
 
-    if code is None or code != body.code:
+    if code is None or code.decode() != body.code:
         raise HTTPException(
             status_code=400, detail="Invalid or expired verification code."
         )
 
+    await REDIS_CLIENT.delete(key)
     user = await db_sess.scalar(select(Users).where(Users.user_id == jwt.sub))
     user.authenticated_at = get_datetime()
     rsp = await JWTService.set_user_cookie(user, db_sess)

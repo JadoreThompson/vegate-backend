@@ -36,7 +36,7 @@ else:
     SCHEME = "http"
     FRONTEND_SUB_DOMAIN = ""
     BACKEND_SUB_DOMAIN = ""
-    FRONTEND_DOMAIN = "localhost:5900"
+    FRONTEND_DOMAIN = "localhost:5173"
     BACKEND_DOMAIN = "localhost:8000"
 
 # Security
@@ -77,6 +77,7 @@ LLM_API_KEY = os.getenv("LLM_API_KEY")
 
 # Email
 CUSTOMER_SUPPORT_EMAIL = os.getenv("CUSTOMER_SUPPORT_EMAIL")
+BREVO_API_KEY = os.getenv("BREVO_API_KEY")
 
 # Stripe
 STRIPE_API_KEY = os.getenv("STRIPE_API_KEY")

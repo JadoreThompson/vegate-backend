@@ -1,12 +1,12 @@
 from fastapi import APIRouter, BackgroundTasks, status
 
 from config import CUSTOMER_SUPPORT_EMAIL
-from services import EmailService
+from services.email import BrevoEmailService
 from .models import ContactForm
 
 
 router = APIRouter(prefix="/public", tags=["Public"])
-email_service = EmailService(sender_name="Support", sender_email="support@domain.com")
+email_service = BrevoEmailService("Vegate", "support@jadore.dev")
 
 
 @router.post("/contact", status_code=status.HTTP_202_ACCEPTED)
