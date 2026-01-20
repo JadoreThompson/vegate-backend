@@ -35,7 +35,7 @@ services:
       interval: 10s
       timeout: 10s
       retries: 5
-      start_period: 3s
+      start_period: 5s
       start_interval: 5s
     deploy:
       labels:
@@ -51,18 +51,18 @@ services:
         delay: 3s
         monitor: 1m
 
-  crypto_pipeline:
-    image: wifimemes/vegate-backend:latest
-    networks:
-      - vegate_network
-    command: pipeline run --broker alpaca --market crypto --symbol BTC/USD
-    deploy:
-      update_config:
-        parallelism: 1
-        order: start-first
-        failure_action: rollback
-        delay: 3s
-        monitor: 10s
+  # crypto_pipeline:
+  #   image: wifimemes/vegate-backend:latest
+  #   networks:
+  #     - vegate_network
+  #   command: pipeline run --broker alpaca --market crypto --symbol BTC/USD
+  #   deploy:
+  #     update_config:
+  #       parallelism: 1
+  #       order: start-first
+  #       failure_action: rollback
+  #       delay: 3s
+  #       monitor: 10s
 
   traefik:
     image: traefik:v3.6
@@ -83,11 +83,11 @@ services:
         constraints:
           - node.role == manager # Swarm manager node
 
-  db_upgrade:
-    image: wifimemes/gova-backend
-    networks:
-      - vegate_network
-    command: db upgrade
+  # db_upgrade:
+  #   image: wifimemes/gova-backend
+  #   networks:
+  #     - vegate_network
+  #   command: db upgrade
 
 volumes:
   postgres:
