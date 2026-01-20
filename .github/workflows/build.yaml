@@ -1,56 +1,26 @@
-name: Build
-
+name: Build image
 on:
-  workflow_run:
-    workflows: ["Test"]
-    types: [completed]
+  push:
     branches:
-      - "development"
+      - main
 
 jobs:
   build:
-    name: Build
-    runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    name: Build Docker Image
+    runs-on: self-hosted
     steps:
-      - name: Checkout code
+      - name: Checkout repo
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.PAT_TOKEN }}
-          fetch-depth: 0
 
-      - name: Fetch branches
+      - name: Create .env
         run: |
-          git fetch origin main
-          git checkout main
+          set -e
 
-          git fetch origin development
-          git checkout development
-
-          git branch
-
-      - name: Merge changes
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          git checkout main
-          git merge --allow-unrelated-histories --no-ff -m "Merged development" development
-          git push origin main
-
-      - name: Create env file
-        run: |
-          FPATH='.env'
-
-          cat <<'EOF' > $FPATH
+          cat <<'EOF' > .env
           ${{ secrets.ENV_FILE }}
           EOF
 
-          if [ -s $FPATH ]; then
-            echo "$FPATH created successfully"
-            exit 0
-          else
-            echo "Failed to create $FPATH"
+          if [ ! -f .env ]; then
             exit 1
           fi
 
@@ -60,7 +30,47 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build image
+      - name: Build Image
         run: |
-          docker build --no-cache -t ${{ secrets.DOCKERHUB_IMAGE }}:latest -f docker/Dockerfile .
-          docker push ${{ secrets.DOCKERHUB_IMAGE }}:latest
+          TAG=$(openssl rand -hex 16)
+          sudo docker build \
+            -f docker/Dockerfile \
+            -t wifimemes/vegate-backend:$TAG \
+            -t wifimemes/vegate-backend:latest \
+            --no-cache \
+            .
+          sudo docker push wifimemes/vegate-backend:latest
+          sudo docker push wifimemes/vegate-backend:$TAG
+
+      - name: Create network
+        run: |
+          if ! sudo docker network inspect vegate_network >/dev/null 2>&1; then
+            sudo docker network create \
+              --driver overlay \
+              --attachable vegate_network
+          fi
+
+      - name: Initialise swarm manager
+        run: sudo docker swarm init || true
+
+      - name: Create docker compose
+        run: |
+          set -e
+
+          cat <<'EOF' > docker/docker-compose.yaml
+          ${{ secrets.DOCKER_COMPOSE }}
+          EOF
+
+          if [ ! -f docker/docker-compose.yaml ]; then
+            exit 1
+          fi
+
+      - name: Deploy stack
+        run: |
+          sudo docker stack deploy \
+            -c docker/docker-compose.yaml \
+            -d=false \
+            vegate_stack
+
+      - name: Cleanup
+        run: sudo docker system prune -af

@@ -20,7 +20,7 @@ def db_upgrade():
     click.echo(f"Upgrading database")
     try:
         write_db_url_to_alembic_ini()
-        subprocess.run(["alembic", "upgrade", "head"], check=True)
+        subprocess.run(["uv", "run", "alembic", "upgrade", "head"], check=True)
         click.echo("Database upgraded successfully")
     except subprocess.CalledProcessError as e:
         click.echo(f"Error upgrading database: {e}", err=True)

@@ -1,26 +1,31 @@
 services:
   postgres:
-    image: postgres:16
+    image: postgres:18
     restart: unless-stopped
     networks:
       - vegate_network
+    ports:
+      - 5432:5432
     environment:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
     volumes:
-      - postgres:/var/lib/postgresql/data
+      - postgres:/var/lib/postgresql
 
   redis:
-    image: redis:7
+    image: redis:8
     restart: unless-stopped
     volumes:
       - redis:/data
+    ports:
+      - 6379:6379
     networks:
       - vegate_network
     command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
 
   backend:
     image: wifimemes/vegate-backend:latest
+    command: backend run
     ports:
       - 8000:8000
     networks:
@@ -30,9 +35,15 @@ services:
       interval: 10s
       timeout: 10s
       retries: 5
-      start_period: 10s
+      start_period: 3s
       start_interval: 5s
     deploy:
+      labels:
+        - "traefik.enabled=true"
+        - "traefik.http.routers.backend.rule=Host(`api.vegate.jadore.dev`)"
+        - "traefik.http.routers.backend.service=vegate_stack_backend"
+        - "traefik.http.routers.backend.entrypoints=web"
+        - "traefik.http.services.vegate_stack_backend.loadbalancer.server.port=8000"
       update_config:
         parallelism: 1
         order: start-first
@@ -44,14 +55,39 @@ services:
     image: wifimemes/vegate-backend:latest
     networks:
       - vegate_network
-    command: uv run src/main.py pipeline run --broker alpaca --market crypto --symbol BTC/USD
+    command: pipeline run --broker alpaca --market crypto --symbol BTC/USD
     deploy:
       update_config:
         parallelism: 1
         order: start-first
         failure_action: rollback
         delay: 3s
-        monitor: 1m
+        monitor: 10s
+
+  traefik:
+    image: traefik:v3.6
+    command:
+      - "--api.insecure=true"
+      - "--entrypoints.web.address=:80"
+      - "--providers.swarm=true"
+      - "--providers.swarm.network=vegate_network"
+    ports:
+      - 80:80
+      - 8080:8080
+    networks:
+      - vegate_network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager # Swarm manager node
+
+  db_upgrade:
+    image: wifimemes/gova-backend
+    networks:
+      - vegate_network
+    command: db upgrade
 
 volumes:
   postgres:

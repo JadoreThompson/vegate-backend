@@ -1,13 +1,21 @@
 import os
 import configparser
 from contextlib import asynccontextmanager, contextmanager
+import shutil
 from typing import AsyncGenerator, Generator
 
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, Session
 
-from config import DB_HOST_CREDS, DB_NAME, DB_PASSWORD, DB_USER, DB_USER_CREDS, PARENT_PATH
+from config import (
+    DB_HOST_CREDS,
+    DB_NAME,
+    DB_PASSWORD,
+    DB_USER,
+    DB_USER_CREDS,
+    PARENT_PATH,
+)
 
 
 DB_ENGINE = create_async_engine(
@@ -49,13 +57,16 @@ def write_db_url_to_alembic_ini() -> None:
 
     fpath = os.path.join(PARENT_PATH, "alembic.ini")
     if not os.path.exists(fpath):
-        raise FileNotFoundError(f"{fpath} not found")
+        example_fpath = os.path.join(PARENT_PATH, "alembic.ini.example")
+        if not os.path.exists(example_fpath):
+            raise FileNotFoundError(
+                f"Failed to find alembic.ini and alembic.ini.exmaple at"
+                f"{fpath} and {example_fpath}"
+            )
+        shutil.copyfile(example_fpath, fpath)
 
     config = configparser.ConfigParser()
     config.read(fpath, encoding="utf-8")
-
-    if "alembic" not in config.sections():
-        config.add_section("alembic")
 
     config.set("alembic", "sqlalchemy.url", db_url)
 

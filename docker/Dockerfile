@@ -18,4 +18,4 @@ WORKDIR /app
 
 RUN uv sync --locked
 
-CMD ["uv", "run", "src/main.py", "backend", "run"]
+ENTRYPOINT ["uv", "run", "src/main.py"]
