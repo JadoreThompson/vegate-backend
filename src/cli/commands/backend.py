@@ -42,7 +42,7 @@ def backend_run(workers):
             (),
             {"host": "0.0.0.0", "port": 8000, "reload": False, "workers": workers},
         ),
-        (ListenerRunner, (), {}),
+        # (ListenerRunner, (), {}),
     )
 
     ps: list[Process] = [
