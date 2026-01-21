@@ -39,7 +39,7 @@ services:
       start_interval: 5s
     deploy:
       labels:
-        - "traefik.enabled=true"
+        - "traefik.enable=true"
         - "traefik.http.routers.backend.rule=Host(`api.vegate.jadore.dev`)"
         - "traefik.http.routers.backend.service=vegate_stack_backend"
         - "traefik.http.routers.backend.entrypoints=web"
