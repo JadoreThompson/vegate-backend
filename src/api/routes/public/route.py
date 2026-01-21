@@ -29,3 +29,8 @@ Message:\n
         subject=subject,
         body=em_body.strip(),
     )
+
+
+@router.get("/healthcheck")
+async def healthcheck():
+    return
