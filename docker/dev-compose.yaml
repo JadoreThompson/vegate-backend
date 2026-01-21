@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16
+    image: postgres:18
     container_name: vegate_postgres
     restart: unless-stopped
     environment:
@@ -9,7 +9,7 @@ services:
     ports:
       - ${DB_PORT}:5432
     volumes:
-      - postgres:/var/lib/postgresql/data
+      - vegate_postgres:/var/lib/postgresql
 
   redis:
     image: redis:7
@@ -18,9 +18,21 @@ services:
     ports:
       - ${REDIS_PORT}:6379
     volumes:
-      - redis:/data
+      - vegate_redis:/data
     command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
 
+  http_server:
+    build:
+      dockerfile: docker/Dockerfile
+      context: ..
+      no_cache: true
+    command: backend run
+    ports:
+      - 8000:8000
+    depends_on:
+      - postgres
+      - redis
+
 volumes:
-  postgres:
-  redis:
+  vegate_postgres:
+  vegate_redis:
