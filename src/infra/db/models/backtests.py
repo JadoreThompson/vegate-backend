@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from engine.enums import Timeframe
-from core.enums import BacktestStatus
+from enums import BacktestStatus
 from infra.db.models.base import Base, datetime_tz, uuid_pk
 
 if TYPE_CHECKING:
@@ -30,9 +30,7 @@ class Backtests(Base):
     start_date: Mapped[date] = mapped_column(Date(), nullable=False)
     end_date: Mapped[date] = mapped_column(Date(), nullable=False)
     timeframe: Mapped[Timeframe] = mapped_column(String, nullable=False)
-    status: Mapped[BacktestStatus] = mapped_column(
-        String, nullable=False, default=BacktestStatus.PENDING.value
-    )
+    status: Mapped[str] = mapped_column(String, nullable=False, default=BacktestStatus.PENDING.value)
     created_at: Mapped[datetime] = datetime_tz()
     server_data: Mapped[dict] = mapped_column(JSONB, nullable=True)
 

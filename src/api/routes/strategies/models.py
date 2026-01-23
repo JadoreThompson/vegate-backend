@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -16,6 +16,30 @@ class StrategyCreate(BaseModel):
 class StrategyUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=20)
     description: str | None = Field(None, min_length=1, max_length=250)
+
+
+class BacktestCreate(BaseModel):
+    """Request body for creating a backtest."""
+    symbol: str = Field(min_length=1, max_length=10)
+    broker: str = Field(min_length=1, max_length=20)
+    timeframe: str = Field(min_length=1, max_length=10)
+    starting_balance: float = Field(gt=0)
+    start_date: date
+    end_date: date
+
+
+class BacktestResponse(BaseModel):
+    """Response for backtest creation."""
+    backtest_id: UUID
+    strategy_id: UUID
+    symbol: str
+    broker: str
+    timeframe: str
+    starting_balance: float
+    start_date: date
+    end_date: date
+    status: str
+    created_at: datetime
 
 
 class StrategyResponse(CustomBaseModel):

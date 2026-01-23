@@ -14,6 +14,7 @@ from .controller import (
     list_strategies,
     list_strategy_summaries,
     update_strategy,
+    create_backtest,
 )
 from .models import (
     StrategyCreate,
@@ -22,6 +23,8 @@ from .models import (
     StrategyResponse,
     StrategySummaryResponse,
     StrategyUpdate,
+    BacktestCreate,
+    BacktestResponse,
 )
 
 
@@ -204,3 +207,36 @@ async def list_strategy_summaries_endpoint(
         )
 
     return results
+
+
+@router.post("/{strategy_id}/backtest", response_model=BacktestResponse, status_code=201)
+async def create_backtest_endpoint(
+    strategy_id: UUID,
+    body: BacktestCreate,
+    jwt: JWTPayload = Depends(depends_jwt()),
+    db_sess: AsyncSession = Depends(depends_db_sess),
+):
+    """Create and launch a backtest for a strategy.
+
+    Validates that:
+    - Strategy exists and belongs to the user
+    - OHLC data exists for the specified period, timeframe, symbol, and broker
+    - Creates backtest record and launches backtest runner
+
+    Returns 400 if data is missing for the specified parameters.
+    """
+    backtest = await create_backtest(jwt.sub, strategy_id, body, db_sess)
+    await db_sess.commit()
+
+    return BacktestResponse(
+        backtest_id=backtest.backtest_id,
+        strategy_id=backtest.strategy_id,
+        symbol=backtest.symbol,
+        broker=backtest.server_data.get("broker", "unknown") if backtest.server_data else "unknown",
+        timeframe=backtest.timeframe,
+        starting_balance=backtest.starting_balance,
+        start_date=backtest.start_date,
+        end_date=backtest.end_date,
+        status=backtest.status,
+        created_at=backtest.created_at,
+    )

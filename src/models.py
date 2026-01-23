@@ -58,6 +58,13 @@ class Tick(BaseModel):
     price: float
 
 
+class EquityCurvePoint(BaseModel):
+    """Represents a point in the equity curve."""
+
+    timestamp: datetime
+    equity: float
+
+
 class BacktestMetrics(BaseModel):
     """Represents backtest performance metrics."""
 
@@ -78,6 +85,7 @@ class BacktestMetrics(BaseModel):
     avg_win: float
     avg_loss: float
     profit_factor: float
+    equity_curve: list[EquityCurvePoint]
 
 
 class DeploymentConfig(BaseModel):

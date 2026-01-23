@@ -5,13 +5,13 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 from pydantic_ai.providers.mistral import MistralProvider
 from pydantic_ai.models.mistral import MistralModel
-from sqlalchemy import select, update
+from sqlalchemy import select, update, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.exc import CustomValidationError
 from config import LLM_API_KEY
-from infra.db.models import Strategies
-from .models import StrategyCreate, StrategyUpdate
+from infra.db.models import Strategies, Backtests, OHLCs
+from .models import StrategyCreate, StrategyUpdate, BacktestCreate
+from enums import BacktestStatus, BrokerType
 
 
 class StrategyOutput(BaseModel):
@@ -31,7 +31,17 @@ class ValidationOutput(BaseModel):
     )
 
 
-sys_prompt = """
+class CodeReviewOutput(BaseModel):
+    is_valid: bool = Field(description="Whether the code is syntactically correct")
+    errors: list[str] = Field(
+        default_factory=list, description="List of syntax or logical errors found"
+    )
+    corrected_code: str | None = Field(
+        None, description="Corrected code if errors were found"
+    )
+
+
+strategy_gen_sys_prompt = """
 You are an expert trading strategy developer. Your task is to convert trading strategy descriptions into Python code that works with our event-driven trading framework.
 
 ## Framework Overview
@@ -43,11 +53,11 @@ Our framework uses an event-driven architecture where strategies receive market 
 You MUST create a class named `Strategy` (exactly this name) that subclasses `BaseStrategy`:
 
 ```python
-from engine.strategy.base import BaseStrategy
-from engine.strategy.context import StrategyContext
+from lib.strategy import BaseStrategy
+from models import OHLC
 
 class Strategy(BaseStrategy):
-    def on_candle(self, context: StrategyContext):
+    def on_candle(self, candle: OHLC):
         # Your strategy logic here
         pass
 ```
@@ -56,72 +66,55 @@ class Strategy(BaseStrategy):
 
 ### 1. The `on_candle` Method
 - This method is called automatically on each new candle/bar
-- It receives a `context` object containing the broker interface and current candle data
+- It receives an OHLC candle object containing the current market data
 - This is where ALL your trading logic should live
 
-### 2. The Context Object
-The `context` parameter provides:
-- `context.broker`: Broker interface for trading operations
-- `context.current_candle`: Current OHLCV candle data
-
-### 3. Current Candle (OHLCV)
-Access price data via `context.current_candle`:
+### 2. Current Candle (OHLC)
+Access price data via the `candle` parameter:
 - `symbol`: str - Ticker symbol
 - `timestamp`: datetime - Candle timestamp
 - `open`: float - Opening price
 - `high`: float - Highest price
 - `low`: float - Lowest price
 - `close`: float - Closing price
-- `volume`: int - Trading volume
-- `timeframe`: Timeframe - Candle timeframe (e.g., "1m", "5m", "1h")
+- `volume`: float - Trading volume
+- `timeframe`: str - Candle timeframe (e.g., "1m", "5m", "1h")
 
-### 4. Broker Interface
-Execute trades via `context.broker`:
+### 3. Broker Interface
+Access the broker via `self.broker` (inherited from BaseStrategy):
 
 **Submit Orders:**
 ```python
-from engine.models import OrderRequest
-from engine.enums import OrderSide, OrderType, TimeInForce
+from models import OrderRequest
+from enums import OrderType
 
-order = context.broker.submit_order(OrderRequest(
+order = self.broker.place_order(OrderRequest(
     symbol="AAPL",
-    side=OrderSide.BUY,  # or OrderSide.SELL
-    order_type=OrderType.MARKET,  # or LIMIT, STOP, STOP_LIMIT
-    quantity=10.0,  # or use notional=1000.0 for dollar amount
-    time_in_force=TimeInForce.GTC  # or DAY, IOC, FOK
+    quantity=10.0,
+    notional=1000.0,
+    order_type=OrderType.MARKET,
+    price=None,
+    limit_price=None,
+    stop_price=None
 ))
 ```
 
-**Get Account Info:**
+**Get Orders:**
 ```python
-account = context.broker.get_account()
-# account.equity, account.cash, account.account_id
+orders = self.broker.get_orders()
 ```
 
-**Check Open Orders:**
+**Close Orders:**
 ```python
-open_orders = context.broker.get_open_orders()  # All orders
-open_orders = context.broker.get_open_orders(symbol="AAPL")  # Filtered
+success = self.broker.close_order(order_id="order_123")
 ```
 
-**Cancel Orders:**
+**Modify Orders:**
 ```python
-success = context.broker.cancel_order(order_id="order_123")
+success = self.broker.modify_order(order_id="order_123", quantity=20.0)
 ```
 
-**Get Historical Data:**
-```python
-from engine.enums import Timeframe
-
-# Get list of historical candles
-candles = context.broker.get_historic_olhcv(
-    symbol="AAPL",
-    timeframe=Timeframe.M5,
-    prev_bars=100  # Last 100 bars
-)
-```
-
-### 5. Optional Lifecycle Methods
+### 4. Optional Lifecycle Methods
 ```python
 def startup(self):
     # Called once when strategy initializes
@@ -134,69 +127,65 @@ def shutdown(self):
     pass
 ```
 
-## Available Enums
+## Available Imports
 
-Import from `engine.enums`:
-- `OrderSide`: BUY, SELL
-- `OrderType`: MARKET, LIMIT, STOP, STOP_LIMIT, TRAILING_STOP
-- `TimeInForce`: DAY, GTC, IOC, FOK
-- `Timeframe`: M1, M5, M15, M30, H1, D1
+Only import from these packages:
+- `lib.strategy.BaseStrategy` - Base strategy class
+- `models.OHLC, OrderRequest` - Data models
+- `enums.OrderType` - Order type enumeration
+- Python standard library (datetime, math, collections, etc.)
 
 ## Example Strategy
 
 ```python
-from engine.strategy.base import BaseStrategy
-from engine.strategy.context import StrategyContext
-from engine.models import OrderRequest
-from engine.enums import OrderSide, OrderType, TimeInForce
+from lib.strategy import BaseStrategy
+from models import OHLC, OrderRequest
+from enums import OrderType
 
 class Strategy(BaseStrategy):
     def startup(self):
         self.position = 0
         self.last_price = 0
-    
-    def on_candle(self, context: StrategyContext):
-        candle = context.current_candle
-        
+
+    def on_candle(self, candle: OHLC):
         # Simple moving average crossover example
         if candle.close > self.last_price and self.position == 0:
             # Buy signal
-            context.broker.submit_order(OrderRequest(
+            self.broker.place_order(OrderRequest(
                 symbol=candle.symbol,
-                side=OrderSide.BUY,
-                order_type=OrderType.MARKET,
                 quantity=1.0,
-                time_in_force=TimeInForce.GTC
+                notional=0.0,
+                order_type=OrderType.MARKET,
+                price=candle.close
             ))
             self.position = 1
-        
+
         elif candle.close < self.last_price and self.position == 1:
             # Sell signal
-            context.broker.submit_order(OrderRequest(
+            self.broker.place_order(OrderRequest(
                 symbol=candle.symbol,
-                side=OrderSide.SELL,
+                quantity=-1.0,
+                notional=0.0,
                 order_type=OrderType.MARKET,
-                quantity=1.0,
-                time_in_force=TimeInForce.GTC
+                price=candle.close
             ))
             self.position = 0
-        
+
         self.last_price = candle.close
 ```
 
 ## Security & Validation Rules
 
-1. **FORBIDDEN**: No third-party library imports except standard library and framework modules
+1. **FORBIDDEN**: No third-party library imports except standard library and our framework modules
 2. **ALLOWED IMPORTS**:
-   - `engine.strategy.base.BaseStrategy`
-   - `engine.strategy.context.StrategyContext`
-   - `engine.models.OrderRequest`
-   - `engine.enums.*`
+   - `lib.strategy.BaseStrategy`
+   - `models.OHLC, OrderRequest`
+   - `enums.OrderType`
    - Python standard library (datetime, math, etc.)
-3. **FORBIDDEN**: Network requests, file I/O, subprocess execution
+3. **FORBIDDEN**: Network requests, file I/O, subprocess execution, database access, OS commands
 4. **REQUIRED**: Class must be named exactly `Strategy`
 5. **REQUIRED**: Must subclass `BaseStrategy`
-6. **REQUIRED**: Must implement `on_candle(self, context: StrategyContext)` method
+6. **REQUIRED**: Must implement `on_candle(self, candle: OHLC)` method
 
 ## Your Task
 
@@ -218,27 +207,28 @@ Review the provided strategy code and check for violations of these rules:
 
 ### CRITICAL SECURITY RULES (Must REJECT if violated):
 1. **No third-party imports** - Only allowed:
-   - `engine.strategy.base.BaseStrategy`
-   - `engine.strategy.context.StrategyContext`
-   - `engine.models.OrderRequest`
-   - `engine.enums.*` (OrderSide, OrderType, TimeInForce, Timeframe, etc.)
+   - `lib.strategy.BaseStrategy`
+   - `models.OHLC, OrderRequest`
+   - `enums.OrderType`
    - Python standard library (datetime, math, random, collections, itertools, etc.)
-   
+
 2. **No dangerous operations**:
    - No file I/O (`open()`, `read()`, `write()`, `pathlib`)
    - No network requests (`requests`, `urllib`, `socket`, `http`)
    - No subprocess/system calls (`subprocess`, `os.system`, `eval`, `exec`)
+   - No database access (`sqlalchemy`, `psycopg2`, etc.)
+   - No OS commands (`os.`, `shutil`)
    - No dynamic code execution beyond normal Python
 
 3. **Required structure**:
    - Must have a class named exactly `Strategy`
    - Must subclass `BaseStrategy`
-   - Must implement `on_candle(self, context: StrategyContext)` method
+   - Must implement `on_candle(self, candle: OHLC)` method
 
 ### VALIDATION PROCESS
 
 1. Check all imports - flag any that aren't in the allowed list
-2. Scan for dangerous functions (open, eval, exec, __import__, etc.)
+2. Scan for dangerous functions (open, eval, exec, __import__, os., subprocess, etc.)
 3. Verify class structure (Strategy class exists, inherits BaseStrategy)
 4. Verify on_candle method exists with correct signature
 5. Look for suspicious patterns (obfuscation, encoding, reflection tricks)
@@ -254,10 +244,10 @@ Review the provided strategy code and check for violations of these rules:
 **REJECT Example:**
 ```python
 import requests  # FORBIDDEN
-from engine.strategy.base import BaseStrategy
+from lib.strategy import BaseStrategy
 
 class Strategy(BaseStrategy):
-    def on_candle(self, context):
+    def on_candle(self, candle):
         data = requests.get("http://evil.com")  # Network request
 ```
 Violations: ["Forbidden import: requests", "Network request detected"]
@@ -265,20 +255,19 @@ Recommendation: "REJECT - Code violates security rules by importing requests lib
 
 **ACCEPT Example:**
 ```python
-from engine.strategy.base import BaseStrategy
-from engine.strategy.context import StrategyContext
-from engine.models import OrderRequest
-from engine.enums import OrderSide, OrderType, TimeInForce
+from lib.strategy import BaseStrategy
+from models import OHLC, OrderRequest
+from enums import OrderType
 
 class Strategy(BaseStrategy):
-    def on_candle(self, context: StrategyContext):
-        if context.current_candle.close > 100:
-            context.broker.submit_order(OrderRequest(
-                symbol=context.current_candle.symbol,
-                side=OrderSide.BUY,
-                order_type=OrderType.MARKET,
+    def on_candle(self, candle: OHLC):
+        if candle.close > 100:
+            self.broker.place_order(OrderRequest(
+                symbol=candle.symbol,
                 quantity=1.0,
-                time_in_force=TimeInForce.GTC
+                notional=0.0,
+                order_type=OrderType.MARKET,
+                price=candle.close
             ))
 ```
 Violations: []
@@ -287,10 +276,83 @@ Recommendation: "ACCEPT - Code follows all security rules and has correct struct
 Be thorough and security-focused. When in doubt, REJECT.
 """
 
+code_review_sys_prompt = """
+You are a Python code reviewer specializing in trading strategy code. Your task is to review generated strategy code for syntactic correctness and logical consistency.
+
+## Your Task
+
+Review the provided strategy code and check for:
+
+1. **Syntax Errors**:
+   - Invalid Python syntax
+   - Missing colons, parentheses, brackets
+   - Incorrect indentation
+   - Invalid method signatures
+
+2. **Logical Errors**:
+   - Undefined variables or methods
+   - Type mismatches
+   - Missing required methods (on_candle)
+   - Incorrect method signatures
+
+3. **Import Issues**:
+   - Missing imports for used classes/functions
+   - Circular imports
+
+## OUTPUT FORMAT
+
+- `is_valid`: True only if code is syntactically correct and logically sound
+- `errors`: List each specific error found (e.g., "Missing import for OrderRequest", "Syntax error on line 5")
+- `corrected_code`: If errors exist, provide the corrected code. Otherwise, return None.
+
+## EXAMPLES
+
+**INVALID Example:**
+```python
+from lib.strategy import BaseStrategy
+
+class Strategy(BaseStrategy):
+    def on_candle(self, candle)  # Missing colon
+        if candle.close > 100
+            self.broker.place_order(...)  # Missing colon
+```
+Errors: ["Missing colon after method definition on line 4", "Missing colon after if statement on line 5"]
+
+**VALID Example:**
+```python
+from lib.strategy import BaseStrategy
+from models import OHLC, OrderRequest
+from enums import OrderType
+
+class Strategy(BaseStrategy):
+    def on_candle(self, candle: OHLC):
+        if candle.close > 100:
+            self.broker.place_order(OrderRequest(
+                symbol=candle.symbol,
+                quantity=1.0,
+                notional=0.0,
+                order_type=OrderType.MARKET,
+                price=candle.close
+            ))
+```
+Errors: []
+
+Be thorough and strict about syntax. If you find errors, provide corrected code.
+"""
+
 provider = MistralProvider(api_key=LLM_API_KEY)
 model = MistralModel("mistral-small-latest", provider=provider)
-agent = Agent(
-    model=model, output_type=StrategyOutput, retries=3, system_prompt=sys_prompt
+strategy_gen_agent = Agent(
+    model=model,
+    output_type=StrategyOutput,
+    retries=3,
+    system_prompt=strategy_gen_sys_prompt,
+)
+code_review_agent = Agent(
+    model=model,
+    output_type=CodeReviewOutput,
+    retries=2,
+    system_prompt=code_review_sys_prompt,
 )
 validator_agent = Agent(
     model=model,
@@ -303,48 +365,87 @@ validator_agent = Agent(
 async def create_strategy(
     user_id: UUID, data: StrategyCreate, db_sess: AsyncSession
 ) -> Strategies:
-    """Create a new strategy with validation."""
+    """Create a new strategy with code review and validation."""
 
-    run_result = await agent.run(data.prompt)
+    # Step 1: Generate strategy code
+    run_result = await strategy_gen_agent.run(data.prompt)
     output = run_result.output
 
     if output.error:
-        raise CustomValidationError(400, output.error)
+        raise HTTPException(status_code=400, detail=output.error)
 
+    strategy_code = output.code
+
+    # Step 2: Code review with retry logic (max 3 attempts)
+    max_review_attempts = 3
+    for attempt in range(max_review_attempts):
+        code_review_prompt = f"""
+Review this strategy code for syntax and logical correctness:
+
+```python
+{strategy_code}
+```
+
+Check for syntax errors, missing imports, and logical issues.
+"""
+        review_result = await code_review_agent.run(code_review_prompt)
+        review = review_result.output
+
+        if review.is_valid:
+            break
+
+        # If there are errors and we have corrected code, use it
+        if review.corrected_code:
+            strategy_code = review.corrected_code
+        else:
+            # If this is the last attempt and still invalid, raise error
+            if attempt == max_review_attempts - 1:
+                error_details = "\n".join(f"- {e}" for e in review.errors)
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Code review failed after {max_review_attempts} attempts:\n{error_details}",
+                )
+
+    # Step 3: Security validation
     validation_prompt = f"""
 Review this strategy code for security and compliance:
 
 ```python
-{output.code}
+{strategy_code}
 ```
 
 Check for:
-1. Forbidden imports (only allow engine.* and standard library imports being used
-    to interact with external services with either well or il intentions)
-2. Dangerous operations (file I/O, network, subprocess)
+1. Forbidden imports (only allow lib.*, models.*, enums.* and standard library)
+2. Dangerous operations (file I/O, network, subprocess, database access, OS commands)
 3. Required structure (Strategy class, BaseStrategy inheritance, on_candle method)
 """
 
     validation_result = await validator_agent.run(validation_prompt)
     validation = validation_result.output
 
-    print(validation_result)
-
     if not validation.is_valid:
         violation_details = "\n".join(f"- {v}" for v in validation.violations)
         error_message = f"Generated code failed security validation:\n{violation_details}\n\n{validation.recommendation}"
-        raise CustomValidationError(400, error_message)
+        raise HTTPException(status_code=400, detail=error_message)
 
-    strategy = await db_sess.scalar(
+    # Step 4: Check if strategy already exists
+    existing_strategy = await db_sess.scalar(
         select(Strategies).where(
             Strategies.name == data.name, Strategies.user_id == user_id
         )
     )
-    if strategy:
-        raise HTTPException(409, "Strategy with this name already exists.")
+    if existing_strategy:
+        raise HTTPException(
+            status_code=409, detail="Strategy with this name already exists."
+        )
 
+    # Step 5: Persist strategy to database (without committing transaction)
     new_strategy = Strategies(
-        user_id=user_id, name=data.name, description=data.description, code=output.code, prompt=data.prompt,
+        user_id=user_id,
+        name=data.name,
+        description=data.description,
+        code=strategy_code,
+        prompt=data.prompt,
     )
     db_sess.add(new_strategy)
     await db_sess.flush()
@@ -433,3 +534,73 @@ async def list_strategy_summaries(
         .order_by(Strategies.created_at.desc())
     )
     return list(result.scalars().all())
+
+
+async def create_backtest(
+    user_id: UUID, strategy_id: UUID, data: BacktestCreate, db_sess: AsyncSession
+) -> Backtests:
+    """Create a new backtest for a strategy.
+
+    Validates that:
+    1. Strategy exists and belongs to user
+    2. Data exists for the specified period, timeframe, symbol, and broker
+    3. Creates backtest record and launches backtest runner
+    """
+    # Step 1: Verify strategy exists and belongs to user
+    strategy = await db_sess.scalar(
+        select(Strategies).where(
+            Strategies.strategy_id == strategy_id, Strategies.user_id == user_id
+        )
+    )
+    if not strategy:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+
+    # Step 2: Validate broker type
+    try:
+        broker_type = BrokerType(data.broker)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid broker type. Allowed values: {', '.join([b.value for b in BrokerType])}",
+        )
+
+    # Step 3: Check if OHLC data exists for the specified period
+    ohlc_count = await db_sess.scalar(
+        select(OHLCs)
+        .where(
+            OHLCs.source == broker_type.value,
+            OHLCs.symbol == data.symbol,
+            OHLCs.timeframe == data.timeframe,
+            OHLCs.timestamp >= int(data.start_date.timestamp()),
+            OHLCs.timestamp < int(data.end_date.timestamp()),
+        )
+    )
+
+    if not ohlc_count:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No OHLC data found for {data.symbol} on {data.broker} with timeframe {data.timeframe} for the specified date range",
+        )
+
+    # Step 4: Create backtest record
+    new_backtest = Backtests(
+        strategy_id=strategy_id,
+        symbol=data.symbol,
+        starting_balance=data.starting_balance,
+        metrics=None,
+        start_date=data.start_date,
+        end_date=data.end_date,
+        timeframe=data.timeframe,
+        status=BacktestStatus.PENDING.value,
+        server_data={"broker": broker_type.value},
+    )
+    db_sess.add(new_backtest)
+    await db_sess.flush()
+    await db_sess.refresh(new_backtest)
+
+    # Step 5: Launch backtest runner (in background)
+    # This would typically be done via a task queue (Celery, RQ, etc.)
+    # For now, we just return the backtest record
+    # The actual runner would be triggered by a separate process
+
+    return new_backtest

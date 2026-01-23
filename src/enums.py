@@ -23,3 +23,12 @@ class BrokerType(str, Enum):
     """Broker type enumeration."""
 
     ALPACA = "alpaca"
+
+
+class BacktestStatus(str, Enum):
+    """Backtest status enumeration."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
