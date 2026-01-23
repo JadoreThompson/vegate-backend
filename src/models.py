@@ -84,5 +84,5 @@ class DeploymentConfig(BaseModel):
     """Represents deployment configuration for a strategy."""
 
     symbol: str
-    strategy_id: UUID
+    deployment_id: UUID
     broker: BrokerType

@@ -1,24 +1,25 @@
-from uuid import UUID
-from collections.abc import AsyncGenerator, Generator
-
-from models import Order, OrderRequest, OHLC
-from lib.brokers.base import BaseBroker
-from infra.kafka import KafkaProducer
-from events.order import OrderPlaced, OrderCancelled, OrderModified
 import json
+from collections.abc import AsyncGenerator, Generator
+from uuid import UUID
+
+from events.order import OrderCancelled, OrderModified, OrderPlaced
+from infra.kafka import KafkaProducer
+from lib.brokers.base import BaseBroker
+from models import OHLC, Order, OrderRequest
+
 
 
 class ProxyBroker(BaseBroker):
     """Proxy broker that wraps another broker and emits events for order operations."""
 
-    def __init__(self, strategy_id: UUID, broker: BaseBroker):
+    def __init__(self, deployment_id: UUID, broker: BaseBroker):
         """Initialize the proxy broker.
 
         Args:
-            strategy_id: ID of the strategy using this broker
+            deployment_id: ID of the deployment using this broker
             broker: The underlying broker to proxy calls to
         """
-        self.strategy_id = strategy_id
+        self.deployment_id = deployment_id
         self.broker = broker
         self.producer = KafkaProducer()
         self.supports_async = broker.supports_async
@@ -33,7 +34,7 @@ class ProxyBroker(BaseBroker):
             Order object
         """
         order = self.broker.place_order(order_request)
-        event = OrderPlaced(strategy_id=self.strategy_id, order=order)
+        event = OrderPlaced(deployment_id=self.deployment_id, order=order)
         self.producer.send("orders", json.dumps(event.model_dump()).encode())
         return order
 
@@ -54,7 +55,7 @@ class ProxyBroker(BaseBroker):
             Modified Order object
         """
         order = self.broker.modify_order(order_id, limit_price, stop_price)
-        event = OrderModified(strategy_id=self.strategy_id, order=order, success=True)
+        event = OrderModified(deployment_id=self.deployment_id, order=order, success=True)
         self.producer.send("orders", json.dumps(event.model_dump()).encode())
         return order
 
@@ -69,7 +70,7 @@ class ProxyBroker(BaseBroker):
         """
         success = self.broker.cancel_order(order_id)
         event = OrderCancelled(
-            strategy_id=self.strategy_id, order_id=order_id, success=success
+            deployment_id=self.deployment_id, order_id=order_id, success=success
         )
         self.producer.send("orders", json.dumps(event.model_dump()).encode())
         return success

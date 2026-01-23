@@ -6,9 +6,13 @@ from lib.brokers import AlpacaBroker, BaseBroker, ProxyBroker
 from lib.strategy import BaseStrategy
 from models import DeploymentConfig
 
-from user_strategy import Strategy
-from infra.kafka import KafkaProducer
+from db_models import StrategyDeployments, BrokerConnections
 from events.strategy import StrategyError
+from infra.kafka import KafkaProducer
+from services import EncryptionService
+from services.brokers_apis.alpaca import AlpacaOAuthPayload
+from user_strategy import Strategy
+from utils.db import get_db_sess_sync
 
 
 class StrategyManager:
@@ -29,7 +33,7 @@ class StrategyManager:
         broker = self._create_broker()
 
         # Wrap the broker in a proxy
-        proxy_broker = ProxyBroker(self._config.strategy_id, broker)
+        proxy_broker = ProxyBroker(self._config.deployment_id, broker)
 
         # Instantiate the strategy and pass the proxy broker
         strategy: BaseStrategy = Strategy(name=self._config.symbol, broker=proxy_broker)
@@ -87,7 +91,7 @@ class StrategyManager:
         Args:
             error_msg: Error message
         """
-        event = StrategyError(strategy_id=self._config.strategy_id, error_msg=error_msg)
+        event = StrategyError(deployment_id=self._config.deployment_id, error_msg=error_msg)
         self.producer.send("strategies", json.dumps(event.model_dump()).encode())
 
     def _create_broker(self) -> BaseBroker:
@@ -100,6 +104,45 @@ class StrategyManager:
             ValueError: If broker type is not supported
         """
         if self._config.broker == BrokerType.ALPACA:
-            return AlpacaBroker()
+            return self._create_alpaca_broker()
         else:
             raise ValueError(f"Unsupported broker type: {self._config.broker}")
+
+    def _create_alpaca_broker(self) -> AlpacaBroker:
+        """Create an Alpaca broker with OAuth credentials from database.
+
+        Returns:
+            AlpacaBroker instance
+
+        Raises:
+            ValueError: If broker connection or credentials not found
+        """
+        with get_db_sess_sync() as db_sess:
+            # Fetch the deployment to get broker connection ID
+            deployment = db_sess.get(StrategyDeployments, self._config.deployment_id)
+            if not deployment:
+                raise ValueError(
+                    f"Deployment not found: {self._config.deployment_id}"
+                )
+
+            # Fetch the broker connection
+            broker_conn = db_sess.get(
+                BrokerConnections, deployment.broker_connection_id
+            )
+            if not broker_conn:
+                raise ValueError(
+                    f"Broker connection not found: {deployment.broker_connection_id}"
+                )
+
+            # Decrypt OAuth payload
+            decrypted = EncryptionService.decrypt(
+                broker_conn.oauth_payload, str(broker_conn.user_id)
+            )
+            oauth_payload = AlpacaOAuthPayload(**json.loads(decrypted))
+
+            # Create and return AlpacaBroker
+            return AlpacaBroker(
+                oauth_token=oauth_payload.access_token,
+                paper=oauth_payload.env == "paper",
+                is_crypto=False,  # Can be extended to support crypto
+            )
