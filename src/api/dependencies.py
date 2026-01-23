@@ -6,7 +6,7 @@ from api.exc import JWTError
 from api.types import JWTPayload
 from api.services import JWTService
 from config import COOKIE_ALIAS
-from utils.db import smaker
+from infra.db import smaker
 
 
 T = TypeVar("T")

@@ -11,7 +11,7 @@ from api.shared.models import PerformanceMetrics
 from config import REDIS_DEPLOYMENT_EVENTS_KEY
 from core.enums import DeploymentEventType, StrategyDeploymentStatus
 from core.events import DeploymentEvent
-from db_models import BrokerConnections, Orders, Strategies, StrategyDeployments, Ticks
+from infra.db.models import BrokerConnections, Orders, Strategies, StrategyDeployments, Ticks
 from engine.backtesting.metrics import (
     calculate_sharpe_ratio,
     calculate_max_drawdown,
@@ -20,8 +20,8 @@ from engine.backtesting.metrics import (
 from engine.backtesting.types import EquityCurve
 from engine.enums import BrokerType, OrderSide, OrderStatus, Timeframe
 from services import PriceService
-from utils.redis import REDIS_CLIENT
-from utils.utils import get_datetime
+from infra.redis import REDIS_CLIENT
+from utils import get_datetime
 from .models import DeployStrategyRequest
 
 

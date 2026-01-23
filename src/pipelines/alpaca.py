@@ -13,11 +13,11 @@ from sqlalchemy.dialects.postgresql import insert
 
 from config import ALPACA_API_KEY, ALPACA_SECRET_KEY, REDIS_BROKER_TRADE_EVENTS_KEY
 from core.events import BrokerTradeEvent
-from db_models import Ticks
+from infra.db.models import Ticks
 from engine.enums import BrokerType, MarketType
-from utils.db import get_db_sess
-from utils.redis import REDIS_CLIENT
-from utils.utils import get_datetime
+from infra.db import get_db_sess
+from infra.redis import REDIS_CLIENT
+from utils import get_datetime
 from .base import BasePipeline
 from .rate_limiter import RateLimiter
 

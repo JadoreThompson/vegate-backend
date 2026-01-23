@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.exc import CustomValidationError
 from config import LLM_API_KEY
-from db_models import Strategies
+from infra.db.models import Strategies
 from .models import StrategyCreate, StrategyUpdate
 
 

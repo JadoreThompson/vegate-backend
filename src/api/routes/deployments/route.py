@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.dependencies import depends_db_sess, depends_jwt
 from api.types import JWTPayload
 from core.enums import StrategyDeploymentStatus
-from db_models import Strategies
+from infra.db.models import Strategies
 from services import DeploymentService
 from .controller import (
     create_deployment,

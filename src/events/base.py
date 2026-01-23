@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 from pydantic import Field
 
 from core.models import CustomBaseModel
-from utils.utils import get_datetime
+from utils import get_datetime
 
 
 class OrderEventType(str, Enum):

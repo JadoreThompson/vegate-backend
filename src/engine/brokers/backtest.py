@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from sqlalchemy import select
 
-from db_models import Ticks
+from infra.db.models import Ticks
 from engine.enums import BrokerType
 from engine.models import (
     OrderRequest,
@@ -16,8 +16,8 @@ from engine.models import (
     OrderType,
 )
 from engine.ohlcv import OHLCV
-from utils.db import get_db_sess_sync
-from utils.utils import get_datetime
+from infra.db import get_db_sess_sync
+from utils import get_datetime
 from .base import BaseBroker
 from .exc import BrokerError, OrderRejectedError
 

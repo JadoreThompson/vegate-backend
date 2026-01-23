@@ -8,7 +8,7 @@ from api.dependencies import CSVQuery, depends_db_sess, depends_jwt
 from api.shared.models import OrderResponse
 from api.types import JWTPayload
 from core.enums import BacktestStatus
-from db_models import Strategies
+from infra.db.models import Strategies
 from services import DeploymentService
 from .controller import (
     create_backtest,

@@ -9,10 +9,10 @@ from pydantic import ValidationError
 from config import REDIS_BROKER_TRADE_EVENTS_KEY, REDIS_CANDLE_CLOSE_EVENTS_KEY
 from core.events import BrokerTradeEvent, CandleCloseEvent
 from core.models import OHLCV
-from db_models import OHLCs
+from infra.db.models import OHLCs
 from engine.enums import BrokerType, Timeframe
-from utils.db import get_db_sess
-from utils.redis import REDIS_CLIENT
+from infra.db import get_db_sess
+from infra.redis import REDIS_CLIENT
 
 
 class OHLCBuilder:

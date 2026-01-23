@@ -15,10 +15,10 @@ from config import (
     REDIS_EMAIL_VERIFICATION_KEY_PREFIX,
     REDIS_EMAIL_VERIFCATION_EXPIRY_SECS,
 )
-from db_models import Users
+from infra.db.models import Users
 from services.email import BrevoEmailService
-from utils.redis import REDIS_CLIENT
-from utils.utils import get_datetime
+from infra.redis import REDIS_CLIENT
+from utils import get_datetime
 from .controller import gen_verification_code
 from .models import (
     UpdateEmail,

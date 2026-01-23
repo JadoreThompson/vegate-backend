@@ -6,13 +6,13 @@ from lib.brokers import AlpacaBroker, BaseBroker, ProxyBroker
 from lib.strategy import BaseStrategy
 from models import DeploymentConfig
 
-from db_models import StrategyDeployments, BrokerConnections
+from infra.db.models import StrategyDeployments, BrokerConnections
 from events.strategy import StrategyError
 from infra.kafka import KafkaProducer
 from services import EncryptionService
 from services.brokers_apis.alpaca import AlpacaOAuthPayload
 from user_strategy import Strategy
-from utils.db import get_db_sess_sync
+from infra.db import get_db_sess_sync
 
 
 class StrategyManager:

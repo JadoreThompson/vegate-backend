@@ -3,7 +3,7 @@ import subprocess
 
 import click
 
-from utils.db import write_db_url_to_alembic_ini
+from infra.db import write_db_url_alembic_ini
 
 
 @click.group()

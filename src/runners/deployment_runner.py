@@ -10,14 +10,14 @@ from sqlalchemy import update
 from config import BASE_PATH, REDIS_DEPLOYMENT_EVENTS_KEY
 from core.enums import StrategyDeploymentStatus
 from core.events import DeploymentEvent, DeploymentEventType
-from db_models import BrokerConnections, StrategyDeployments, Strategies
+from infra.db.models import BrokerConnections, StrategyDeployments, Strategies
 from engine.brokers import AlpacaBroker, BaseBroker
 from engine.enums import BrokerType, MarketType, Timeframe
 from engine.strategy import StrategyContext, StrategyManager
 from services import EncryptionService
 from services.brokers_apis.alpaca import AlpacaOAuthPayload
-from utils.db import get_db_sess_sync
-from utils.redis import REDIS_CLIENT
+from infra.db import get_db_sess_sync
+from infra.redis import REDIS_CLIENT
 from .base import BaseRunner
 
 
@@ -294,7 +294,7 @@ class DeploymentRunner(BaseRunner):
                 if error_message is not None:
                     values["error_message"] = error_message
                 if status == StrategyDeploymentStatus.STOPPED:
-                    from utils.utils import get_datetime
+                    from utils import get_datetime
 
                     values["stopped_at"] = get_datetime()
 

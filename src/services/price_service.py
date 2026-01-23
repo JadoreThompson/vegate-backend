@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Optional
 
 from engine.enums import BrokerType
-from utils.redis import REDIS_CLIENT
+from infra.redis import REDIS_CLIENT
 
 
 class PriceService:

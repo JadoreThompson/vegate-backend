@@ -9,7 +9,7 @@ from config import ALPACA_API_KEY, ALPACA_SECRET_KEY, REDIS_BROKER_TRADE_EVENTS_
 from core.events import BrokerTradeEvent
 from engine.enums import BrokerType, MarketType
 from services.price_service import PriceService
-from utils.redis import REDIS_CLIENT
+from infra.redis import REDIS_CLIENT
 
 
 class AlpacaListener:

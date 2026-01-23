@@ -15,7 +15,7 @@ from config import (
 from .exc import DeploymentError
 
 
-class DeploymentService:
+class RailwayService:
     def __init__(
         self,
     ):

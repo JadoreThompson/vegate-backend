@@ -6,10 +6,10 @@ from sqlalchemy import insert, update
 
 from config import BASE_PATH
 from core.enums import BacktestStatus
-from db_models import Backtests, Orders, Strategies
+from infra.db.models import Backtests, Orders, Strategies
 from engine.backtesting import BacktestConfig, BacktestEngine
 from engine.enums import Timeframe
-from utils.db import get_db_sess_sync
+from infra.db import get_db_sess_sync
 from .base import BaseRunner
 
 

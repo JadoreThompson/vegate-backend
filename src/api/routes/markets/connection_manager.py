@@ -14,7 +14,7 @@ from config import ALPACA_API_KEY, ALPACA_SECRET_KEY, REDIS_CANDLE_CLOSE_EVENTS_
 from core.events import CandleCloseEvent
 from core.models import OHLCV
 from engine.enums import BrokerType, Timeframe
-from utils.redis import REDIS_CLIENT
+from infra.redis import REDIS_CLIENT
 from .models import SubscribeRequest
 
 

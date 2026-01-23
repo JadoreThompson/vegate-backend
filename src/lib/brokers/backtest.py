@@ -1,8 +1,10 @@
 from datetime import datetime
 import uuid
-from enums import OrderStatus, OrderType
-from models import Order, OrderRequest
+from enums import OrderStatus, OrderType, BrokerType
+from models import Order, OrderRequest, OHLC
 from .base import BaseBroker
+from infra.db import get_db_sess_sync
+from infra.db.models import OHLCs
 
 
 class BacktestBroker(BaseBroker):
@@ -137,18 +139,38 @@ class BacktestBroker(BaseBroker):
         """
         return self.orders.copy()
 
-    def stream_candles(self, symbol: str, timeframe: str):
-        """Stream candles synchronously.
+    def stream_candles(self, symbol: str, timeframe: str, broker: BrokerType):
+        """Stream candles synchronously from the database.
 
         Args:
             symbol: Trading symbol
             timeframe: Candle timeframe
+            broker: Broker type to filter candles by source
 
         Yields:
             OHLC candles
         """
-        # This will be implemented by subclasses or the engine
-        raise NotImplementedError("Use BacktestEngine to stream candles")
+        with get_db_sess_sync() as db_sess:
+            # Query OHLCs from database filtered by source (broker), symbol, and timeframe
+            query = db_sess.query(OHLCs).filter(
+                OHLCs.source == broker.value,
+                OHLCs.symbol == symbol,
+                OHLCs.timeframe == timeframe,
+            ).order_by(OHLCs.timestamp.asc())
+
+            for ohlc_record in query:
+                # Convert database record to OHLC model
+                ohlc = OHLC(
+                    open=float(ohlc_record.open),
+                    high=float(ohlc_record.high),
+                    low=float(ohlc_record.low),
+                    close=float(ohlc_record.close),
+                    volume=0.0,  # Volume not stored in OHLCs table
+                    timestamp=datetime.fromtimestamp(ohlc_record.timestamp),
+                    timeframe=ohlc_record.timeframe,
+                    symbol=ohlc_record.symbol,
+                )
+                yield ohlc
 
     async def stream_candles_async(self, symbol: str, timeframe: str):
         """Stream candles asynchronously.

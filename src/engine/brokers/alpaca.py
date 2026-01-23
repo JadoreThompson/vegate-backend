@@ -26,8 +26,8 @@ from alpaca.trading.requests import (
 from sqlalchemy import insert, select, update
 
 from config import BACKEND_DOMAIN, BACKEND_SUB_DOMAIN, BARS_WS_TOKEN, IS_PRODUCTION
-from db_models import Orders, StrategyDeployments
-from utils.db import get_db_sess_sync
+from infra.db.models import Orders, StrategyDeployments
+from infra.db import get_db_sess_sync
 from .base import BaseBroker
 from .exc import (
     BrokerError,

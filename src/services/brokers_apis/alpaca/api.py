@@ -14,10 +14,10 @@ from config import (
     REDIS_ALPACA_OAUTH_PREFIX,
     REDIS_ALPACA_OAUTH_TTL_SECS,
 )
-from db_models import BrokerConnections
+from infra.db.models import BrokerConnections
 from engine.enums import BrokerType
 from services import EncryptionService
-from utils.redis import REDIS_CLIENT
+from infra.redis import REDIS_CLIENT
 from .models import AlpacaOAuthPayload
 from .types import _RedisOAuthPayload, AlpacaTradingEnv
 from ..exc import BrokerOAuthError
