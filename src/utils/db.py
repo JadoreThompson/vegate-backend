@@ -12,7 +12,7 @@ from config import (
     DB_HOST_CREDS,
     DB_NAME,
     DB_PASSWORD,
-    DB_USER,
+    DB_USERNAME,
     DB_USER_CREDS,
     PARENT_PATH,
 )
@@ -53,7 +53,9 @@ def get_db_sess_sync() -> Generator[Session, None, None]:
 
 def write_db_url_to_alembic_ini() -> None:
     db_password = DB_PASSWORD.replace("%", "%%")
-    db_url = f"postgresql+psycopg2://{DB_USER}:{db_password}@{DB_HOST_CREDS}/{DB_NAME}"
+    db_url = (
+        f"postgresql+psycopg2://{DB_USERNAME}:{db_password}@{DB_HOST_CREDS}/{DB_NAME}"
+    )
 
     fpath = os.path.join(PARENT_PATH, "alembic.ini")
     if not os.path.exists(fpath):
