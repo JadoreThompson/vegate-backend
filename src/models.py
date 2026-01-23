@@ -1,8 +1,9 @@
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel
 
-from enums import OrderType, OrderStatus
+from enums import OrderType, OrderStatus, BrokerType
 
 
 class OrderRequest(BaseModel):
@@ -77,3 +78,11 @@ class BacktestMetrics(BaseModel):
     avg_win: float
     avg_loss: float
     profit_factor: float
+
+
+class DeploymentConfig(BaseModel):
+    """Represents deployment configuration for a strategy."""
+
+    symbol: str
+    strategy_id: UUID
+    broker: BrokerType

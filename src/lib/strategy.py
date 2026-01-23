@@ -7,7 +7,7 @@ from lib.brokers import BaseBroker
 from models import OHLC
 
 
-class Strategy(ABC):
+class BaseStrategy(ABC):
     """Abstract base class for trading strategies."""
 
     def __init__(self, name: str, broker: BaseBroker):

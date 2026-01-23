@@ -8,12 +8,27 @@ from core.models import CustomBaseModel
 from utils.utils import get_datetime
 
 
+class OrderEventType(str, Enum):
+    """Order event type enumeration."""
+
+    ORDER_PLACED = "order_placed"
+    ORDER_CANCELLED = "order_cancelled"
+    ORDER_MODIFIED = "order_modified"
+
+
+class StrategyEventType(str, Enum):
+    """Strategy event type enumeration."""
+
+    ERROR = "strategy_error"
+
+
 class EventType(str, Enum):
     """Event type enumeration."""
 
     ORDER_PLACED = "order_placed"
     ORDER_CANCELLED = "order_cancelled"
     ORDER_MODIFIED = "order_modified"
+    STRATEGY_ERROR = "strategy_error"
 
 
 class BaseEvent(CustomBaseModel):

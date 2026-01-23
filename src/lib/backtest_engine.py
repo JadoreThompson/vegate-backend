@@ -11,7 +11,7 @@ from models import (
     OrderRequest,
 )
 from enums import OrderStatus, OrderType
-from lib.strategy import Strategy
+from lib.strategy import BaseStrategy
 
 
 logger = logging.getLogger(__name__)
@@ -190,7 +190,7 @@ class BacktestBroker(BaseBroker):
 class BacktestEngine:
     """Engine for running backtests on strategies."""
 
-    def __init__(self, strategy_class: type[Strategy], config: BacktestConfig):
+    def __init__(self, strategy_class: type[BaseStrategy], config: BacktestConfig):
         """Initialize the backtesting engine.
 
         Args:

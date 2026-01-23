@@ -7,6 +7,9 @@ from models import Order, OrderRequest, OHLC
 class BaseBroker(ABC):
     """Abstract base class for broker implementations."""
 
+    def __init__(self):
+        self.broker = None
+
     supports_async: bool = False
 
     @abstractmethod

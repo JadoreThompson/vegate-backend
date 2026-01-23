@@ -17,3 +17,9 @@ class OrderStatus(str, Enum):
     PLACED = "placed"
     FILLED = "filled"
     CANCELLED = "cancelled"
+
+
+class BrokerType(str, Enum):
+    """Broker type enumeration."""
+
+    ALPACA = "alpaca"
