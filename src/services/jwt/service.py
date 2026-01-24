@@ -6,11 +6,11 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import COOKIE_ALIAS, IS_PRODUCTION, JWT_SECRET, JWT_ALGO, JWT_EXPIRY_SECS
-from infra.db.models import Users
-from api.exc import JWTError
-from api.types import JWTPayload
 from infra.db import get_db_sess
+from infra.db.models import Users
 from utils import get_datetime
+from .exc import JWTError
+from .models import JWTPayload
 
 
 class JWTService:

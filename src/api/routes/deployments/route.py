@@ -4,14 +4,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.backtest_queue import get_backtest_queue
 from api.dependencies import depends_db_sess, depends_jwt
 from api.types import JWTPayload
-from core.enums import StrategyDeploymentStatus
+from enums import DeploymentStatus
 from infra.db.models import Strategies
-from services.railway import RailwayService
 from .controller import (
     create_deployment,
-    get_deployment,
     get_deployment_orders,
     get_deployment_with_metrics,
     list_all_deployments,
@@ -23,7 +22,6 @@ from api.shared.models import OrderResponse, PerformanceMetrics
 
 
 router = APIRouter(prefix="/deployments", tags=["Deployments"])
-railway_service = RailwayService()
 
 
 @router.post(
@@ -45,11 +43,15 @@ async def deploy_strategy_endpoint(
     """
     deployment = await create_deployment(jwt.sub, strategy_id, body, db_sess)
 
-    # Deploy the strategy using the deployment service
-    deployment_data = await railway_service.deploy(
-        deployment_id=deployment.deployment_id
-    )
-    deployment.server_data = deployment_data
+    # Push deployment job to the queue
+    queue = get_backtest_queue()
+    if queue is not None:
+        queue.put({"deployment_id": str(deployment.deployment_id)})
+    else:
+        raise HTTPException(
+            status_code=503,
+            detail="Deployment queue is not available. Backend service may not be running.",
+        )
 
     rsp_body = DeploymentResponse(
         deployment_id=deployment.deployment_id,
@@ -124,7 +126,7 @@ async def get_deployment_endpoint(
     deployment, metrics = await get_deployment_with_metrics(
         jwt.sub, deployment_id, db_sess
     )
-    
+
     if not deployment:
         raise HTTPException(status_code=404, detail="Deployment not found")
 
@@ -224,7 +226,7 @@ async def stop_deployment_endpoint(
 async def list_all_deployments_endpoint(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
-    status: StrategyDeploymentStatus | None = Query(None),
+    status: DeploymentStatus | None = Query(None),
     jwt: JWTPayload = Depends(depends_jwt()),
     db_sess: AsyncSession = Depends(depends_db_sess),
 ):

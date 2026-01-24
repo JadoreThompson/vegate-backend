@@ -1,9 +1,11 @@
-import json
 from collections.abc import AsyncGenerator, Generator
 from uuid import UUID
 
+from redis import Redis
+
+from config import REDIS_ORDER_EVENTS_KEY
 from events.order import OrderCancelled, OrderModified, OrderPlaced
-from infra.kafka import KafkaProducer
+from infra.redis.client import REDIS_CLIENT_SYNC
 from models import OHLC, Order, OrderRequest
 from enums import Timeframe
 from .base import BaseBroker
@@ -13,7 +15,7 @@ from .base import BaseBroker
 class ProxyBroker(BaseBroker):
     """Proxy broker that wraps another broker and emits events for order operations."""
 
-    def __init__(self, deployment_id: UUID, broker: BaseBroker):
+    def __init__(self, deployment_id: UUID, broker: BaseBroker,  redis_client: Redis = REDIS_CLIENT_SYNC):
         """Initialize the proxy broker.
 
         Args:
@@ -22,8 +24,14 @@ class ProxyBroker(BaseBroker):
         """
         self.deployment_id = deployment_id
         self.broker = broker
-        self.producer = KafkaProducer()
         self.supports_async = broker.supports_async
+        self.redis_client = redis_client
+
+    def get_balance(self):
+        return self.broker.get_balance()
+    
+    def get_equity(self):
+        return self.broker.get_equity()
 
     def place_order(self, order_request: OrderRequest) -> Order:
         """Place an order and emit OrderPlaced event.
@@ -36,7 +44,8 @@ class ProxyBroker(BaseBroker):
         """
         order = self.broker.place_order(order_request)
         event = OrderPlaced(deployment_id=self.deployment_id, order=order)
-        self.producer.send("orders", json.dumps(event.model_dump()).encode())
+        # self.producer.send("orders", json.dumps(event.model_dump()).encode())
+        self.redis_client.publish(REDIS_ORDER_EVENTS_KEY, event.model_dump_json())
         return order
 
     def modify_order(
@@ -57,7 +66,8 @@ class ProxyBroker(BaseBroker):
         """
         order = self.broker.modify_order(order_id, limit_price, stop_price)
         event = OrderModified(deployment_id=self.deployment_id, order=order, success=True)
-        self.producer.send("orders", json.dumps(event.model_dump()).encode())
+        # self.producer.send("orders", json.dumps(event.model_dump()).encode())
+        self.redis_client.publish(REDIS_ORDER_EVENTS_KEY, event.model_dump_json())
         return order
 
     def cancel_order(self, order_id: str) -> bool:
@@ -73,7 +83,8 @@ class ProxyBroker(BaseBroker):
         event = OrderCancelled(
             deployment_id=self.deployment_id, order_id=order_id, success=success
         )
-        self.producer.send("orders", json.dumps(event.model_dump()).encode())
+        # self.producer.send("orders", json.dumps(event.model_dump()).encode())
+        self.redis_client.publish(REDIS_ORDER_EVENTS_KEY, event.model_dump_json())
         return success
 
     def cancel_all_orders(self) -> bool:

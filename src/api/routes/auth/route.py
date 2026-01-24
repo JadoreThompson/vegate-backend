@@ -8,7 +8,6 @@ from sqlalchemy import insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import depends_db_sess, depends_jwt
-from api.services import JWTService
 from api.types import JWTPayload
 from config import (
     PW_HASH_SALT,
@@ -18,6 +17,7 @@ from config import (
 from infra.db.models import Users
 from services.email import BrevoEmailService
 from infra.redis import REDIS_CLIENT
+from services.jwt import JWTService
 from utils import get_datetime
 from .controller import gen_verification_code
 from .models import (

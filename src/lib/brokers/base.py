@@ -8,10 +8,16 @@ from enums import Timeframe
 class BaseBroker(ABC):
     """Abstract base class for broker implementations."""
 
+    supports_async: bool = False
+
     def __init__(self):
         self.broker = None
 
-    supports_async: bool = False
+    @abstractmethod
+    def get_balance(self): ...
+
+    @abstractmethod
+    def get_equity(self): ...
 
     @abstractmethod
     def place_order(self, order_request: OrderRequest) -> Order:

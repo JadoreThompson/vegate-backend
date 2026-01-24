@@ -2,11 +2,12 @@ from typing import Any, Callable, Type, TypeVar
 
 from fastapi import Depends, Request
 
-from api.exc import JWTError
+# from api.exc import JWTError
 from api.types import JWTPayload
-from api.services import JWTService
+# from api.services import JWTService
 from config import COOKIE_ALIAS
 from infra.db import smaker
+from services.jwt import JWTService, JWTError
 
 
 T = TypeVar("T")

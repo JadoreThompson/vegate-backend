@@ -1,11 +1,8 @@
 import logging
-from datetime import UTC, datetime
 
-from sqlalchemy import select
-
-from infra.db.models.ohlcs import OHLCs
-from infra.db.utils import get_db_sess_sync
+from enums import OrderStatus, OrderType
 from lib.brokers import BacktestBroker
+from lib.strategy import BaseStrategy
 from models import (
     OHLC,
     BacktestMetrics,
@@ -13,8 +10,6 @@ from models import (
     EquityCurvePoint,
     BacktestConfig,
 )
-from enums import OrderStatus, OrderType
-from lib.strategy import BaseStrategy
 
 
 logger = logging.getLogger(__name__)
@@ -44,59 +39,59 @@ class BacktestEngine:
         Returns:
             BacktestMetrics object with results
         """
+        logger.info(
+            f"Starting backtest: {self.config.symbol} ({self.config.timeframe}) "
+            f"from {self.config.start_date} to {self.config.end_date}"
+        )
+        logger.info(f"Starting balance: ${self.broker.get_balance():,.2f}")
+
         self.strategy.startup()
         self._process_candles()
         self.strategy.shutdown()
 
+        logger.info("Backtest completed")
         return self._calculate_metrics()
 
     def _process_candles(self) -> None:
         """Stream and process candles from database."""
-        start_date = self.config.start_date
-        end_date = self.config.end_date
+        candle_count = 0
+        last_log_count = 0
+        log_interval = 100  # Log every 100 candles
 
-        with get_db_sess_sync() as db_sess:
-            results = db_sess.scalars(
-                select(OHLCs)
-                .where(
-                    OHLCs.source == self.config.broker,
-                    OHLCs.symbol == self.config.symbol,
-                    OHLCs.timeframe == self.config.timeframe,
-                    OHLCs.timestamp
-                    >= int(
-                        datetime(
-                            year=start_date.year,
-                            month=start_date.month,
-                            day=start_date.day,
-                            tzinfo=UTC,
-                        ).timestamp()
-                    ),
-                    OHLCs.timestamp
-                    <= int(
-                        datetime(
-                            year=end_date.year,
-                            month=end_date.month,
-                            day=end_date.day,
-                            tzinfo=UTC,
-                        ).timestamp()
-                    ),
+        for candle in self.broker.stream_candles(
+            self.config.symbol,
+            self.config.timeframe,
+            self.config.broker,
+            self.config.start_date,
+            self.config.end_date,
+        ):
+            candle_count += 1
+
+            # Update equity calculation
+            self.broker._calculate_equity()
+
+            self.equity_curve.append(
+                EquityCurvePoint(
+                    timestamp=candle.timestamp, equity=self.broker.get_equity()
                 )
-                .order_by(OHLCs.timestamp.asc())
             )
+            self.strategy.on_candle(candle)
 
-            for res in results.yield_per(1000):
-                candle = OHLC(
-                    open=res.open,
-                    high=res.high,
-                    low=res.low,
-                    close=res.close,
-                    volume=0.0,
-                    timestamp=res.timestamp,
-                    timeframe=res.timeframe,
-                    symbol=res.symbol,
+            # Log progress at intervals
+            if candle_count - last_log_count >= log_interval:
+                orders_placed = len(self.broker.get_orders())
+                logger.info(
+                    f"Progress: {candle_count} candles processed | "
+                    f"Timestamp: {candle.timestamp} | "
+                    f"Balance: ${self.broker.get_balance():,.2f} | "
+                    f"Equity: ${self.broker.get_equity():,.2f} | "
+                    f"Orders: {orders_placed}"
                 )
-                self._record_equity_point(candle)
-                self.strategy.on_candle(candle)
+                last_log_count = candle_count
+
+        logger.info(
+            f"Candle processing complete: {candle_count} total candles processed"
+        )
 
     def _record_equity_point(self, candle: OHLC) -> None:
         """Record equity curve point for current candle."""
@@ -117,6 +112,21 @@ class BacktestEngine:
         total_return_pct = (
             end_balance - self.config.starting_balance
         ) / self.config.starting_balance
+
+        # Log final metrics
+        logger.info("=" * 60)
+        logger.info("BACKTEST RESULTS")
+        logger.info("=" * 60)
+        logger.info(f"Symbol: {self.config.symbol}")
+        logger.info(f"Timeframe: {self.config.timeframe}")
+        logger.info(f"Period: {self.config.start_date} to {self.config.end_date}")
+        logger.info(f"Starting Balance: ${self.config.starting_balance:,.2f}")
+        logger.info(f"Ending Balance: ${end_balance:,.2f}")
+        logger.info(f"Realised P&L: ${realised_pnl:,.2f}")
+        logger.info(f"Total Return: {total_return_pct * 100:.2f}%")
+        logger.info(f"Total Orders: {len(orders)}")
+        logger.info(f"Final Equity: ${self.broker.get_equity():,.2f}")
+        logger.info("=" * 60)
 
         # TODO: finish metrics
         return BacktestMetrics(

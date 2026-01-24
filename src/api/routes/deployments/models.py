@@ -5,11 +5,8 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from api.shared.models import PerformanceMetrics
-from core.enums import StrategyDeploymentStatus
-from core.models import CustomBaseModel
-from engine.backtesting.types import EquityCurve
-from engine.enums import MarketType
-from enums import Timeframe
+from enums import DeploymentStatus, Timeframe
+from models import CustomBaseModel
 
 
 class DeployStrategyRequest(BaseModel):
@@ -29,7 +26,7 @@ class DeploymentResponse(CustomBaseModel):
     symbol: str
     timeframe: Timeframe
     starting_balance: float | None = None
-    status: StrategyDeploymentStatus
+    status: DeploymentStatus
     error_message: str | None
     created_at: datetime
     updated_at: datetime

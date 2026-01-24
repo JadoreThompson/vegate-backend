@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from api.exc import CustomValidationError, JWTError
+from api.exc import CustomValidationError
 from api.middlewares import RateLimitMiddleware
 from api.routes.auth.route import router as auth_router
 from api.routes.backtests.route import router as backtests_router
@@ -13,6 +13,7 @@ from api.routes.markets.route import router as market_router
 from api.routes.public.route import router as public_router
 from api.routes.strategies.route import router as strategies_router
 from config import FRONTEND_DOMAIN, SCHEME, FRONTEND_SUB_DOMAIN
+from services.jwt import JWTError
 
 
 app = FastAPI()

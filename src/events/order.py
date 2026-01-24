@@ -1,8 +1,17 @@
+from enum import Enum
 from typing import Literal
 from uuid import UUID
 
-from events.base import BaseEvent, OrderEventType
+from events.base import BaseEvent
 from models import Order
+
+
+class OrderEventType(str, Enum):
+    """Order event type enumeration."""
+
+    ORDER_PLACED = "order_placed"
+    ORDER_CANCELLED = "order_cancelled"
+    ORDER_MODIFIED = "order_modified"
 
 
 class OrderPlaced(BaseEvent):

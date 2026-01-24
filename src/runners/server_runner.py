@@ -6,7 +6,7 @@ from api.backtest_queue import set_backtest_queue
 from .base import BaseRunner
 
 
-class ServerRunner(BaseRunner):
+class APIRunner(BaseRunner):
     """Runs the FastAPI server using uvicorn."""
 
     def __init__(self, backtest_queue: QueueT | None = None, **uvicorn_kwargs):

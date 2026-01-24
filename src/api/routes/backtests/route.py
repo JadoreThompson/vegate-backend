@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.dependencies import CSVQuery, depends_db_sess, depends_jwt
 from api.shared.models import OrderResponse
 from api.types import JWTPayload
-from core.enums import BacktestStatus
+from enums import BacktestStatus
 from infra.db.models import Strategies
 from services.railway import RailwayService
 from .controller import (

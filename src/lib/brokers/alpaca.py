@@ -1,6 +1,11 @@
+import asyncio
+import json
 import logging
+import websockets
 from collections.abc import AsyncGenerator, Generator
+from datetime import datetime
 
+from alpaca.data.models import Bar
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import (
     OrderSide as AlpacaOrderSide,
@@ -22,36 +27,55 @@ from .base import BaseBroker
 class AlpacaBroker(BaseBroker):
     """Alpaca broker implementation using alpaca-py library."""
 
-    supports_async: bool = False
+    supports_async: bool = True
 
     def __init__(
         self,
-        oauth_token: str,
+        api_key: str | None = None,
+        secret_key: str | None = None,
+        oauth_token: str | None = None,
         paper: bool = True,
-        is_crypto: bool = False,
     ):
         """Initialize the Alpaca broker.
 
         Args:
             oauth_token: OAuth access token for Alpaca API
             paper: Whether to use paper trading (default: True)
-            is_crypto: Whether to trade crypto (default: False)
         """
-        self.oauth_token = oauth_token
-        self.paper = paper
-        self.is_crypto = is_crypto
-        self.logger = logging.getLogger(self.__class__.__name__)
+        self._api_key = api_key
+        self._secret_key = secret_key
+        self._oauth_token = oauth_token
+        self._paper = paper
+        self._logger = logging.getLogger(self.__class__.__name__)
+
+        if (
+            self._api_key is None
+            and self._secret_key is None
+            and self._oauth_token is None
+        ):
+            raise ValueError(
+                "Either a combination of api_key and secret must "
+                "be provided or oauth_token."
+            )
 
         # Initialize the Alpaca trading client
-        self.client = TradingClient(
-            api_key=None,
-            secret_key=None,
-            oauth_token=oauth_token,
-            paper=paper,
-        )
+        if self._oauth_token is not None:
+            self.client = TradingClient(oauth_token=oauth_token, paper=paper)
+        else:
+            self.client = TradingClient(
+                api_key=self._api_key, secret_key=self._secret_key, paper=self._paper
+            )
 
         # Cache for orders
         self._orders: dict[str, Order] = {}
+
+        self._candle_queue: asyncio.Queue[OHLC] | None = None
+
+    def get_balance(self):
+        return float(self.client.get_account().cash)
+
+    def get_equity(self):
+        return float(self.client.get_account().equity)
 
     def place_order(self, order_request: OrderRequest) -> Order:
         """Place an order on Alpaca.
@@ -125,11 +149,11 @@ class AlpacaBroker(BaseBroker):
             order = self._convert_alpaca_order(alpaca_order)
             self._orders[order.order_id] = order
 
-            self.logger.info(f"Order placed: {order.order_id}")
+            self._logger.info(f"Order placed: {order.order_id}")
             return order
 
         except Exception as e:
-            self.logger.error(f"Failed to place order: {e}")
+            self._logger.error(f"Failed to place order: {e}")
             raise
 
     def modify_order(
@@ -163,11 +187,11 @@ class AlpacaBroker(BaseBroker):
             order = self._convert_alpaca_order(modified_alpaca_order)
             self._orders[order.order_id] = order
 
-            self.logger.info(f"Order modified: {order_id}")
+            self._logger.info(f"Order modified: {order_id}")
             return order
 
         except Exception as e:
-            self.logger.error(f"Failed to modify order {order_id}: {e}")
+            self._logger.error(f"Failed to modify order {order_id}: {e}")
             raise
 
     def cancel_order(self, order_id: str) -> bool:
@@ -181,10 +205,10 @@ class AlpacaBroker(BaseBroker):
         """
         try:
             self.client.cancel_order_by_id(order_id)
-            self.logger.info(f"Order cancelled: {order_id}")
+            self._logger.info(f"Order cancelled: {order_id}")
             return True
         except Exception as e:
-            self.logger.error(f"Failed to cancel order {order_id}: {e}")
+            self._logger.error(f"Failed to cancel order {order_id}: {e}")
             return False
 
     def cancel_all_orders(self) -> bool:
@@ -194,11 +218,11 @@ class AlpacaBroker(BaseBroker):
             True if all orders cancelled successfully, False otherwise
         """
         try:
-            self.client.cancel_all_orders()
-            self.logger.info("All orders cancelled")
+            self.client.cancel_orders()
+            self._logger.info("All orders cancelled")
             return True
         except Exception as e:
-            self.logger.error(f"Failed to cancel all orders: {e}")
+            self._logger.error(f"Failed to cancel all orders: {e}")
             return False
 
     def get_order(self, order_id: str) -> Order | None:
@@ -216,7 +240,7 @@ class AlpacaBroker(BaseBroker):
             self._orders[order.order_id] = order
             return order
         except Exception as e:
-            self.logger.error(f"Failed to get order {order_id}: {e}")
+            self._logger.error(f"Failed to get order {order_id}: {e}")
             return None
 
     def get_orders(self) -> list[Order]:
@@ -232,7 +256,7 @@ class AlpacaBroker(BaseBroker):
                 self._orders[order.order_id] = order
             return orders
         except Exception as e:
-            self.logger.error(f"Failed to get orders: {e}")
+            self._logger.error(f"Failed to get orders: {e}")
             return []
 
     def stream_candles(
@@ -263,9 +287,166 @@ class AlpacaBroker(BaseBroker):
         Yields:
             OHLC candles
         """
-        raise NotImplementedError(
-            "Asynchronous candle streaming is not yet implemented for AlpacaBroker."
+        task = asyncio.create_task(self._handle_stream_alpaca(symbol, timeframe))
+        self._candle_queue = asyncio.Queue()
+
+        try:
+            while True:
+                item = await self._candle_queue.get()
+                yield item
+        finally:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+    async def _handle_stream_alpaca(self, symbol: str, timeframe: Timeframe) -> None:
+        print(1)
+        async with websockets.connect("wss://stream.data.alpaca.markets/v2/iex") as ws:
+            print(2)
+            # auth_msg = {"action": "auth", "key": "oauth", "secret": self.oauth_token}
+            auth_msg = {
+                "action": "auth",
+                "key": self._api_key,
+                "secret": self._secret_key,
+            }
+            print(3)
+            await ws.send(json.dumps(auth_msg))
+            print(4)
+
+            resp = await ws.recv()
+            self._logger.info(f"Auth response: {resp}")
+
+            # Determine if we should subscribe to minute or daily bars
+            timeframe_seconds = timeframe.get_seconds()
+            is_intraday = timeframe_seconds < 86400  # 1 day in seconds
+
+            sub_msg = {"action": "subscribe"}
+
+            if is_intraday:
+                sub_msg["bars"] = [symbol]
+                handler = lambda bar: self._on_minute_bar(bar, timeframe_seconds)
+            else:
+                sub_msg["dailyBars"] = [symbol]
+                handler = lambda bar: self._on_daily_bar(bar)
+
+            await ws.send(json.dumps(sub_msg))
+            resp = await ws.recv()
+            self._logger.info(f"Subscribe response: {resp}")
+
+            self._aggregation_state = {
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "timeframe_seconds": timeframe_seconds,
+                "current_candle": None,
+                "is_intraday": is_intraday,
+            }
+
+            while True:
+                message = await ws.recv()
+                print(message)
+                await handler(message)
+
+    def _on_minute_bar(self, bar: dict, timeframe_seconds: int) -> None:
+        """Handle minute bar updates for intraday aggregation.
+
+        Args:
+            bar: Bar object from Alpaca stream
+            timeframe_seconds: The timeframe in seconds
+        """
+        if not hasattr(self, "_aggregation_state"):
+            return
+
+        state = self._aggregation_state
+
+        # Convert bar timestamp to the candle period
+        print(bar)
+        bar_time = datetime.fromisoformat(bar["t"])
+        period_start = self._get_period_start(bar_time, timeframe_seconds)
+
+        # Initialize or update current candle
+        if state["current_candle"] is None:
+            state["current_candle"] = {
+                "open": bar["o"],
+                "high": bar["h"],
+                "low": bar["l"],
+                "close": bar["c"],
+                "volume": bar["v"],
+                "period_start": period_start,
+            }
+        else:
+            current = state["current_candle"]
+
+            # Check if we've moved to a new period
+            if period_start > current["period_start"]:
+                # Create and push the completed candle to the queue
+                ohlc = OHLC(
+                    symbol=state["symbol"],
+                    timeframe=state["timeframe"],
+                    timestamp=current["period_start"],
+                    open=current["open"],
+                    high=current["high"],
+                    low=current["low"],
+                    close=current["close"],
+                    volume=current["volume"],
+                )
+                self._candle_queue.put_nowait(ohlc)
+                self._logger.debug(f"Completed candle: {ohlc}")
+
+                state["current_candle"] = {
+                    "open": bar["o"],
+                    "high": bar["h"],
+                    "low": bar["l"],
+                    "close": bar["c"],
+                    "volume": bar["v"],
+                    "period_start": period_start,
+                }
+            else:
+                current["high"] = max(current["high"], bar["h"])
+                current["low"] = min(current["low"], bar["l"])
+                current["close"] = bar["c"]
+                current["volume"] += bar["v"]
+
+    def _on_daily_bar(self, bar: Bar) -> None:
+        """Handle daily bar updates.
+
+        Args:
+            bar: Bar object from Alpaca stream
+        """
+        if not hasattr(self, "_aggregation_state"):
+            return
+
+        state = self._aggregation_state
+
+        ohlc = OHLC(
+            symbol=state["symbol"],
+            timeframe=state["timeframe"],
+            timestamp=bar.timestamp,
+            open=bar.open,
+            high=bar.high,
+            low=bar.low,
+            close=bar.close,
+            volume=bar.volume,
         )
+        self._candle_queue.put_nowait(ohlc)
+        self._logger.debug(f"Daily candle: {ohlc}")
+
+    def _get_period_start(
+        self, timestamp: datetime, timeframe_seconds: int
+    ) -> datetime:
+        """Calculate the start of the period for a given timestamp.
+
+        Args:
+            timestamp: The timestamp to calculate period start for
+            timeframe_seconds: The timeframe in seconds
+
+        Returns:
+            The start of the period
+        """
+        epoch_seconds = int(timestamp.timestamp())
+        period_start_epoch = (epoch_seconds // timeframe_seconds) * timeframe_seconds
+        return datetime.fromtimestamp(period_start_epoch, tz=timestamp.tzinfo)
 
     def _map_order_type(self, order_type: OrderType) -> AlpacaOrderType:
         """Map our OrderType to Alpaca OrderType.

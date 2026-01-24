@@ -3,9 +3,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from core.models import CustomBaseModel
-from engine.backtesting.types import EquityCurve
 from enums import BacktestStatus, BrokerType, Timeframe
+from models import CustomBaseModel, EquityCurvePoint
 
 
 class StrategyCreate(BaseModel):
@@ -62,7 +61,7 @@ class StrategyMetrics(BaseModel):
     total_return: float
     sharpe_ratio: float
     max_drawdown: float
-    equity_curve: EquityCurve
+    equity_curve: list[EquityCurvePoint]
 
 
 class StrategySummaryResponse(StrategyResponse):

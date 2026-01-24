@@ -224,7 +224,7 @@ class AlpacaBroker(HTTPSessMixin, BaseBroker):
             db_order.filled_quantity = float(order["filled_qty"])
             db_order.avg_fill_price = float(order["filled_avg_price"])
             db_order.filled_at = datetime.fromisoformat(order["filled_at"])
-            db_order.broker_metadata = payload["data"]
+            db_order.details = payload["data"]
             db_order.status = self._convert_status_from_alpaca(order["status"])
             db_sess.commit()
 
@@ -467,7 +467,7 @@ class AlpacaBroker(HTTPSessMixin, BaseBroker):
             if not rsp.ok:
                 print(rsp.text)
             rsp.raise_for_status()
-            data = rsp.json()            
+            data = rsp.json()
 
             candles = data.get("bars", {}).get(symbol)
 
@@ -486,7 +486,7 @@ class AlpacaBroker(HTTPSessMixin, BaseBroker):
                     high=c["h"],
                     low=c["l"],
                     close=c["c"],
-                    volume=c['v']
+                    volume=c["v"],
                 )
 
             next_page_token = data.get("next_page_token")

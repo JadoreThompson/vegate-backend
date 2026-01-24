@@ -1,13 +1,16 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import RedirectResponse
+from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import depends_db_sess, depends_jwt
 from api.routes.brokers.models import GetOauthUrlResponse
-from services.brokers_apis import AlpacaAPI
 from api.types import JWTPayload
 from config import FRONTEND_DOMAIN, SCHEME, FRONTEND_SUB_DOMAIN
-from engine.enums import BrokerType
+from enums import BrokerType
+from infra.db.models import BrokerConnections
+from services.alpaca import AlpacaAPI
+from .models import AlpacaConnectRequest
 
 
 router = APIRouter(prefix="/brokers/alpaca", tags=["Alpaca"])
@@ -39,3 +42,22 @@ async def oauth_callback(
     return RedirectResponse(
         f"{SCHEME}://{FRONTEND_SUB_DOMAIN}{FRONTEND_DOMAIN}/brokers/oauth?{query_params}"
     )
+
+
+@router.post("/connect")
+async def connect_alpaca(
+    body: AlpacaConnectRequest,
+    jwt: JWTPayload = Depends(depends_jwt()),
+    db_sess: AsyncSession = Depends(depends_db_sess),
+):
+    # TODO: Fetch broker accoutn id
+    await db_sess.execute(
+        insert(BrokerConnections).values(
+            broker=BrokerType.ALPACA,
+            user_id=jwt.sub,
+            api_key=body.api_key,
+            secret_key=body.secret_key,
+            broker_account_id="<TMP>",
+        )
+    )
+    await db_sess.commit()

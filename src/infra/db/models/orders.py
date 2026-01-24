@@ -20,38 +20,30 @@ class Orders(Base):
     symbol: Mapped[str] = mapped_column(String, nullable=False)
     side: Mapped[str] = mapped_column(String, nullable=False)
     order_type: Mapped[str] = mapped_column(String, nullable=False)
-    quantity: Mapped[float] = mapped_column(
-        Float, nullable=False
-    )
-    filled_quantity: Mapped[float] = mapped_column(
-        Float, nullable=False, default=0
-    )
-    limit_price: Mapped[float | None] = mapped_column(
-        Float, nullable=True
-    )
-    stop_price: Mapped[float | None] = mapped_column(
-        Float, nullable=True
-    )
-    avg_fill_price: Mapped[float | None] = mapped_column(
-        Float, nullable=True
-    )
+    quantity: Mapped[float] = mapped_column(Float, nullable=False)
+    filled_quantity: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    limit_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    stop_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    avg_fill_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False)
-    time_in_force: Mapped[str] = mapped_column(String, nullable=False, default="day")
+    # time_in_force: Mapped[str] = mapped_column(String, nullable=False, default="day")
     submitted_at: Mapped[datetime] = datetime_tz()
     filled_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    client_order_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # client_order_id: Mapped[str | None] = mapped_column(String, nullable=True)
     broker_order_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    broker_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     # Foreign keys (nullable for backtest vs live)
     backtest_id: Mapped[UUID | None] = mapped_column(
-        SaUUID(as_uuid=True), ForeignKey("backtests.backtest_id",  ondelete="CASCADE"), nullable=True
+        SaUUID(as_uuid=True),
+        ForeignKey("backtests.backtest_id", ondelete="CASCADE"),
+        nullable=True,
     )
     deployment_id: Mapped[UUID | None] = mapped_column(
         SaUUID(as_uuid=True),
-        ForeignKey("strategy_deployments.deployment_id",  ondelete="CASCADE"),
+        ForeignKey("strategy_deployments.deployment_id", ondelete="CASCADE"),
         nullable=True,
     )
 

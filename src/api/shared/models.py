@@ -3,8 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
-from core.models import CustomBaseModel
-from engine.backtesting.types import EquityCurve
+from models import CustomBaseModel, EquityCurve
 
 
 class OrderResponse(CustomBaseModel):

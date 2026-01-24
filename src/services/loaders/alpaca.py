@@ -152,8 +152,6 @@ class AlpacaLoader(BaseLoader):
             Timeframe.H1: AlpacaTimeFrame.Hour,
             Timeframe.H4: AlpacaTimeFrame(4, "Hour"),
             Timeframe.D1: AlpacaTimeFrame.Day,
-            Timeframe.W1: AlpacaTimeFrame.Week,
-            Timeframe.M1: AlpacaTimeFrame.Month,
         }
 
         if timeframe not in mapping:

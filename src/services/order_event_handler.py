@@ -1,0 +1,195 @@
+import json
+import logging
+from datetime import datetime
+from uuid import UUID
+
+from redis.asyncio import Redis
+
+from config import REDIS_ORDER_EVENTS_KEY
+from events.order import OrderPlaced, OrderCancelled, OrderModified
+from infra.db import get_db_sess_sync
+from infra.db.models import Orders
+from infra.redis import REDIS_CLIENT
+from utils import get_datetime
+
+
+class OrderEventHandler:
+    """Handles order events and performs database operations."""
+
+    def __init__(self, redis_client: Redis = REDIS_CLIENT):
+        """Initialize the order event handler.
+
+        Args:
+            redis_client: Redis client for subscribing to events
+        """
+        self._redis_client = redis_client
+        self._logger = logging.getLogger(self.__class__.__name__)
+
+    async def listen(self) -> None:
+        """Listen for order events on Redis pub/sub and handle them."""
+        try:
+            async with self._redis_client.pubsub() as ps:
+                await ps.subscribe(REDIS_ORDER_EVENTS_KEY)
+                self._logger.info(
+                    f"Subscribed to order events channel: {REDIS_ORDER_EVENTS_KEY}"
+                )
+
+                async for message in ps.listen():
+                    if message["type"] == "message":
+                        try:
+                            event_data = json.loads(message["data"])
+                            await self._handle_event(event_data)
+                        except (json.JSONDecodeError, ValueError) as e:
+                            self._logger.error(f"Failed to parse order event: {e}")
+                            continue
+                        except Exception as e:
+                            self._logger.exception(f"Error handling order event: {e}")
+                            continue
+
+        except Exception as e:
+            self._logger.exception(f"Error in order event listener: {e}")
+            raise
+
+    async def _handle_event(self, event_data: dict) -> None:
+        """Handle a single order event.
+
+        Args:
+            event_data: Event data dictionary
+        """
+        event_type = event_data.get("type")
+
+        if event_type == "order_placed":
+            await self._handle_order_placed(event_data)
+        elif event_type == "order_cancelled":
+            await self._handle_order_cancelled(event_data)
+        elif event_type == "order_modified":
+            await self._handle_order_modified(event_data)
+        else:
+            self._logger.warning(f"Unknown order event type: {event_type}")
+
+    async def _handle_order_placed(self, event_data: dict) -> None:
+        """Handle order placed event.
+
+        Args:
+            event_data: Event data containing order details
+        """
+        try:
+            event = OrderPlaced(**event_data)
+            deployment_id = event.deployment_id
+            order = event.order
+
+            with get_db_sess_sync() as db_sess:
+                # Create new order record
+                db_order = Orders(
+                    order_id=UUID(order.order_id) if isinstance(order.order_id, str) else order.order_id,
+                    symbol=order.symbol,
+                    side=order.side.value if hasattr(order.side, 'value') else order.side,
+                    order_type=order.order_type.value if hasattr(order.order_type, 'value') else order.order_type,
+                    quantity=order.quantity,
+                    filled_quantity=order.executed_quantity,
+                    limit_price=order.limit_price,
+                    stop_price=order.stop_price,
+                    avg_fill_price=order.filled_avg_price,
+                    status=order.status.value if hasattr(order.status, 'value') else order.status,
+                    time_in_force="day",
+                    submitted_at=order.submitted_at or get_datetime(),
+                    filled_at=order.executed_at,
+                    client_order_id=order.order_id,
+                    deployment_id=deployment_id,
+                    broker_metadata=order.details,
+                )
+
+                db_sess.add(db_order)
+                db_sess.commit()
+
+                self._logger.info(
+                    f"Order placed: {db_order.order_id} for deployment {deployment_id}"
+                )
+
+        except Exception as e:
+            self._logger.exception(f"Error handling order placed event: {e}")
+            raise
+
+    async def _handle_order_cancelled(self, event_data: dict) -> None:
+        """Handle order cancelled event.
+
+        Args:
+            event_data: Event data containing order cancellation details
+        """
+        try:
+            event = OrderCancelled(**event_data)
+            deployment_id = event.deployment_id
+            order_id = event.order_id
+            success = event.success
+
+            if not success:
+                self._logger.warning(
+                    f"Order cancellation failed for order {order_id} in deployment {deployment_id}"
+                )
+                return
+
+            with get_db_sess_sync() as db_sess:
+                # Find and update order status
+                db_order = db_sess.query(Orders).filter(
+                    Orders.client_order_id == order_id,
+                    Orders.deployment_id == deployment_id,
+                ).first()
+
+                if db_order:
+                    db_order.status = "cancelled"
+                    db_sess.commit()
+                    self._logger.info(
+                        f"Order cancelled: {order_id} for deployment {deployment_id}"
+                    )
+                else:
+                    self._logger.warning(
+                        f"Order not found for cancellation: {order_id} in deployment {deployment_id}"
+                    )
+
+        except Exception as e:
+            self._logger.exception(f"Error handling order cancelled event: {e}")
+            raise
+
+    async def _handle_order_modified(self, event_data: dict) -> None:
+        """Handle order modified event.
+
+        Args:
+            event_data: Event data containing modified order details
+        """
+        try:
+            event = OrderModified(**event_data)
+            deployment_id = event.deployment_id
+            order = event.order
+            success = event.success
+
+            if not success:
+                self._logger.warning(
+                    f"Order modification failed for order {order.order_id} in deployment {deployment_id}"
+                )
+                return
+
+            with get_db_sess_sync() as db_sess:
+                # Find and update order
+                db_order = db_sess.query(Orders).filter(
+                    Orders.client_order_id == order.order_id,
+                    Orders.deployment_id == deployment_id,
+                ).first()
+
+                if db_order:
+                    # Update order fields
+                    db_order.quantity = order.quantity
+                    db_order.limit_price = order.limit_price
+                    db_order.stop_price = order.stop_price
+                    db_order.status = order.status.value if hasattr(order.status, 'value') else order.status
+                    db_sess.commit()
+                    self._logger.info(
+                        f"Order modified: {order.order_id} for deployment {deployment_id}"
+                    )
+                else:
+                    self._logger.warning(
+                        f"Order not found for modification: {order.order_id} in deployment {deployment_id}"
+                    )
+
+        except Exception as e:
+            self._logger.exception(f"Error handling order modified event: {e}")
+            raise

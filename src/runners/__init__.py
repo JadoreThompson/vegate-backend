@@ -5,7 +5,7 @@ from .deployment_runner import DeploymentRunner
 from .listener_runner import ListenerRunner
 from .loader_runner import LoaderRunner
 from .runner_config import RunnerConfig
-from .server_runner import ServerRunner
+from .server_runner import APIRunner
 
 __all__ = [
     "BaseRunner",
@@ -15,5 +15,5 @@ __all__ = [
     "ListenerRunner",
     "LoaderRunner",
     "RunnerConfig",
-    "ServerRunner",
+    "APIRunner",
 ]

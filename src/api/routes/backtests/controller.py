@@ -4,7 +4,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.enums import BacktestStatus
+from enums import BacktestStatus
 from infra.db.models import Backtests, Orders, Strategies
 from .models import BacktestCreate, BacktestUpdate
 

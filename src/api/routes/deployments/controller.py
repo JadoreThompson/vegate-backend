@@ -9,14 +9,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.shared.models import PerformanceMetrics
 from config import REDIS_DEPLOYMENT_EVENTS_KEY
-from core.enums import DeploymentEventType, StrategyDeploymentStatus
+from core.enums import DeploymentEventType, DeploymentStatus
 from core.events import DeploymentEvent
-from infra.db.models import BrokerConnections, Orders, Strategies, StrategyDeployments, Ticks
-from engine.backtesting.metrics import (
-    calculate_sharpe_ratio,
-    calculate_max_drawdown,
-    calculate_total_return,
+from infra.db.models import (
+    BrokerConnections,
+    Orders,
+    Strategies,
+    StrategyDeployments,
+    Ticks,
 )
+from engine.backtesting.metrics import calculate_sharpe_ratio, calculate_max_drawdown
 from engine.backtesting.types import EquityCurve
 from engine.enums import BrokerType, OrderSide, OrderStatus, Timeframe
 from services import PriceService
@@ -71,7 +73,7 @@ async def create_deployment(
         broker_connection_id=data.broker_connection_id,
         symbol=data.symbol,
         timeframe=data.timeframe,
-        status=StrategyDeploymentStatus.PENDING,
+        status=DeploymentStatus.PENDING,
     )
 
     db_sess.add(new_deployment)
@@ -130,7 +132,7 @@ async def list_all_deployments(
     db_sess: AsyncSession,
     offset: int = 0,
     limit: int = 100,
-    status: StrategyDeploymentStatus | None = None,
+    status: DeploymentStatus | None = None,
 ) -> list[StrategyDeployments]:
     """
     List all deployments for a user with optional status filter and pagination.
@@ -179,16 +181,16 @@ async def stop_deployment(
     if not strategy or strategy.user_id != user_id:
         raise HTTPException(404, "Deployment not found")
 
-    if deployment.status == StrategyDeploymentStatus.STOP_REQUESTED:
+    if deployment.status == DeploymentStatus.STOP_REQUESTED:
         raise HTTPException(400, "Deployment has already been requested to stop")
 
-    if deployment.status == StrategyDeploymentStatus.STOPPED:
+    if deployment.status == DeploymentStatus.STOPPED:
         raise HTTPException(400, "Deployment is already stopped")
 
-    if deployment.status == StrategyDeploymentStatus.ERROR:
+    if deployment.status == DeploymentStatus.ERROR:
         raise HTTPException(400, "Cannot stop a deployment in ERROR state")
 
-    deployment.status = StrategyDeploymentStatus.STOP_REQUESTED
+    deployment.status = DeploymentStatus.STOP_REQUESTED
 
     await db_sess.flush()
     await db_sess.refresh(deployment)
@@ -410,9 +412,7 @@ async def get_price_points(
     ORDER BY target_time;
     """
 
-    res = await db_sess.execute(
-        text(query)
-    )
+    res = await db_sess.execute(text(query))
 
     return list(res.all())
 
@@ -465,7 +465,7 @@ async def calculate_deployment_metrics(
     for order in orders:
         filled_quantity = order.filled_quantity
         filled_price = order.avg_fill_price
-        order_value = filled_quantity * filled_price        
+        order_value = filled_quantity * filled_price
 
         # Asset Balances
         if not asset_points:
@@ -479,9 +479,7 @@ async def calculate_deployment_metrics(
             prev_point = asset_points[-1]
 
             if order.side == OrderSide.BUY:
-                total_cost = (
-                    prev_point.quantity * asset_avg_price + order_value
-                )
+                total_cost = prev_point.quantity * asset_avg_price + order_value
                 filled_qty = prev_point.quantity + filled_quantity
                 if filled_qty > 0:
                     asset_avg_price = total_cost / filled_qty
@@ -523,14 +521,14 @@ async def calculate_deployment_metrics(
         broker, deployment.symbol, tf, start_date, end_date, db_sess, n=n_points
     )
     equity_curve = []
-    
+
     if price_points:
         current_point_t, current_point_price = price_points[0]
         price_points_idx = 0
         equity_curve = [(current_point_t, starting_balance)]
         cur_quantity = None
         equity_curve_idx = 0
-        
+
         for point in asset_points:
             pts = int(point.timestamp.timestamp())
 
@@ -541,15 +539,20 @@ async def calculate_deployment_metrics(
                 price_points_idx += 1
                 equity_curve_idx += 1
                 current_point_t, current_point_price = price_points[price_points_idx]
-                equity_curve.append((current_point_t, cur_quantity * current_point_price))
+                equity_curve.append(
+                    (current_point_t, cur_quantity * current_point_price)
+                )
 
             cur_quantity = point.quantity
-            equity_curve[equity_curve_idx] = (current_point_t, cur_quantity * current_point_price)
+            equity_curve[equity_curve_idx] = (
+                current_point_t,
+                cur_quantity * current_point_price,
+            )
 
         for i in range(len(equity_curve)):
             if equity_curve[i] is None:
                 t, price = price_points[i]
-                equity_curve[i] = (t, price * cur_quantity)        
+                equity_curve[i] = (t, price * cur_quantity)
     else:
         equity_curve = []
 
@@ -564,7 +567,6 @@ async def calculate_deployment_metrics(
     else:
         sharpe_ratio = 0.0
         max_dd_pct = 0.0
-
 
     return PerformanceMetrics(
         realised_pnl=cur_balance - starting_balance,

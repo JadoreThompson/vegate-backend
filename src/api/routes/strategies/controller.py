@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 from pydantic_ai.providers.mistral import MistralProvider
 from pydantic_ai.models.mistral import MistralModel
-from sqlalchemy import select, update, insert
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import LLM_API_KEY

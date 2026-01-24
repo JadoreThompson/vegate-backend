@@ -1,10 +1,9 @@
-from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel
 
-from core.models import CustomBaseModel
-from engine.enums import BrokerType
+from enums import BrokerType
+from models import CustomBaseModel
 
 
 class GetOauthUrlResponse(BaseModel):

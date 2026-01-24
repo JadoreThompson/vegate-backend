@@ -43,6 +43,7 @@ class Order(BaseModel):
     price: float | None = None
     limit_price: float | None = None
     stop_price: float | None = None
+    filled_avg_price: float | None = None
     executed_at: datetime | None = None
     submitted_at: datetime | None = None
     status: OrderStatus = OrderStatus.PENDING

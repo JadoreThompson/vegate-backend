@@ -21,6 +21,7 @@ class BrokerConnections(Base):
         SaUUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False
     )
     api_key: Mapped[str | None] = mapped_column(String, nullable=True)
+    secret_key: Mapped[str | None] = mapped_column(String, nullable=True)
     oauth_payload: Mapped[str | None] = mapped_column(String, nullable=True)
     broker_account_id: Mapped[str] = mapped_column(String, nullable=False)
 

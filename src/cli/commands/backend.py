@@ -5,7 +5,7 @@ from multiprocessing import Process, Queue
 
 import click
 
-from runners import BacktestListenerRunner, ListenerRunner, RunnerConfig, ServerRunner
+from runners import BacktestListenerRunner, ListenerRunner, RunnerConfig, APIRunner
 from runners.utils import run_runner
 
 logger = logging.getLogger("commands.backend")
@@ -35,10 +35,15 @@ def backend_run(workers):
 
     configs = [
         RunnerConfig(
-            cls=ServerRunner,
+            cls=APIRunner,
             name="ServerRunner",
             args=(backtest_queue,),
-            kwargs={"host": "0.0.0.0", "port": 8000, "reload": False, "workers": workers},
+            kwargs={
+                "host": "0.0.0.0",
+                "port": 8000,
+                "reload": False,
+                "workers": workers,
+            },
         ),
         RunnerConfig(
             cls=BacktestListenerRunner,

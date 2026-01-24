@@ -1,7 +1,7 @@
 import json
 import random
 import string
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 from uuid import UUID
 
 from sqlalchemy import insert, select
@@ -29,22 +29,54 @@ class AlpacaAPI(HTTPSessMixin, BaseBrokerAPI):
     def __init__(self):
         super().__init__()
 
+    # async def get_oauth_url(self, user_id: UUID, env: AlpacaTradingEnv) -> str:
+    #     """Generate OAuth URL for Alpaca authentication."""
+    #     state = "".join(random.choices(string.ascii_uppercase + string.digits, k=24))
+
+    #     base_url = "https://app.alpaca.markets/oauth/authorize"
+
+    #     params = (
+    #         ("response_type", "code"),
+    #         ("client_id", ALPACA_OAUTH_CLIENT_ID),
+    #         ("redirect_uri", quote(ALPACA_OAUTH_REDIRECT_URI)),
+    #         ("state", quote(state)),
+    #         ("scope", "trading"),
+    #         ("scope", "data"),
+    #     )
+    #     query_string = "&".join(f"{key}={value}" for key, value in params)
+
+    #     payload: _RedisOAuthPayload = {"user_id": str(user_id), "env": env}
+    #     await REDIS_CLIENT.set(
+    #         f"{REDIS_ALPACA_OAUTH_PREFIX}{state}",
+    #         json.dumps(payload),
+    #         ex=REDIS_ALPACA_OAUTH_TTL_SECS,
+    #     )
+
+    #     return f"{base_url}?{query_string}"
+
     async def get_oauth_url(self, user_id: UUID, env: AlpacaTradingEnv) -> str:
         """Generate OAuth URL for Alpaca authentication."""
         state = "".join(random.choices(string.ascii_uppercase + string.digits, k=24))
 
         base_url = "https://app.alpaca.markets/oauth/authorize"
 
-        params = (
-            ("response_type", "code"),
-            ("client_id", ALPACA_OAUTH_CLIENT_ID),
-            ("redirect_uri", quote(ALPACA_OAUTH_REDIRECT_URI)),
-            ("state", quote(state)),
-            ("scope", "trading"),
-        )
-        query_string = "&".join(f"{key}={value}" for key, value in params)
+        scopes = ["trading", "data"]  # add/remove as needed
 
-        payload: _RedisOAuthPayload = {"user_id": str(user_id), "env": env}
+        params = {
+            "response_type": "code",
+            "client_id": ALPACA_OAUTH_CLIENT_ID,
+            "redirect_uri": ALPACA_OAUTH_REDIRECT_URI,
+            "state": state,
+            "scope": " ".join(scopes),  # 👈 space-delimited
+        }
+
+        query_string = urlencode(params)
+
+        payload: _RedisOAuthPayload = {
+            "user_id": str(user_id),
+            "env": env,
+        }
+
         await REDIS_CLIENT.set(
             f"{REDIS_ALPACA_OAUTH_PREFIX}{state}",
             json.dumps(payload),
@@ -52,6 +84,7 @@ class AlpacaAPI(HTTPSessMixin, BaseBrokerAPI):
         )
 
         return f"{base_url}?{query_string}"
+
 
     async def handle_oauth_callback(
         self, code: str, state: str, user_id: UUID, db_sess: AsyncSession

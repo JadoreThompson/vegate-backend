@@ -1,4 +1,4 @@
-from .api import AlpacaAPI
+from .service import AlpacaAPI
 from .models import AlpacaOAuthPayload
 
 

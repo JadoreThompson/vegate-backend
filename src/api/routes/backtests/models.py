@@ -3,10 +3,10 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from core.enums import BacktestStatus
-from core.models import CustomBaseModel
+from enums import BacktestStatus
+from models import CustomBaseModel
 from enums import Timeframe
-from models import BacktestMetrics, EquityCurvePoint
+from models import EquityCurvePoint
 
 
 class BacktestCreate(BaseModel):
