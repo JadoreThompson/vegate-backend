@@ -7,7 +7,14 @@ from urllib.parse import quote
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config import DB_HOST, DB_NAME, DB_PASSWORD, DB_PORT, DB_USERNAME, PROJECT_PATH
+from config import (
+    DB_HOST,
+    DB_NAME,
+    DB_PASSWORD,
+    DB_PORT,
+    DB_USERNAME,
+    PROJECT_PATH,
+)
 from .client import DB_ENGINE, DB_ENGINE_SYNC
 
 

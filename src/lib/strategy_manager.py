@@ -1,7 +1,7 @@
 import asyncio
 import json
 
-from enums import BrokerType
+from enums import BrokerType, Timeframe
 from lib.brokers import AlpacaBroker, BaseBroker, ProxyBroker
 from lib.strategy import BaseStrategy
 from models import DeploymentConfig
@@ -57,7 +57,7 @@ class StrategyManager:
             strategy: Strategy instance
             broker: Proxy broker instance
         """
-        for candle in broker.stream_candles(self._config.symbol, "1m"):
+        for candle in broker.stream_candles(self._config.symbol, Timeframe.m1):
             try:
                 strategy.on_candle(candle)
             except Exception as e:
@@ -79,7 +79,9 @@ class StrategyManager:
             strategy: Strategy instance
             broker: Proxy broker instance
         """
-        async for candle in broker.stream_candles_async(self._config.symbol, "1m"):
+        async for candle in broker.stream_candles_async(
+            self._config.symbol, Timeframe.m1
+        ):
             try:
                 strategy.on_candle(candle)
             except Exception as e:
@@ -91,7 +93,9 @@ class StrategyManager:
         Args:
             error_msg: Error message
         """
-        event = StrategyError(deployment_id=self._config.deployment_id, error_msg=error_msg)
+        event = StrategyError(
+            deployment_id=self._config.deployment_id, error_msg=error_msg
+        )
         self.producer.send("strategies", json.dumps(event.model_dump()).encode())
 
     def _create_broker(self) -> BaseBroker:
@@ -121,9 +125,7 @@ class StrategyManager:
             # Fetch the deployment to get broker connection ID
             deployment = db_sess.get(StrategyDeployments, self._config.deployment_id)
             if not deployment:
-                raise ValueError(
-                    f"Deployment not found: {self._config.deployment_id}"
-                )
+                raise ValueError(f"Deployment not found: {self._config.deployment_id}")
 
             # Fetch the broker connection
             broker_conn = db_sess.get(

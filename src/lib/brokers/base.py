@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, Generator
 
 from models import Order, OrderRequest, OHLC
+from enums import Timeframe
 
 
 class BaseBroker(ABC):
@@ -87,13 +88,13 @@ class BaseBroker(ABC):
 
     @abstractmethod
     def stream_candles(
-        self, symbol: str, timeframe: str
+        self, symbol: str, timeframe: Timeframe
     ) -> Generator[OHLC, None, None]:
         """Stream candles synchronously.
 
         Args:
             symbol: Trading symbol
-            timeframe: Candle timeframe (e.g., "1m", "5m", "1h")
+            timeframe: Candle timeframe
 
         Yields:
             OHLC candles
@@ -102,13 +103,13 @@ class BaseBroker(ABC):
 
     @abstractmethod
     async def stream_candles_async(
-        self, symbol: str, timeframe: str
+        self, symbol: str, timeframe: Timeframe
     ) -> AsyncGenerator[OHLC, None]:
         """Stream candles asynchronously.
 
         Args:
             symbol: Trading symbol
-            timeframe: Candle timeframe (e.g., "1m", "5m", "1h")
+            timeframe: Candle timeframe
 
         Yields:
             OHLC candles

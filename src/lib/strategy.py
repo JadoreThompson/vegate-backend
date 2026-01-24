@@ -1,5 +1,3 @@
-"""Base strategy class for trading strategies."""
-
 import logging
 from abc import ABC, abstractmethod
 

@@ -9,7 +9,7 @@ from api.shared.models import OrderResponse
 from api.types import JWTPayload
 from core.enums import BacktestStatus
 from infra.db.models import Strategies
-from services import DeploymentService
+from services.railway import RailwayService
 from .controller import (
     create_backtest,
     delete_backtest,
@@ -21,14 +21,13 @@ from .controller import (
 from .models import (
     BacktestCreate,
     BacktestDetailResponse,
-    BacktestMetrics,
     BacktestResponse,
-    BacktestUpdate
+    BacktestUpdate,
 )
 
 
 router = APIRouter(prefix="/backtests", tags=["Backtests"])
-deployment_service = DeploymentService()
+railway_service = RailwayService()
 
 
 @router.post("/", response_model=BacktestResponse, status_code=201)
@@ -49,7 +48,7 @@ async def create_backtest_endpoint(
         created_at=backtest.created_at,
     )
 
-    deployment_data = await deployment_service.deploy(backtest_id=backtest.backtest_id)
+    deployment_data = await railway_service.deploy(backtest_id=backtest.backtest_id)
     backtest.server_data = deployment_data
     await db_sess.commit()
 
@@ -72,20 +71,7 @@ async def get_backtest_endpoint(
     )
     if not strategy or strategy.user_id != jwt.sub:
         raise HTTPException(status_code=404, detail="Backtest not found")
-
-    # Extract metrics from JSONB field
-    metrics = None
-    if backtest.metrics:
-        metrics = BacktestMetrics(
-            realised_pnl=backtest.metrics.get("realised_pnl", 0.0),
-            unrealised_pnl=backtest.metrics.get("unrealised_pnl", 0.0),
-            total_return_pct=backtest.metrics.get("total_return_pct", 0.0),
-            sharpe_ratio=backtest.metrics.get("sharpe_ratio", 0.0),
-            max_drawdown=backtest.metrics.get("max_drawdown", 0.0),
-            total_trades=backtest.metrics.get("total_orders", 0),
-            equity_curve=backtest.metrics.get("equity_curve", [])
-        )
-
+    print(backtest.metrics)
     return BacktestDetailResponse(
         backtest_id=backtest.backtest_id,
         strategy_id=backtest.strategy_id,
@@ -93,7 +79,7 @@ async def get_backtest_endpoint(
         starting_balance=backtest.starting_balance,
         status=backtest.status,
         created_at=backtest.created_at,
-        metrics=metrics,
+        metrics=backtest.metrics,
     )
 
 

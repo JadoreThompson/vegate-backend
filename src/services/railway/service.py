@@ -12,7 +12,7 @@ from config import (
     RAILWAY_SERVICE_IMAGE,
 )
 
-from .exc import DeploymentError
+from .exc import RailwayError
 
 
 class RailwayService:
@@ -85,7 +85,7 @@ class RailwayService:
             self._base_url, headers=self._headers, json=payload, timeout=30.0
         )
         if rsp.status != 200:
-            raise DeploymentError(
+            raise RailwayError(
                 f"Query failed with status {rsp.status}: {await rsp.text()}"
             )
 
@@ -95,7 +95,7 @@ class RailwayService:
             error_messages = [
                 error.get("message", str(error)) for error in result["errors"]
             ]
-            raise DeploymentError(f"GraphQL errors: {', '.join(error_messages)}")
+            raise RailwayError(f"GraphQL errors: {', '.join(error_messages)}")
 
         return result["data"]
 

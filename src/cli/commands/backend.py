@@ -1,20 +1,14 @@
 import sys
 import time
 import logging
-from multiprocessing import Process
-from typing import Type
+from multiprocessing import Process, Queue
 
 import click
 
-from runners import BaseRunner, ListenerRunner, ServerRunner
+from runners import BacktestListenerRunner, ListenerRunner, RunnerConfig, ServerRunner
+from runners.utils import run_runner
 
 logger = logging.getLogger("commands.backend")
-
-
-def run_runner(runner_cls: Type[BaseRunner], *args, **kw):
-    """Helper function to run a runner in a separate process."""
-    runner = runner_cls(*args, **kw)
-    runner.run()
 
 
 @click.group()
@@ -36,23 +30,30 @@ def backend_run(workers):
     Run the backend server.
     """
 
-    configs = (
-        (
-            ServerRunner,
-            (),
-            {"host": "0.0.0.0", "port": 8000, "reload": False, "workers": workers},
+    # Create a queue for backtest jobs
+    backtest_queue: Queue = Queue()
+
+    configs = [
+        RunnerConfig(
+            cls=ServerRunner,
+            name="ServerRunner",
+            args=(backtest_queue,),
+            kwargs={"host": "0.0.0.0", "port": 8000, "reload": False, "workers": workers},
         ),
-        # (ListenerRunner, (), {}),
-    )
+        RunnerConfig(
+            cls=BacktestListenerRunner,
+            name="BacktestListenerRunner",
+            args=(backtest_queue,),
+        ),
+    ]
 
     ps: list[Process] = [
         Process(
             target=run_runner,
-            name=runner_cls.__name__,
-            args=(runner_cls, *c_args),
-            kwargs=c_kwargs,
+            name=config.name,
+            args=(config,),
         )
-        for runner_cls, c_args, c_kwargs in configs
+        for config in configs
     ]
 
     for p in ps:

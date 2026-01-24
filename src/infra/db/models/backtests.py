@@ -8,11 +8,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from engine.enums import Timeframe
 from enums import BacktestStatus
-from infra.db.models.base import Base, datetime_tz, uuid_pk
+from .base import Base, datetime_tz, uuid_pk
 
 if TYPE_CHECKING:
-    from infra.db.models.strategies import Strategies
-    from infra.db.models.orders import Orders
+    from .strategies import Strategies
+    from .orders import Orders
 
 
 class Backtests(Base):
@@ -20,22 +20,26 @@ class Backtests(Base):
 
     backtest_id: Mapped[UUID] = uuid_pk()
     strategy_id: Mapped[UUID] = mapped_column(
-        SaUUID(as_uuid=True), ForeignKey("strategies.strategy_id"), nullable=False
+        SaUUID(as_uuid=True),
+        ForeignKey("strategies.strategy_id", ondelete="CASCADE"),
+        nullable=False,
     )
     symbol: Mapped[str] = mapped_column(String, nullable=False)
-    starting_balance: Mapped[float] = mapped_column(
-        Float, nullable=False
-    )
+    starting_balance: Mapped[float] = mapped_column(Float, nullable=False)
     metrics: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     start_date: Mapped[date] = mapped_column(Date(), nullable=False)
     end_date: Mapped[date] = mapped_column(Date(), nullable=False)
     timeframe: Mapped[Timeframe] = mapped_column(String, nullable=False)
-    status: Mapped[str] = mapped_column(String, nullable=False, default=BacktestStatus.PENDING.value)
+    status: Mapped[str] = mapped_column(
+        String, nullable=False, default=BacktestStatus.PENDING.value
+    )
     created_at: Mapped[datetime] = datetime_tz()
     server_data: Mapped[dict] = mapped_column(JSONB, nullable=True)
 
     # Relationships
-    strategy: Mapped["Strategies"] = relationship(back_populates="backtests")
+    strategy: Mapped["Strategies"] = relationship(
+        back_populates="backtests", passive_deletes=True
+    )
     orders: Mapped[list["Orders"]] = relationship(
-        back_populates="backtest", cascade="all, delete-orphan"
+        back_populates="backtest", cascade="all, delete-orphan", passive_deletes=True
     )

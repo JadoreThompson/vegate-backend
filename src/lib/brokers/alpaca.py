@@ -14,9 +14,9 @@ from alpaca.trading.requests import (
     StopLimitOrderRequest,
 )
 
-from enums import OrderType, OrderStatus
+from enums import OrderType, OrderStatus, Timeframe
 from models import Order, OrderRequest, OHLC
-from lib.brokers import BaseBroker
+from .base import BaseBroker
 
 
 class AlpacaBroker(BaseBroker):
@@ -71,18 +71,22 @@ class AlpacaBroker(BaseBroker):
                 alpaca_request = MarketOrderRequest(
                     symbol=order_request.symbol,
                     qty=order_request.quantity,
-                    side=AlpacaOrderSide.BUY
-                    if order_request.notional > 0
-                    else AlpacaOrderSide.SELL,
+                    side=(
+                        AlpacaOrderSide.BUY
+                        if order_request.notional > 0
+                        else AlpacaOrderSide.SELL
+                    ),
                     time_in_force=AlpacaTimeInForce.DAY,
                 )
             elif alpaca_order_type == AlpacaOrderType.LIMIT:
                 alpaca_request = LimitOrderRequest(
                     symbol=order_request.symbol,
                     qty=order_request.quantity,
-                    side=AlpacaOrderSide.BUY
-                    if order_request.notional > 0
-                    else AlpacaOrderSide.SELL,
+                    side=(
+                        AlpacaOrderSide.BUY
+                        if order_request.notional > 0
+                        else AlpacaOrderSide.SELL
+                    ),
                     limit_price=order_request.limit_price,
                     time_in_force=AlpacaTimeInForce.DAY,
                 )
@@ -90,9 +94,11 @@ class AlpacaBroker(BaseBroker):
                 alpaca_request = StopOrderRequest(
                     symbol=order_request.symbol,
                     qty=order_request.quantity,
-                    side=AlpacaOrderSide.BUY
-                    if order_request.notional > 0
-                    else AlpacaOrderSide.SELL,
+                    side=(
+                        AlpacaOrderSide.BUY
+                        if order_request.notional > 0
+                        else AlpacaOrderSide.SELL
+                    ),
                     stop_price=order_request.stop_price,
                     time_in_force=AlpacaTimeInForce.DAY,
                 )
@@ -100,9 +106,11 @@ class AlpacaBroker(BaseBroker):
                 alpaca_request = StopLimitOrderRequest(
                     symbol=order_request.symbol,
                     qty=order_request.quantity,
-                    side=AlpacaOrderSide.BUY
-                    if order_request.notional > 0
-                    else AlpacaOrderSide.SELL,
+                    side=(
+                        AlpacaOrderSide.BUY
+                        if order_request.notional > 0
+                        else AlpacaOrderSide.SELL
+                    ),
                     limit_price=order_request.limit_price,
                     stop_price=order_request.stop_price,
                     time_in_force=AlpacaTimeInForce.DAY,
@@ -228,13 +236,13 @@ class AlpacaBroker(BaseBroker):
             return []
 
     def stream_candles(
-        self, symbol: str, timeframe: str
+        self, symbol: str, timeframe: Timeframe
     ) -> Generator[OHLC, None, None]:
         """Stream candles synchronously.
 
         Args:
             symbol: Trading symbol
-            timeframe: Candle timeframe (e.g., "1m", "5m", "1h")
+            timeframe: Candle timeframe
 
         Yields:
             OHLC candles
@@ -244,13 +252,13 @@ class AlpacaBroker(BaseBroker):
         )
 
     async def stream_candles_async(
-        self, symbol: str, timeframe: str
+        self, symbol: str, timeframe: Timeframe
     ) -> AsyncGenerator[OHLC, None]:
         """Stream candles asynchronously.
 
         Args:
             symbol: Trading symbol
-            timeframe: Candle timeframe (e.g., "1m", "5m", "1h")
+            timeframe: Candle timeframe
 
         Yields:
             OHLC candles
@@ -291,15 +299,17 @@ class AlpacaBroker(BaseBroker):
             quantity=float(alpaca_order.qty),
             notional=float(alpaca_order.notional) if alpaca_order.notional else 0.0,
             order_type=self._map_alpaca_order_type(alpaca_order.order_type),
-            price=float(alpaca_order.filled_avg_price)
-            if alpaca_order.filled_avg_price
-            else None,
-            limit_price=float(alpaca_order.limit_price)
-            if alpaca_order.limit_price
-            else None,
-            stop_price=float(alpaca_order.stop_price)
-            if alpaca_order.stop_price
-            else None,
+            price=(
+                float(alpaca_order.filled_avg_price)
+                if alpaca_order.filled_avg_price
+                else None
+            ),
+            limit_price=(
+                float(alpaca_order.limit_price) if alpaca_order.limit_price else None
+            ),
+            stop_price=(
+                float(alpaca_order.stop_price) if alpaca_order.stop_price else None
+            ),
             executed_at=alpaca_order.filled_at,
             submitted_at=alpaca_order.created_at,
             status=self._map_alpaca_order_status(alpaca_order.status),

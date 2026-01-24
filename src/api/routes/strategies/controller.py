@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -12,6 +13,10 @@ from config import LLM_API_KEY
 from infra.db.models import Strategies, Backtests, OHLCs
 from .models import StrategyCreate, StrategyUpdate, BacktestCreate
 from enums import BacktestStatus, BrokerType
+from api.backtest_queue import get_backtest_queue
+
+
+logger = logging.getLogger("strategies.controller")
 
 
 class StrategyOutput(BaseModel):
@@ -41,7 +46,7 @@ class CodeReviewOutput(BaseModel):
     )
 
 
-strategy_gen_sys_prompt = """
+strategy_gen_sys_prompt = '''
 You are an expert trading strategy developer. Your task is to convert trading strategy descriptions into Python code that works with our event-driven trading framework.
 
 ## Framework Overview
@@ -86,13 +91,14 @@ Access the broker via `self.broker` (inherited from BaseStrategy):
 **Submit Orders:**
 ```python
 from models import OrderRequest
-from enums import OrderType
+from enums import OrderType, OrderSide
 
 order = self.broker.place_order(OrderRequest(
     symbol="AAPL",
     quantity=10.0,
     notional=1000.0,
     order_type=OrderType.MARKET,
+    side=OrderSide.BUY,
     price=None,
     limit_price=None,
     stop_price=None
@@ -127,6 +133,143 @@ def shutdown(self):
     pass
 ```
 
+Here is the code for the BaseStrategy class:
+
+```python
+import logging
+from abc import ABC, abstractmethod
+
+from lib.brokers import BaseBroker
+from models import OHLC
+
+
+class BaseStrategy(ABC):
+    def __init__(self, name: str, broker: BaseBroker):
+        """Initialize the strategy.
+
+        Args:
+            name: Name of the strategy (used as logger name)
+            broker: Broker instance for placing orders
+        """
+        self._name = name
+        self.broker = broker
+        self.logger = logging.getLogger(name)
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @abstractmethod
+    def on_candle(self, candle: OHLC) -> None:
+        """Called when a new candle is received.
+
+        Args:
+            candle: OHLC candle
+        """
+        pass
+
+    def startup(self) -> None:
+        """Called once at the start of backtesting. Override to initialize strategy state."""
+        pass
+
+    def shutdown(self) -> None:
+        """Called once at the end of backtesting. Override to cleanup strategy state."""
+        pass
+```
+
+Here is the code for the BaseBroker class defining the interface for all brokers:
+from abc import ABC, abstractmethod
+from collections.abc import AsyncGenerator, Generator
+
+from models import Order, OrderRequest, OHLC
+from enums import Timeframe
+
+
+class BaseBroker(ABC):
+    """Abstract base class for broker implementations."""
+
+    def __init__(self):
+        self.broker = None
+
+    supports_async: bool = False
+
+    @abstractmethod
+    def place_order(self, order_request: OrderRequest) -> Order:
+        """Place an order.
+
+        Args:
+            order_request: OrderRequest object
+
+        Returns:
+            Order object
+        """
+        pass
+
+    @abstractmethod
+    def modify_order(
+        self,
+        order_id: str,
+        limit_price: float | None = None,
+        stop_price: float | None = None,
+    ) -> Order:
+        """Modify an existing order.
+
+        Args:
+            order_id: ID of order to modify
+            limit_price: New limit price (optional)
+            stop_price: New stop price (optional)
+
+        Returns:
+            Modified Order object
+        """
+        pass
+
+    @abstractmethod
+    def cancel_order(self, order_id: str) -> bool:
+        """Cancel an order.
+
+        Args:
+            order_id: ID of order to cancel
+
+        Returns:
+            True if cancelled successfully, False otherwise
+        """
+        pass
+
+    @abstractmethod
+    def cancel_all_orders(self) -> bool:
+        """Cancel all orders.
+
+        Returns:
+            True if all orders cancelled successfully, False otherwise
+        """
+        pass
+
+    @abstractmethod
+    def get_order(self, order_id: str) -> Order | None:
+        """Get a specific order.
+
+        Args:
+            order_id: ID of order to retrieve
+
+        Returns:
+            Order object or None if not found
+        """
+        pass
+
+    @abstractmethod
+    def get_orders(self) -> list[Order]:
+        """Get all orders.
+
+        Returns:
+            List of Order objects
+        """
+        pass
+
+
+If you are to define the __init__ method, you're to accept args and kwargs, pass the
+args and kwargs to the super initialiser and then define what you need to define
+
 ## Available Imports
 
 Only import from these packages:
@@ -156,6 +299,7 @@ class Strategy(BaseStrategy):
                 quantity=1.0,
                 notional=0.0,
                 order_type=OrderType.MARKET,
+                side=OrderSide.BUY,
                 price=candle.close
             ))
             self.position = 1
@@ -164,9 +308,10 @@ class Strategy(BaseStrategy):
             # Sell signal
             self.broker.place_order(OrderRequest(
                 symbol=candle.symbol,
-                quantity=-1.0,
+                quantity=1.0,
                 notional=0.0,
                 order_type=OrderType.MARKET,
+                side=OrderSide.SELL,
                 price=candle.close
             ))
             self.position = 0
@@ -196,7 +341,7 @@ Convert the user's strategy description into working Python code following these
 - Ensure the code is syntactically correct
 
 Always include necessary imports and ensure the class is named `Strategy`.
-"""
+'''
 
 validation_sys_prompt = """
 You are a security validator for trading strategy code. Your job is to review Python code generated by another AI agent and verify it strictly follows the rules.
@@ -208,8 +353,8 @@ Review the provided strategy code and check for violations of these rules:
 ### CRITICAL SECURITY RULES (Must REJECT if violated):
 1. **No third-party imports** - Only allowed:
    - `lib.strategy.BaseStrategy`
-   - `models.OHLC, OrderRequest`
-   - `enums.OrderType`
+   - `models.*`
+   - `enums.*`
    - Python standard library (datetime, math, random, collections, itertools, etc.)
 
 2. **No dangerous operations**:
@@ -598,9 +743,10 @@ async def create_backtest(
     await db_sess.flush()
     await db_sess.refresh(new_backtest)
 
-    # Step 5: Launch backtest runner (in background)
-    # This would typically be done via a task queue (Celery, RQ, etc.)
-    # For now, we just return the backtest record
-    # The actual runner would be triggered by a separate process
-
+    # Step 5: Push backtest_id to queue for processing
+    backtest_queue = get_backtest_queue()
+    if backtest_queue is not None:
+        backtest_queue.put(new_backtest.backtest_id)
+    else:
+        logger.info("Backtest queue not set.")
     return new_backtest

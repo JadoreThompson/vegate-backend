@@ -4,8 +4,9 @@ from uuid import UUID
 
 from events.order import OrderCancelled, OrderModified, OrderPlaced
 from infra.kafka import KafkaProducer
-from lib.brokers.base import BaseBroker
 from models import OHLC, Order, OrderRequest
+from enums import Timeframe
+from .base import BaseBroker
 
 
 
@@ -103,13 +104,13 @@ class ProxyBroker(BaseBroker):
         return self.broker.get_orders()
 
     def stream_candles(
-        self, symbol: str, timeframe: str
+        self, symbol: str, timeframe: Timeframe
     ) -> Generator[OHLC, None, None]:
         """Stream candles synchronously.
 
         Args:
             symbol: Trading symbol
-            timeframe: Candle timeframe (e.g., "1m", "5m", "1h")
+            timeframe: Candle timeframe
 
         Yields:
             OHLC candles
@@ -117,13 +118,13 @@ class ProxyBroker(BaseBroker):
         return self.broker.stream_candles(symbol, timeframe)
 
     async def stream_candles_async(
-        self, symbol: str, timeframe: str
+        self, symbol: str, timeframe: Timeframe
     ) -> AsyncGenerator[OHLC, None]:
         """Stream candles asynchronously.
 
         Args:
             symbol: Trading symbol
-            timeframe: Candle timeframe (e.g., "1m", "5m", "1h")
+            timeframe: Candle timeframe
 
         Yields:
             OHLC candles

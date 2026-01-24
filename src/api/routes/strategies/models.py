@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from core.models import CustomBaseModel
 from engine.backtesting.types import EquityCurve
+from enums import BacktestStatus, BrokerType, Timeframe
 
 
 class StrategyCreate(BaseModel):
@@ -22,7 +23,7 @@ class BacktestCreate(BaseModel):
     """Request body for creating a backtest."""
     symbol: str = Field(min_length=1, max_length=10)
     broker: str = Field(min_length=1, max_length=20)
-    timeframe: str = Field(min_length=1, max_length=10)
+    timeframe: Timeframe
     starting_balance: float = Field(gt=0)
     start_date: date
     end_date: date
@@ -33,12 +34,12 @@ class BacktestResponse(BaseModel):
     backtest_id: UUID
     strategy_id: UUID
     symbol: str
-    broker: str
-    timeframe: str
+    broker: BrokerType
+    timeframe: Timeframe
     starting_balance: float
     start_date: date
     end_date: date
-    status: str
+    status: BacktestStatus
     created_at: datetime
 
 

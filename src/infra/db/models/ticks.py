@@ -5,7 +5,7 @@ from sqlalchemy import BigInteger, Index, String, UniqueConstraint, UUID as SaUU
 from sqlalchemy.orm import Mapped, mapped_column
 
 from engine.enums import BrokerType, MarketType
-from infra.db.models.base import Base, datetime_tz, uuid_pk
+from .base import Base, datetime_tz, uuid_pk
 
 
 class Ticks(Base):
@@ -18,7 +18,6 @@ class Ticks(Base):
     tick_id: Mapped[UUID] = uuid_pk()
     source: Mapped[BrokerType] = mapped_column(String, nullable=False)
     symbol: Mapped[str] = mapped_column(String, nullable=False)
-    market_type: Mapped[MarketType] = mapped_column(String, nullable=False)
     price: Mapped[float] = mapped_column(Float, nullable=False)
     size: Mapped[float] = mapped_column(Float, nullable=True)
     timestamp: Mapped[int] = mapped_column(BigInteger, nullable=False)

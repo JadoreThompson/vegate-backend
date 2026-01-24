@@ -1,37 +1,31 @@
 import logging
-from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
+from sqlalchemy import select
+
+from infra.db.models.ohlcs import OHLCs
+from infra.db.utils import get_db_sess_sync
 from lib.brokers import BacktestBroker
 from models import (
     OHLC,
     BacktestMetrics,
     Order,
     EquityCurvePoint,
+    BacktestConfig,
 )
-from enums import OrderStatus, BrokerType
+from enums import OrderStatus, OrderType
 from lib.strategy import BaseStrategy
 
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class BacktestConfig:
-    """Configuration for backtesting."""
-
-    timeframe: str
-    starting_balance: float
-    symbol: str
-    start_date: datetime
-    end_date: datetime
-    broker: BrokerType
-
-
 class BacktestEngine:
     """Engine for running backtests on strategies."""
 
-    def __init__(self, strategy: BaseStrategy, broker: BacktestBroker, config: BacktestConfig):
+    def __init__(
+        self, strategy: BaseStrategy, broker: BacktestBroker, config: BacktestConfig
+    ):
         """Initialize the backtesting engine.
 
         Args:
@@ -58,21 +52,57 @@ class BacktestEngine:
 
     def _process_candles(self) -> None:
         """Stream and process candles from database."""
-        for candle in self.broker.stream_candles(
-            self.config.symbol,
-            self.config.timeframe,
-            self.config.broker
-        ):
-            if self.config.start_date <= candle.timestamp < self.config.end_date:
+        start_date = self.config.start_date
+        end_date = self.config.end_date
+
+        with get_db_sess_sync() as db_sess:
+            results = db_sess.scalars(
+                select(OHLCs)
+                .where(
+                    OHLCs.source == self.config.broker,
+                    OHLCs.symbol == self.config.symbol,
+                    OHLCs.timeframe == self.config.timeframe,
+                    OHLCs.timestamp
+                    >= int(
+                        datetime(
+                            year=start_date.year,
+                            month=start_date.month,
+                            day=start_date.day,
+                            tzinfo=UTC,
+                        ).timestamp()
+                    ),
+                    OHLCs.timestamp
+                    <= int(
+                        datetime(
+                            year=end_date.year,
+                            month=end_date.month,
+                            day=end_date.day,
+                            tzinfo=UTC,
+                        ).timestamp()
+                    ),
+                )
+                .order_by(OHLCs.timestamp.asc())
+            )
+
+            for res in results.yield_per(1000):
+                candle = OHLC(
+                    open=res.open,
+                    high=res.high,
+                    low=res.low,
+                    close=res.close,
+                    volume=0.0,
+                    timestamp=res.timestamp,
+                    timeframe=res.timeframe,
+                    symbol=res.symbol,
+                )
                 self._record_equity_point(candle)
                 self.strategy.on_candle(candle)
 
     def _record_equity_point(self, candle: OHLC) -> None:
         """Record equity curve point for current candle."""
-        self.equity_curve.append(EquityCurvePoint(
-            timestamp=candle.timestamp,
-            equity=self.broker.balance
-        ))
+        self.equity_curve.append(
+            EquityCurvePoint(timestamp=candle.timestamp, equity=self.broker.balance)
+        )
 
     def _calculate_metrics(self) -> BacktestMetrics:
         """Calculate backtest metrics.
@@ -81,99 +111,63 @@ class BacktestEngine:
             BacktestMetrics object
         """
         orders = self.broker.get_orders()
-        filled_orders = [o for o in orders if o.status == OrderStatus.FILLED]
 
-        total_pnl = self._calculate_pnl()
-        ending_balance = self.config.starting_balance + total_pnl
-        trade_stats = self._calculate_trade_stats(filled_orders)
-        total_return_percent = self._calculate_return_percent(total_pnl)
+        realised_pnl = self._calculate_pnl()
+        end_balance = self.config.starting_balance + realised_pnl
+        total_return_pct = (
+            end_balance - self.config.starting_balance
+        ) / self.config.starting_balance
 
+        # TODO: finish metrics
         return BacktestMetrics(
-            total_pnl=total_pnl,
-            highest_balance=self.config.starting_balance
-            + max((o.notional for o in filled_orders), default=0),
-            lowest_balance=self.config.starting_balance
-            + min((o.notional for o in filled_orders), default=0),
-            start_date=self.config.start_date,
-            end_date=self.config.end_date,
-            symbol=self.config.symbol,
-            orders=orders,
-            starting_balance=self.config.starting_balance,
-            ending_balance=ending_balance,
-            total_return_percent=total_return_percent,
-            num_trades=trade_stats['num_trades'],
-            winning_trades=trade_stats['winning_trades'],
-            losing_trades=trade_stats['losing_trades'],
-            win_rate=trade_stats['win_rate'],
-            avg_win=trade_stats['avg_win'],
-            avg_loss=trade_stats['avg_loss'],
-            profit_factor=trade_stats['profit_factor'],
+            config=self.config,
+            realised_pnl=realised_pnl,
+            unrealised_pnl=0.0,
+            total_return_pct=total_return_pct,
             equity_curve=self.equity_curve,
+            sharpe_ratio=1.0,
+            max_drawdown=0,
+            orders=orders,
+            total_orders=len(orders),
         )
 
     def _calculate_pnl(self) -> float:
         """Calculate total profit and loss."""
-        total_buy_notional = sum(
-            o.notional for o in self.broker.buy_orders if o.status == OrderStatus.FILLED
-        )
-        total_sell_notional = sum(
-            abs(o.notional)
-            for o in self.broker.sell_orders
-            if o.status == OrderStatus.FILLED
-        )
+        total_buy_notional = 0.0
+        for order in self.broker.buy_orders:
+            if order.notional is not None:
+                total_buy_notional += order.notional
+            else:
+                if order.order_type == OrderType.MARKET:
+                    price = order.price
+                elif order.order_type == OrderType.LIMIT:
+                    price = order.limit_price
+                else:
+                    price = order.stop_price
+
+                total_buy_notional += price * order.quantity
+
+        total_buy_notional = self._get_notional(self.broker.buy_orders)
+        total_sell_notional = self._get_notional(self.broker.sell_orders)
         return total_sell_notional - total_buy_notional
 
-    def _calculate_trade_stats(self, filled_orders: list[Order]) -> dict:
-        """Calculate trade statistics.
+    def _get_notional(self, orders: list[Order]):
+        total_notional = 0.0
 
-        Args:
-            filled_orders: List of filled orders
+        for order in orders:
+            if order.status not in {OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED}:
+                continue
 
-        Returns:
-            Dictionary with trade statistics
-        """
-        num_trades = len(filled_orders)
-        winning_trades = sum(1 for o in filled_orders if o.notional > 0)
-        losing_trades = sum(1 for o in filled_orders if o.notional < 0)
-        win_rate = (winning_trades / num_trades * 100) if num_trades > 0 else 0
+            if order.notional is not None:
+                total_notional += order.notional
+            else:
+                if order.order_type == OrderType.MARKET:
+                    price = order.price
+                elif order.order_type == OrderType.LIMIT:
+                    price = order.limit_price
+                else:
+                    price = order.stop_price
 
-        winning_notionals = [o.notional for o in filled_orders if o.notional > 0]
-        losing_notionals = [abs(o.notional) for o in filled_orders if o.notional < 0]
+                total_notional += price * order.executed_quantity
 
-        avg_win = (
-            sum(winning_notionals) / len(winning_notionals) if winning_notionals else 0
-        )
-        avg_loss = (
-            sum(losing_notionals) / len(losing_notionals) if losing_notionals else 0
-        )
-
-        profit_factor = (
-            (sum(winning_notionals) / sum(losing_notionals))
-            if losing_notionals and sum(losing_notionals) > 0
-            else 0
-        )
-
-        return {
-            'num_trades': num_trades,
-            'winning_trades': winning_trades,
-            'losing_trades': losing_trades,
-            'win_rate': win_rate,
-            'avg_win': avg_win,
-            'avg_loss': avg_loss,
-            'profit_factor': profit_factor,
-        }
-
-    def _calculate_return_percent(self, total_pnl: float) -> float:
-        """Calculate total return percentage.
-
-        Args:
-            total_pnl: Total profit and loss
-
-        Returns:
-            Total return as percentage
-        """
-        return (
-            (total_pnl / self.config.starting_balance * 100)
-            if self.config.starting_balance > 0
-            else 0
-        )
+        return total_notional

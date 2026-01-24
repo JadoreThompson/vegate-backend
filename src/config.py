@@ -9,12 +9,12 @@ from dotenv import load_dotenv
 
 # Paths
 BASE_PATH = os.path.dirname(__file__)
-PARENT_PATH = os.path.dirname(BASE_PATH)
+PROJECT_PATH = os.path.dirname(BASE_PATH)
 RESOURCES_PATH = os.path.join(BASE_PATH, "resources")
 
 PYTEST_RUNNING = bool(os.getenv("PYTEST_VERSION"))
 
-load_dotenv(os.path.join(PARENT_PATH, ".env.test" if PYTEST_RUNNING else ".env"))
+load_dotenv(os.path.join(PROJECT_PATH, ".env.test" if PYTEST_RUNNING else ".env"))
 
 IS_PRODUCTION = bool(os.getenv("IS_PRODUCTION"))
 

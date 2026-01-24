@@ -7,11 +7,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.enums import PricingTierType
 from utils import get_datetime, get_uuid
-from infra.db.models.base import Base, datetime_tz
+from .base import Base, datetime_tz
 
 if TYPE_CHECKING:
-    from infra.db.models.broker_connections import BrokerConnections
-    from infra.db.models.strategies import Strategies
+    from .broker_connections import BrokerConnections
+    from .strategies import Strategies
 
 
 class Users(Base):
@@ -38,8 +38,8 @@ class Users(Base):
 
     # Relationships
     broker_connections: Mapped[list["BrokerConnections"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
+        back_populates="user", cascade="all, delete-orphan", passive_deletes=True
     )
     strategies: Mapped[list["Strategies"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
+        back_populates="user", cascade="all, delete-orphan", passive_deletes=True
     )

@@ -1,2 +1,2 @@
-class DeploymentError(Exception):
+class RailwayError(Exception):
     pass

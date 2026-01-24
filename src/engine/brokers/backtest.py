@@ -629,3 +629,5 @@ class BacktestBroker(BaseBroker):
         for order in tuple(self._orders.values()):
             if order.status in {OrderStatus.PARTIALLY_FILLED, OrderStatus.PENDING}:
                 self.cancel_order(order.order_id)
+
+    

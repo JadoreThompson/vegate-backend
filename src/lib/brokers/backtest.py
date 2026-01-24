@@ -1,6 +1,6 @@
 from datetime import datetime
 import uuid
-from enums import OrderStatus, OrderType, BrokerType
+from enums import OrderStatus, OrderType, BrokerType, Timeframe
 from models import Order, OrderRequest, OHLC
 from .base import BaseBroker
 from infra.db import get_db_sess_sync
@@ -34,19 +34,34 @@ class BacktestBroker(BaseBroker):
         Returns:
             Order object
         """
+        # if order_request.order_type == OrderType.LIMIT:
+        #     if order_request.limit_price is None:
+        #         raise ValueError("Limit pice must be set for order with type limit")
+        #     if order_request.limit_price <= 0.0:
+        #         raise ValueError("Limit price must be greater than 0.0")
+        # if order_request.order_type == OrderType.STOP:
+        #     if order_request.stop_price is None:
+        #         raise ValueError("Stop pice must be set for order with type stop")
+        #     if order_request.stop_price <= 0.0:
+        #         raise ValueError("Stop price must be greater than 0.0")
+
         order_id = str(uuid.uuid4())
+        now = datetime.now()
+
         order = Order(
             symbol=order_request.symbol,
             quantity=order_request.quantity,
+            executed_quantity=order_request.quantity,
             notional=order_request.notional,
             order_type=order_request.order_type,
+            side=order_request.side,
             price=order_request.price,
             limit_price=order_request.limit_price,
             stop_price=order_request.stop_price,
-            executed_at=order_request.executed_at,
-            submitted_at=order_request.submitted_at or datetime.now(),
+            executed_at=now,
+            submitted_at=now,
             order_id=order_id,
-            status=OrderStatus.PLACED,
+            status=OrderStatus.FILLED,
         )
 
         self.orders.append(order)
@@ -139,48 +154,8 @@ class BacktestBroker(BaseBroker):
         """
         return self.orders.copy()
 
-    def stream_candles(self, symbol: str, timeframe: str, broker: BrokerType):
-        """Stream candles synchronously from the database.
+    def stream_candles(self, symbol, timeframe):
+        raise NotImplementedError()
 
-        Args:
-            symbol: Trading symbol
-            timeframe: Candle timeframe
-            broker: Broker type to filter candles by source
-
-        Yields:
-            OHLC candles
-        """
-        with get_db_sess_sync() as db_sess:
-            # Query OHLCs from database filtered by source (broker), symbol, and timeframe
-            query = db_sess.query(OHLCs).filter(
-                OHLCs.source == broker.value,
-                OHLCs.symbol == symbol,
-                OHLCs.timeframe == timeframe,
-            ).order_by(OHLCs.timestamp.asc())
-
-            for ohlc_record in query:
-                # Convert database record to OHLC model
-                ohlc = OHLC(
-                    open=float(ohlc_record.open),
-                    high=float(ohlc_record.high),
-                    low=float(ohlc_record.low),
-                    close=float(ohlc_record.close),
-                    volume=0.0,  # Volume not stored in OHLCs table
-                    timestamp=datetime.fromtimestamp(ohlc_record.timestamp),
-                    timeframe=ohlc_record.timeframe,
-                    symbol=ohlc_record.symbol,
-                )
-                yield ohlc
-
-    async def stream_candles_async(self, symbol: str, timeframe: str):
-        """Stream candles asynchronously.
-
-        Args:
-            symbol: Trading symbol
-            timeframe: Candle timeframe
-
-        Yields:
-            OHLC candles
-        """
-        # This will be implemented by subclasses or the engine
-        raise NotImplementedError("Use BacktestEngine to stream candles")
+    async def stream_candles_async(self, symbol, timeframe):
+        raise NotImplementedError()

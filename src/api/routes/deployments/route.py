@@ -8,7 +8,7 @@ from api.dependencies import depends_db_sess, depends_jwt
 from api.types import JWTPayload
 from core.enums import StrategyDeploymentStatus
 from infra.db.models import Strategies
-from services import DeploymentService
+from services.railway import RailwayService
 from .controller import (
     create_deployment,
     get_deployment,
@@ -23,7 +23,7 @@ from api.shared.models import OrderResponse, PerformanceMetrics
 
 
 router = APIRouter(prefix="/deployments", tags=["Deployments"])
-deployment_service = DeploymentService()
+railway_service = RailwayService()
 
 
 @router.post(
@@ -46,7 +46,7 @@ async def deploy_strategy_endpoint(
     deployment = await create_deployment(jwt.sub, strategy_id, body, db_sess)
 
     # Deploy the strategy using the deployment service
-    deployment_data = await deployment_service.deploy(
+    deployment_data = await railway_service.deploy(
         deployment_id=deployment.deployment_id
     )
     deployment.server_data = deployment_data
@@ -56,7 +56,6 @@ async def deploy_strategy_endpoint(
         strategy_id=deployment.strategy_id,
         broker_connection_id=deployment.broker_connection_id,
         symbol=deployment.symbol,
-        market_type=deployment.market_type,
         timeframe=deployment.timeframe,
         status=deployment.status,
         error_message=deployment.error_message,
@@ -97,7 +96,6 @@ async def list_strategy_deployments_endpoint(
             strategy_id=d.strategy_id,
             broker_connection_id=d.broker_connection_id,
             symbol=d.symbol,
-            market_type=d.market_type,
             timeframe=d.timeframe,
             starting_balance=d.starting_balance or 0,
             status=d.status,
@@ -126,7 +124,7 @@ async def get_deployment_endpoint(
     deployment, metrics = await get_deployment_with_metrics(
         jwt.sub, deployment_id, db_sess
     )
-    print(metrics)
+    
     if not deployment:
         raise HTTPException(status_code=404, detail="Deployment not found")
 
@@ -141,7 +139,6 @@ async def get_deployment_endpoint(
         strategy_id=deployment.strategy_id,
         broker_connection_id=deployment.broker_connection_id,
         symbol=deployment.symbol,
-        market_type=deployment.market_type,
         timeframe=deployment.timeframe,
         starting_balance=deployment.starting_balance or 0,
         status=deployment.status,
@@ -176,14 +173,11 @@ async def get_deployment_details_endpoint(
         jwt.sub, deployment_id, db_sess
     )
 
-    print(metrics)
-
     return DeploymentDetailResponse(
         deployment_id=deployment.deployment_id,
         strategy_id=deployment.strategy_id,
         broker_connection_id=deployment.broker_connection_id,
         symbol=deployment.symbol,
-        market_type=deployment.market_type,
         timeframe=deployment.timeframe,
         starting_balance=deployment.starting_balance or 0,
         status=deployment.status,
@@ -213,7 +207,6 @@ async def stop_deployment_endpoint(
         strategy_id=deployment.strategy_id,
         broker_connection_id=deployment.broker_connection_id,
         symbol=deployment.symbol,
-        market_type=deployment.market_type,
         timeframe=deployment.timeframe,
         starting_balance=deployment.starting_balance or 0,
         status=deployment.status,
@@ -249,7 +242,6 @@ async def list_all_deployments_endpoint(
             strategy_id=d.strategy_id,
             broker_connection_id=d.broker_connection_id,
             symbol=d.symbol,
-            market_type=d.market_type,
             timeframe=d.timeframe,
             starting_balance=d.starting_balance or 0,
             status=d.status,

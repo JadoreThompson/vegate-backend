@@ -6,11 +6,11 @@ from sqlalchemy import DateTime, ForeignKey, String, UUID as SaUUID, Float
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from infra.db.models.base import Base, datetime_tz, uuid_pk
+from .base import Base, datetime_tz, uuid_pk
 
 if TYPE_CHECKING:
-    from infra.db.models.backtests import Backtests
-    from infra.db.models.strategy_deployments import StrategyDeployments
+    from .backtests import Backtests
+    from .strategy_deployments import StrategyDeployments
 
 
 class Orders(Base):
@@ -47,11 +47,11 @@ class Orders(Base):
 
     # Foreign keys (nullable for backtest vs live)
     backtest_id: Mapped[UUID | None] = mapped_column(
-        SaUUID(as_uuid=True), ForeignKey("backtests.backtest_id"), nullable=True
+        SaUUID(as_uuid=True), ForeignKey("backtests.backtest_id",  ondelete="CASCADE"), nullable=True
     )
     deployment_id: Mapped[UUID | None] = mapped_column(
         SaUUID(as_uuid=True),
-        ForeignKey("strategy_deployments.deployment_id"),
+        ForeignKey("strategy_deployments.deployment_id",  ondelete="CASCADE"),
         nullable=True,
     )
 

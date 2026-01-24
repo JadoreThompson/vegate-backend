@@ -69,7 +69,6 @@ async def create_deployment(
     new_deployment = StrategyDeployments(
         strategy_id=strategy_id,
         broker_connection_id=data.broker_connection_id,
-        market_type=data.market_type,
         symbol=data.symbol,
         timeframe=data.timeframe,
         status=StrategyDeploymentStatus.PENDING,

@@ -5,8 +5,8 @@ from pydantic import BaseModel, Field
 
 from core.enums import BacktestStatus
 from core.models import CustomBaseModel
-from engine.backtesting import EquityCurve
-from engine.enums import Timeframe
+from enums import Timeframe
+from models import BacktestMetrics, EquityCurvePoint
 
 
 class BacktestCreate(BaseModel):
@@ -32,15 +32,15 @@ class BacktestResponse(CustomBaseModel):
     created_at: datetime
 
 
-class BacktestMetrics(BaseModel):
+class BacktestMetricsResponse(BaseModel):
     realised_pnl: float
     unrealised_pnl: float
     total_return_pct: float
     sharpe_ratio: float
     max_drawdown: float
-    total_trades: int
-    equity_curve: EquityCurve
+    total_orders: int
+    equity_curve: list[EquityCurvePoint]
 
 
 class BacktestDetailResponse(BacktestResponse):
-    metrics: BacktestMetrics | None
+    metrics: BacktestMetricsResponse | None

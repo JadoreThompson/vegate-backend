@@ -9,15 +9,15 @@ from core.enums import StrategyDeploymentStatus
 from core.models import CustomBaseModel
 from engine.backtesting.types import EquityCurve
 from engine.enums import MarketType
+from enums import Timeframe
 
 
 class DeployStrategyRequest(BaseModel):
     """Request model for deploying a strategy."""
 
     broker_connection_id: UUID
-    market_type: MarketType
     symbol: str = Field(min_length=1, max_length=10)
-    timeframe: str = Field(min_length=1, max_length=10)
+    timeframe: Timeframe
 
 
 class DeploymentResponse(CustomBaseModel):
@@ -26,9 +26,8 @@ class DeploymentResponse(CustomBaseModel):
     deployment_id: UUID
     strategy_id: UUID
     broker_connection_id: UUID
-    market_type: MarketType
     symbol: str
-    timeframe: str
+    timeframe: Timeframe
     starting_balance: float | None = None
     status: StrategyDeploymentStatus
     error_message: str | None

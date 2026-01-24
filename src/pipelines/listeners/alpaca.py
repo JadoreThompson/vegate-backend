@@ -48,7 +48,6 @@ class AlpacaListener:
     async def _handle_trade(self, market_type: MarketType, trade: Trade):
         event = BrokerTradeEvent(
             broker=BrokerType.ALPACA,
-            market_type=market_type,
             symbol=trade.symbol,
             quantity=trade.size,
             price=trade.price,

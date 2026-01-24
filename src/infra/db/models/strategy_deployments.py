@@ -8,13 +8,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from engine.enums import MarketType
 from core.enums import StrategyDeploymentStatus
-from infra.db.models.base import Base, datetime_tz, uuid_pk
+from .base import Base, datetime_tz, uuid_pk
 from utils import get_datetime
 
 if TYPE_CHECKING:
-    from infra.db.models.strategies import Strategies
-    from infra.db.models.broker_connections import BrokerConnections
-    from infra.db.models.orders import Orders
+    from .strategies import Strategies
+    from .broker_connections import BrokerConnections
+    from .orders import Orders
 
 
 class StrategyDeployments(Base):
@@ -22,14 +22,13 @@ class StrategyDeployments(Base):
 
     deployment_id: Mapped[UUID] = uuid_pk()
     strategy_id: Mapped[UUID] = mapped_column(
-        SaUUID(as_uuid=True), ForeignKey("strategies.strategy_id"), nullable=False
+        SaUUID(as_uuid=True), ForeignKey("strategies.strategy_id",  ondelete="CASCADE"), nullable=False
     )
     broker_connection_id: Mapped[UUID] = mapped_column(
         SaUUID(as_uuid=True),
-        ForeignKey("broker_connections.connection_id"),
+        ForeignKey("broker_connections.connection_id",  ondelete="CASCADE"),
         nullable=False,
     )
-    market_type: Mapped[MarketType] = mapped_column(String, nullable=False)
     symbol: Mapped[str] = mapped_column(String, nullable=False)
     timeframe: Mapped[str] = mapped_column(String, nullable=False)
     starting_balance: Mapped[float] = mapped_column(

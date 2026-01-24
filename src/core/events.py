@@ -19,7 +19,6 @@ class BrokerTradeEvent(CustomBaseModel):
     """
 
     broker: BrokerType
-    market_type: MarketType
     symbol: str
     price: float
     quantity: float

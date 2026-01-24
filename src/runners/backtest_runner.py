@@ -5,13 +5,13 @@ from uuid import UUID
 from sqlalchemy import insert, update
 
 from config import BASE_PATH
-from enums import BacktestStatus, BrokerType
+from enums import BacktestStatus, BrokerType, Timeframe
 from infra.db import get_db_sess_sync
 from infra.db.models import Backtests, Orders, Strategies
-from lib.backtest_engine import BacktestConfig, BacktestEngine
+from lib.backtest_engine import BacktestEngine
 from lib.brokers import BacktestBroker
 from lib.strategy import BaseStrategy
-from models import BacktestMetrics
+from models import BacktestMetrics, BacktestConfig
 from .base import BaseRunner
 
 
@@ -37,19 +37,18 @@ class BacktestRunner(BaseRunner):
                 return
 
             # Write strategy code to file
-            self._write_strategy_code(db_strategy.code)
-
-            # Import and instantiate strategy
-            strategy = self._load_strategy()
 
             # Create backtest configuration
             bt_config = self._create_backtest_config(db_backtest)
 
             # Create broker and run backtest
             broker = BacktestBroker(db_backtest.starting_balance)
+            
+            self._write_strategy_code(db_strategy.code)
+            strategy = self._load_strategy(str(db_backtest.backtest_id), broker)
+            
             engine = BacktestEngine(strategy, broker, bt_config)
             result = engine.run()
-
             self._logger.info(f"Backtest {self._backtest_id} completed")
 
             # Store results to database
@@ -107,7 +106,7 @@ class BacktestRunner(BaseRunner):
             f.write(code)
         self._logger.info(f"Strategy code written to {temp_strategy_path}")
 
-    def _load_strategy(self) -> BaseStrategy:
+    def _load_strategy(self, name: str, broker: BacktestBroker) -> BaseStrategy:
         """Load and instantiate strategy from user_strategy.py.
 
         Returns:
@@ -115,7 +114,7 @@ class BacktestRunner(BaseRunner):
         """
         from user_strategy import Strategy  # type: ignore
 
-        return Strategy()
+        return Strategy(name, broker)
 
     def _create_backtest_config(self, db_backtest: Backtests) -> BacktestConfig:
         """Create backtest configuration from database backtest.
@@ -136,13 +135,21 @@ class BacktestRunner(BaseRunner):
                 self._logger.warning(
                     f"Invalid broker type '{broker_value}', defaulting to ALPACA"
                 )
+        
+        try:
+            timeframe_enum = Timeframe(db_backtest.timeframe)
+        except ValueError:
+            self._logger.warning(
+                f"Invalid timeframe '{db_backtest.timeframe}'. "
+                f"Possible values {list(Timeframe._value2member_map_.keys())}"
+            )
 
         return BacktestConfig(
             start_date=db_backtest.start_date,
             end_date=db_backtest.end_date,
             symbol=db_backtest.symbol,
             starting_balance=db_backtest.starting_balance,
-            timeframe=db_backtest.timeframe,
+            timeframe=timeframe_enum,
             broker=broker_type,
         )
 
@@ -178,18 +185,19 @@ class BacktestRunner(BaseRunner):
         ]
 
         # Prepare metrics
-        metrics = result.model_dump(mode="json")
+        metrics = result.model_dump(mode="json", exclude={'orders'})
         metrics["equity_curve"] = equity_curve_data
 
         # Update database
         with get_db_sess_sync() as db_sess:
             if records:
                 db_sess.execute(insert(Orders), records)
+            
             db_sess.execute(
                 update(Backtests)
                 .where(Backtests.backtest_id == self._backtest_id)
                 .values(
-                    status=BacktestStatus.COMPLETED.value,
+                    status=BacktestStatus.COMPLETED,
                     metrics=metrics,
                 )
             )

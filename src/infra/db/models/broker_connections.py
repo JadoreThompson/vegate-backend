@@ -5,11 +5,11 @@ from sqlalchemy import ForeignKey, String, UUID as SaUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from engine.enums import BrokerType
-from infra.db.models.base import Base, uuid_pk
+from .base import Base, uuid_pk
 
 if TYPE_CHECKING:
-    from infra.db.models.users import Users
-    from infra.db.models.strategy_deployments import StrategyDeployments
+    from .users import Users
+    from .strategy_deployments import StrategyDeployments
 
 
 class BrokerConnections(Base):
