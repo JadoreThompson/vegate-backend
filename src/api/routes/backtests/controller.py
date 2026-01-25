@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from enums import BacktestStatus
 from infra.db.models import Backtests, Orders, Strategies
-from .models import BacktestCreate, BacktestUpdate
+from .models import BacktestCreate
 
 
 async def create_backtest(
@@ -69,35 +69,6 @@ async def list_backtests(
 
     result = await db_sess.execute(stmt)
     return list(result.scalars().all())
-
-
-async def update_backtest(
-    user_id: UUID,
-    backtest_id: UUID,
-    data: BacktestUpdate,
-    db_sess: AsyncSession,
-) -> Backtests | None:
-    """Update a backtest."""
-    backtest = await get_backtest(backtest_id, db_sess)
-    if not backtest:
-        return None
-
-    # Verify ownership through strategy relationship
-    strategy = await db_sess.scalar(
-        select(Strategies).where(Strategies.strategy_id == backtest.strategy_id)
-    )
-    if not strategy or strategy.user_id != user_id:
-        raise HTTPException(404, "Backtest not found")
-
-    # Update only provided fields
-    update_data = data.model_dump(exclude_unset=True)
-    if update_data:
-        for key, value in update_data.items():
-            setattr(backtest, key, value)
-        await db_sess.flush()
-        await db_sess.refresh(backtest)
-
-    return backtest
 
 
 async def delete_backtest(

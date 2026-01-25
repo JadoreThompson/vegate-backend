@@ -1,10 +1,10 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import BigInteger, Index, String, UniqueConstraint, UUID as SaUUID, Float
+from sqlalchemy import BigInteger, Index, String, UniqueConstraint, UUID, Float
 from sqlalchemy.orm import Mapped, mapped_column
 
-from engine.enums import BrokerType, MarketType
+from enums import BrokerType
 from .base import Base, datetime_tz, uuid_pk
 
 

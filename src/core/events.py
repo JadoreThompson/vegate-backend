@@ -3,7 +3,7 @@ from uuid import UUID
 
 from core.enums import DeploymentEventType
 from core.models import OHLCV, CustomBaseModel
-from engine.enums import BrokerType, MarketType
+from enums import BrokerType
 
 
 class DeploymentEvent(CustomBaseModel):

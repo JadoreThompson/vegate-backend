@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from engine.enums import Timeframe
+from enums import Timeframe
 
 
 class CustomBaseModel(BaseModel):

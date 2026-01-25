@@ -6,8 +6,7 @@ from sqlalchemy import Date, ForeignKey, String, UUID as SaUUID, Float
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from engine.enums import Timeframe
-from enums import BacktestStatus
+from enums import BacktestStatus, Timeframe
 from .base import Base, datetime_tz, uuid_pk
 
 if TYPE_CHECKING:

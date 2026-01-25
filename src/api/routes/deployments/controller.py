@@ -22,7 +22,6 @@ from infra.db.models import (
 )
 from enums import BrokerType, OrderSide, OrderStatus, Timeframe
 from models import EquityCurvePoint
-from services import PriceService
 from infra.redis import REDIS_CLIENT
 from utils import get_datetime
 from .models import DeployStrategyRequest

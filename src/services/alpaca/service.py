@@ -18,7 +18,7 @@ from config import (
 from enums import BrokerType
 from infra.db.models import BrokerConnections
 from infra.redis import REDIS_CLIENT
-from services import EncryptionService
+from services.encryption import EncryptionService
 from .exc import AlpacaOauthError
 from .models import AlpacaOAuthPayload
 from .types import _RedisOAuthPayload, AlpacaTradingEnv

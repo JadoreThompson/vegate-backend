@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import ForeignKey, String, UUID as SaUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from engine.enums import BrokerType
+from enums import BrokerType
 from .base import Base, uuid_pk
 
 if TYPE_CHECKING:

@@ -18,11 +18,6 @@ class BacktestCreate(BaseModel):
     end_date: date
 
 
-class BacktestUpdate(BaseModel):
-    status: BacktestStatus | None = None
-    metrics: dict | None = None
-
-
 class BacktestResponse(CustomBaseModel):
     backtest_id: UUID
     strategy_id: UUID

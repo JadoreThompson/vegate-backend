@@ -16,13 +16,11 @@ from .controller import (
     get_backtest,
     get_backtest_orders,
     list_backtests,
-    update_backtest,
 )
 from .models import (
     BacktestCreate,
     BacktestDetailResponse,
     BacktestResponse,
-    BacktestUpdate,
 )
 
 
@@ -105,32 +103,6 @@ async def list_backtests_endpoint(
         )
         for b in backtests
     ]
-
-    return res
-
-
-@router.patch("/{backtest_id}", response_model=BacktestResponse)
-async def update_backtest_endpoint(
-    backtest_id: UUID,
-    body: BacktestUpdate,
-    jwt: JWTPayload = Depends(depends_jwt()),
-    db_sess: AsyncSession = Depends(depends_db_sess),
-):
-    """Update a backtest (status and/or metrics)."""
-    backtest = await update_backtest(jwt.sub, backtest_id, body, db_sess)
-    if not backtest:
-        raise HTTPException(status_code=404, detail="Backtest not found")
-
-    res = BacktestResponse(
-        backtest_id=backtest.backtest_id,
-        strategy_id=backtest.strategy_id,
-        symbol=backtest.symbol,
-        starting_balance=backtest.starting_balance,
-        status=backtest.status,
-        created_at=backtest.created_at,
-    )
-
-    await db_sess.commit()
 
     return res
 

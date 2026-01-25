@@ -5,7 +5,7 @@ from .deployment_runner import DeploymentRunner
 from .event_runner import EventRunner
 from .loader_runner import LoaderRunner
 from .runner_config import RunnerConfig
-from .server_runner import APIRunner
+from .api_runner import APIRunner
 
 __all__ = [
     "BaseRunner",

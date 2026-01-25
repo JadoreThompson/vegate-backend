@@ -6,10 +6,9 @@ from sqlalchemy import DateTime, ForeignKey, String, Text, UUID as SaUUID, Float
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from engine.enums import MarketType
-from core.enums import DeploymentStatus
-from .base import Base, datetime_tz, uuid_pk
+from enums import DeploymentStatus
 from utils import get_datetime
+from .base import Base, datetime_tz, uuid_pk
 
 if TYPE_CHECKING:
     from .strategies import Strategies
