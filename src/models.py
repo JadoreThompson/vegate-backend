@@ -25,7 +25,6 @@ class OrderRequest(BaseModel):
     notional: float | None = None
     order_type: OrderType
     side: OrderSide
-    price: float | None = None
     limit_price: float | None = None
     stop_price: float | None = None
 
@@ -40,7 +39,6 @@ class Order(BaseModel):
     notional: float | None = None
     order_type: OrderType
     side: OrderSide
-    price: float | None = None
     limit_price: float | None = None
     stop_price: float | None = None
     filled_avg_price: float | None = None
@@ -86,7 +84,7 @@ class EquityCurvePoint(BaseModel):
     """Represents a point in the equity curve."""
 
     timestamp: datetime
-    equity: float
+    value: float
 
 
 class BacktestMetrics(BaseModel):

@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select
 
-from enums import OrderSide, OrderStatus, OrderType
+from enums import OrderSide, OrderStatus, OrderType, Timeframe
 from infra.db import get_db_sess_sync
 from infra.db.models import OHLCs
 from models import Order, OrderRequest, OHLC
@@ -24,11 +24,9 @@ class BacktestBroker(BaseBroker):
         self.starting_balance = starting_balance
         self.equity = starting_balance
         self.balance = starting_balance
-        self.orders: list[Order] = []
         self._order_map: dict[str, Order] = {}
-        self.buy_orders: list[Order] = []
-        self.sell_orders: list[Order] = []
-        self.cur_candle: OHLC | None = None
+        self._pending_orders: list[Order] = []
+        self._cur_candle: OHLC | None = None
 
     def get_balance(self):
         return self.balance
@@ -46,27 +44,171 @@ class BacktestBroker(BaseBroker):
         Returns:
             Order object
         """
-        # if order_request.order_type == OrderType.LIMIT:
-        #     if order_request.limit_price is None:
-        #         raise ValueError("Limit pice must be set for order with type limit")
-        #     if order_request.limit_price <= 0.0:
-        #         raise ValueError("Limit price must be greater than 0.0")
-        # if order_request.order_type == OrderType.STOP:
-        #     if order_request.stop_price is None:
-        #         raise ValueError("Stop pice must be set for order with type stop")
-        #     if order_request.stop_price <= 0.0:
-        #         raise ValueError("Stop price must be greater than 0.0")
+        if order_request.order_type == OrderType.LIMIT:
+            return self._handle_limit_order(order_request)
+        elif order_request.order_type == OrderType.STOP:
+            return self._handle_stop_order(order_request)
+        else:  # MARKET
+            return self._handle_market_order(order_request)
+
+    def _handle_limit_order(self, order_request: OrderRequest) -> Order:
+        """Handle limit order with validation and add to pending orders.
+
+        Args:
+            order_request: OrderRequest object
+
+        Returns:
+            Order object with PLACED status
+
+        Raises:
+            ValueError: If validation fails
+        """
+        if order_request.limit_price is None:
+            raise ValueError("Limit price must be set for limit orders")
+        if order_request.limit_price <= 0.0:
+            raise ValueError("Limit price must be greater than 0.0")
+        if self._cur_candle is None:
+            raise ValueError("Cannot place limit order without current market price")
+
+        current_price = self._cur_candle.close
+
+        # Validate limit price based on order side
+        if order_request.side == OrderSide.BUY:
+            if order_request.limit_price >= current_price:
+                raise ValueError(
+                    f"Buy limit price ({order_request.limit_price}) must be lower than current price ({current_price})"
+                )
+        else:
+            if order_request.limit_price <= current_price:
+                raise ValueError(
+                    f"Sell limit price ({order_request.limit_price}) must be higher than current price ({current_price})"
+                )
 
         order_id = str(uuid.uuid4())
-        now = datetime.now()
 
-        if order_request.order_type == OrderType.MARKET:
-            price = order_request.price
-        elif order_request.order_type == OrderType.LIMIT:
-            price = order_request.limit_price
+        order = Order(
+            symbol=order_request.symbol,
+            quantity=order_request.quantity,
+            executed_quantity=0.0,
+            notional=order_request.notional,
+            order_type=order_request.order_type,
+            side=order_request.side,
+            limit_price=order_request.limit_price,
+            stop_price=order_request.stop_price,
+            filled_avg_price=None,
+            executed_at=None,
+            submitted_at=self._cur_candle.timestamp,
+            order_id=order_id,
+            status=OrderStatus.PLACED,
+        )
+
+        self._pending_orders.append(order)
+        self._order_map[order_id] = order
+
+        return order
+
+    def _handle_stop_order(self, order_request: OrderRequest) -> Order:
+        """Handle stop order with validation and add to pending orders.
+
+        Args:
+            order_request: OrderRequest object
+
+        Returns:
+            Order object with PLACED status
+
+        Raises:
+            ValueError: If validation fails
+        """
+        if order_request.stop_price is None:
+            raise ValueError("Stop price must be set for stop orders")
+        if order_request.stop_price <= 0.0:
+            raise ValueError("Stop price must be greater than 0.0")
+        if self._cur_candle is None:
+            raise ValueError("Cannot place stop order without current market price")
+
+        current_price = self._cur_candle.close
+
+        # Validate stop price based on order side (opposite of limit orders)
+        if order_request.side == OrderSide.BUY:
+            if order_request.stop_price <= current_price:
+                raise ValueError(
+                    f"Buy stop price ({order_request.stop_price}) must be higher than current price ({current_price})"
+                )
+        else:  # SELL
+            if order_request.stop_price >= current_price:
+                raise ValueError(
+                    f"Sell stop price ({order_request.stop_price}) must be lower than current price ({current_price})"
+                )
+
+        order_id = str(uuid.uuid4())
+
+        order = Order(
+            symbol=order_request.symbol,
+            quantity=order_request.quantity,
+            executed_quantity=0.0,
+            notional=order_request.notional,
+            order_type=order_request.order_type,
+            side=order_request.side,
+            # price=order_request.price,
+            limit_price=order_request.limit_price,
+            stop_price=order_request.stop_price,
+            filled_avg_price=None,
+            executed_at=None,
+            submitted_at=self._cur_candle.timestamp,
+            order_id=order_id,
+            status=OrderStatus.PLACED,
+        )
+
+        self._pending_orders.append(order)
+        self._order_map[order_id] = order
+
+        return order
+
+    def _handle_market_order(self, order_request: OrderRequest) -> Order:
+        """Handle market order with balance validation.
+
+        Args:
+            order_request: OrderRequest object
+
+        Returns:
+            Order object with FILLED or REJECTED status
+        """
+        if self._cur_candle is None:
+            raise ValueError("Cannot place market order without current market price")
+        
+        order_id = str(uuid.uuid4())
+        price = self._cur_candle.close
+
+        # Calculate order cost
+        if order_request.notional is not None and order_request.notional > 0:
+            order_cost = order_request.notional
         else:
-            price = order_request.stop_price
+            order_cost = order_request.quantity * price
 
+        # Check balance for buy orders
+        if order_request.side == OrderSide.BUY:
+            if self.balance < order_cost:
+                # Insufficient balance - reject order
+                order = Order(
+                    symbol=order_request.symbol,
+                    quantity=order_request.quantity,
+                    executed_quantity=0.0,
+                    notional=order_request.notional,
+                    order_type=order_request.order_type,
+                    side=order_request.side,
+                    # price=order_request.price,
+                    limit_price=order_request.limit_price,
+                    stop_price=order_request.stop_price,
+                    filled_avg_price=None,
+                    executed_at=None,
+                    submitted_at=self._cur_candle.timestamp,
+                    order_id=order_id,
+                    status=OrderStatus.REJECTED,
+                )
+                self._order_map[order_id] = order
+                return order
+
+        # Sufficient balance - fill order
         order = Order(
             symbol=order_request.symbol,
             quantity=order_request.quantity,
@@ -74,31 +216,104 @@ class BacktestBroker(BaseBroker):
             notional=order_request.notional,
             order_type=order_request.order_type,
             side=order_request.side,
-            price=order_request.price,
+            # price=order_request.price,
             limit_price=order_request.limit_price,
             stop_price=order_request.stop_price,
             filled_avg_price=price,
-            executed_at=now,
-            submitted_at=now,
+            executed_at=self._cur_candle.timestamp,
+            submitted_at=self._cur_candle.timestamp,
             order_id=order_id,
             status=OrderStatus.FILLED,
         )
 
-        self.orders.append(order)
         self._order_map[order_id] = order
 
-        # Track buy/sell orders for PnL calculation
-        if order_request.notional > 0:
-            self.buy_orders.append(order)
-        else:
-            self.sell_orders.append(order)
-
+        # Update balance using order_cost (which accounts for notional)
         if order.side == OrderSide.BUY:
-            self.balance -= order.quantity * price
+            self.balance -= order_cost
         else:
-            self.balance += order.quantity * self._cur_candle.close
+            self.balance += order_cost
 
         return order
+
+    def _execute_pending_orders(self):
+        """Execute pending limit and stop orders based on current candle.
+
+        Checks each pending order to see if it should be triggered based on
+        current price, validates balance, and either fills or rejects the order.
+        """
+        if self._cur_candle is None:
+            return
+
+        current_ts = self._cur_candle.timestamp
+        current_high = self._cur_candle.high
+        current_low = self._cur_candle.low
+
+        orders_to_remove = []
+
+        for order in self._pending_orders:
+            should_execute = False
+            execution_price = None
+
+            # Check if limit order should be executed
+            if order.order_type == OrderType.LIMIT:
+                if order.side == OrderSide.BUY:
+                    # Buy limit executes when price drops to or below limit price
+                    if current_low <= order.limit_price:
+                        should_execute = True
+                        execution_price = order.limit_price
+                else:  # SELL
+                    # Sell limit executes when price rises to or above limit price
+                    if current_high >= order.limit_price:
+                        should_execute = True
+                        execution_price = order.limit_price
+
+            # Check if stop order should be executed
+            elif order.order_type == OrderType.STOP:
+                if order.side == OrderSide.BUY:
+                    # Buy stop executes when price rises to or above stop price
+                    if current_high >= order.stop_price:
+                        should_execute = True
+                        execution_price = order.stop_price
+                else:  # SELL
+                    # Sell stop executes when price drops to or below stop price
+                    if current_low <= order.stop_price:
+                        should_execute = True
+                        execution_price = order.stop_price
+
+            if should_execute:
+                # Calculate order cost
+                if order.notional is not None and order.notional > 0:
+                    order_cost = order.notional
+                else:
+                    order_cost = order.quantity * execution_price
+
+                # Check balance for buy orders
+                if order.side == OrderSide.BUY:
+                    if self.balance < order_cost:
+                        # Insufficient balance - reject order
+                        order.status = OrderStatus.REJECTED
+                        order.executed_at = self._cur_candle.timestamp
+                        orders_to_remove.append(order)
+                        continue
+
+                # Sufficient balance - fill order
+                order.status = OrderStatus.FILLED
+                order.executed_quantity = order.quantity
+                order.filled_avg_price = execution_price
+                order.executed_at = current_ts
+
+                # Update balance
+                if order.side == OrderSide.BUY:
+                    self.balance -= order_cost
+                else:
+                    self.balance += order_cost
+
+                orders_to_remove.append(order)
+
+        # Remove executed/rejected orders from pending list
+        for order in orders_to_remove:
+            self._pending_orders.remove(order)
 
     def modify_order(
         self,
@@ -146,6 +361,9 @@ class BacktestBroker(BaseBroker):
         order = self._order_map.get(order_id)
         if order and order.status == OrderStatus.PLACED:
             order.status = OrderStatus.CANCELLED
+            # Remove from pending orders list if present
+            if order in self._pending_orders:
+                self._pending_orders.remove(order)
             return True
         return False
 
@@ -155,7 +373,7 @@ class BacktestBroker(BaseBroker):
         Returns:
             True if all orders cancelled successfully
         """
-        for order in self.orders:
+        for order in list(self._order_map.values()):
             if order.status == OrderStatus.PLACED:
                 order.status = OrderStatus.CANCELLED
         return True
@@ -177,7 +395,7 @@ class BacktestBroker(BaseBroker):
         Returns:
             List of Order objects
         """
-        return self.orders.copy()
+        return list(self._order_map.values())
 
     def stream_candles(self, symbol, timeframe, source, start_date, end_date):
         with get_db_sess_sync() as db_sess:
@@ -221,9 +439,10 @@ class BacktestBroker(BaseBroker):
                     symbol=res.symbol,
                 )
                 self._cur_candle = candle
+                self._execute_pending_orders()
                 yield candle
 
-    async def stream_candles_async(self, symbol, timeframe):
+    async def stream_candles_async(self, symbol: str, timeframe: Timeframe):
         raise NotImplementedError()
 
     def _calculate_equity(self):
@@ -234,13 +453,12 @@ class BacktestBroker(BaseBroker):
         If no current candle is available, equity defaults to current balance.
         """
         if self._cur_candle is None:
-            self.equity = self.balance
-            return
+            return self.balance
 
         cur_price = self._cur_candle.close
-
         total_quantity = 0
-        for order in self.orders:
+
+        for order in list(self._order_map.values()):
             if order.status == OrderStatus.FILLED:
                 if order.side == OrderSide.BUY:
                     total_quantity += order.executed_quantity

@@ -43,10 +43,10 @@ class BacktestRunner(BaseRunner):
 
             # Create broker and run backtest
             broker = BacktestBroker(db_backtest.starting_balance)
-            
+
             self._write_strategy_code(db_strategy.code)
             strategy = self._load_strategy(str(db_backtest.backtest_id), broker)
-            
+
             engine = BacktestEngine(strategy, broker, bt_config)
             result = engine.run()
             self._logger.info(f"Backtest {self._backtest_id} completed")
@@ -135,7 +135,7 @@ class BacktestRunner(BaseRunner):
                 self._logger.warning(
                     f"Invalid broker type '{broker_value}', defaulting to ALPACA"
                 )
-        
+
         try:
             timeframe_enum = Timeframe(db_backtest.timeframe)
         except ValueError:
@@ -180,19 +180,19 @@ class BacktestRunner(BaseRunner):
 
         # Convert equity curve points to dictionaries
         equity_curve_data = [
-            {"timestamp": point.timestamp.isoformat(), "equity": point.equity}
+            {"timestamp": point.timestamp.isoformat(), "equity": point.value}
             for point in equity_curve
         ]
 
         # Prepare metrics
-        metrics = result.model_dump(mode="json", exclude={'orders'})
+        metrics = result.model_dump(mode="json", exclude={"orders"})
         metrics["equity_curve"] = equity_curve_data
 
         # Update database
         with get_db_sess_sync() as db_sess:
             if records:
                 db_sess.execute(insert(Orders), records)
-            
+
             db_sess.execute(
                 update(Backtests)
                 .where(Backtests.backtest_id == self._backtest_id)
