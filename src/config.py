@@ -27,10 +27,10 @@ JWT_EXPIRY_SECS = int(os.getenv("JWT_EXPIRY_SECS"))
 PAGE_SIZE = 10
 if IS_PRODUCTION:
     SCHEME = "https"
-    FRONTEND_SUB_DOMAIN = "www."
+    FRONTEND_SUB_DOMAIN = ""
     BACKEND_SUB_DOMAIN = "api."
-    FRONTEND_DOMAIN = "domain.com"
-    BACKEND_DOMAIN = FRONTEND_DOMAIN
+    FRONTEND_DOMAIN = "vegate.jadore.dev"
+    BACKEND_DOMAIN = "vegate.jadore.dev"
 else:
     SCHEME = "http"
     FRONTEND_SUB_DOMAIN = ""
