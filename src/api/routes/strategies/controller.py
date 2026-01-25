@@ -96,14 +96,21 @@ from enums import OrderType, OrderSide
 order = self.broker.place_order(OrderRequest(
     symbol="AAPL",
     quantity=10.0,
-    notional=1000.0,
     order_type=OrderType.MARKET,
-    side=OrderSide.BUY,
-    price=None,
-    limit_price=None,
-    stop_price=None
+    side=OrderSide.BUY
 ))
 ```
+
+Or if you want to submit orders based on notional value:
+```python
+order = self.broker.place_order(OrderRequest(
+    symbol="AAPL",
+    notional=1000.0,
+    order_type=OrderType.MARKET,
+    side=OrderSide.BUY
+))
+```
+
 
 **Get Orders:**
 ```python
@@ -117,7 +124,7 @@ success = self.broker.close_order(order_id="order_123")
 
 **Modify Orders:**
 ```python
-success = self.broker.modify_order(order_id="order_123", quantity=20.0)
+success = self.broker.modify_order(order_id="order_123", limit_price=150.0)
 ```
 
 ### 4. Optional Lifecycle Methods
@@ -297,10 +304,8 @@ class Strategy(BaseStrategy):
             self.broker.place_order(OrderRequest(
                 symbol=candle.symbol,
                 quantity=1.0,
-                notional=0.0,
                 order_type=OrderType.MARKET,
-                side=OrderSide.BUY,
-                price=candle.close
+                side=OrderSide.BUY
             ))
             self.position = 1
 
@@ -309,10 +314,8 @@ class Strategy(BaseStrategy):
             self.broker.place_order(OrderRequest(
                 symbol=candle.symbol,
                 quantity=1.0,
-                notional=0.0,
                 order_type=OrderType.MARKET,
-                side=OrderSide.SELL,
-                price=candle.close
+                side=OrderSide.SELL                
             ))
             self.position = 0
 
@@ -410,7 +413,6 @@ class Strategy(BaseStrategy):
             self.broker.place_order(OrderRequest(
                 symbol=candle.symbol,
                 quantity=1.0,
-                notional=0.0,
                 order_type=OrderType.MARKET,
                 price=candle.close
             ))
@@ -475,7 +477,6 @@ class Strategy(BaseStrategy):
             self.broker.place_order(OrderRequest(
                 symbol=candle.symbol,
                 quantity=1.0,
-                notional=0.0,
                 order_type=OrderType.MARKET,
                 price=candle.close
             ))

@@ -14,7 +14,7 @@ class OrderEventType(str, Enum):
     ORDER_MODIFIED = "order_modified"
 
 
-class OrderPlaced(BaseEvent):
+class OrderPlacedEvent(BaseEvent):
     """Event for when an order is placed."""
 
     type: Literal[OrderEventType.ORDER_PLACED] = OrderEventType.ORDER_PLACED
@@ -22,7 +22,7 @@ class OrderPlaced(BaseEvent):
     order: Order
 
 
-class OrderCancelled(BaseEvent):
+class OrderCancelledEvent(BaseEvent):
     """Event for when an order is cancelled."""
 
     type: Literal[OrderEventType.ORDER_CANCELLED] = OrderEventType.ORDER_CANCELLED
@@ -31,7 +31,7 @@ class OrderCancelled(BaseEvent):
     success: bool
 
 
-class OrderModified(BaseEvent):
+class OrderModifiedEvent(BaseEvent):
     """Event for when an order is modified."""
 
     type: Literal[OrderEventType.ORDER_MODIFIED] = OrderEventType.ORDER_MODIFIED

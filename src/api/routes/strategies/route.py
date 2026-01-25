@@ -5,8 +5,10 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import depends_db_sess, depends_jwt
+from api.shared.models import PerformanceMetrics
 from api.types import JWTPayload
 from infra.db.models import Strategies
+from models import EquityCurvePoint
 from .controller import (
     create_strategy,
     get_strategy,
@@ -19,7 +21,6 @@ from .controller import (
 from .models import (
     StrategyCreate,
     StrategyDetailResponse,
-    StrategyMetrics,
     StrategyResponse,
     StrategySummaryResponse,
     StrategyUpdate,
@@ -152,13 +153,31 @@ async def get_strategy_summary_endpoint(
 
     # Extract metrics from JSONB field or use defaults
     metrics_data = strategy.metrics or {}
-    metrics = StrategyMetrics(
+
+    # Convert equity curve data to EquityCurvePoint objects
+    equity_curve_data = metrics_data.get("equity_curve", [])
+    equity_curve = []
+    for point in equity_curve_data:
+        if isinstance(point, dict):
+            equity_curve.append(
+                EquityCurvePoint(
+                    timestamp=point.get("timestamp"),
+                    value=point.get("value", 0.0)
+                )
+            )
+        elif isinstance(point, (list, tuple)) and len(point) == 2:
+            equity_curve.append(
+                EquityCurvePoint(timestamp=point[0], value=point[1])
+            )
+
+    metrics = PerformanceMetrics(
         realised_pnl=metrics_data.get("realised_pnl", 0.0),
         unrealised_pnl=metrics_data.get("unrealised_pnl", 0.0),
-        total_return=metrics_data.get("total_return", 0.0),
+        total_return_pct=metrics_data.get("total_return", 0.0),
         sharpe_ratio=metrics_data.get("sharpe_ratio", 0.0),
         max_drawdown=metrics_data.get("max_drawdown", 0.0),
-        equity_curve=metrics_data.get("equity_curve", []),
+        total_trades=metrics_data.get("total_trades", 0),
+        equity_curve=equity_curve,
     )
 
     return StrategySummaryResponse(
@@ -185,16 +204,33 @@ async def list_strategy_summaries_endpoint(
 
     for s in strategies:
         metrics_data = s.metrics or {}
-        
-        metrics = StrategyMetrics(
+
+        # Convert equity curve data to EquityCurvePoint objects
+        equity_curve_data = metrics_data.get("equity_curve", [])
+        equity_curve = []
+        for point in equity_curve_data:
+            if isinstance(point, dict):
+                equity_curve.append(
+                    EquityCurvePoint(
+                        timestamp=point.get("timestamp"),
+                        value=point.get("value", 0.0)
+                    )
+                )
+            elif isinstance(point, (list, tuple)) and len(point) == 2:
+                equity_curve.append(
+                    EquityCurvePoint(timestamp=point[0], value=point[1])
+                )
+
+        metrics = PerformanceMetrics(
             realised_pnl=metrics_data.get("realised_pnl", 0.0),
             unrealised_pnl=metrics_data.get("unrealised_pnl", 0.0),
-            total_return=metrics_data.get("total_return", 0.0),
+            total_return_pct=metrics_data.get("total_return", 0.0),
             sharpe_ratio=metrics_data.get("sharpe_ratio", 0.0),
             max_drawdown=metrics_data.get("max_drawdown", 0.0),
-            equity_curve=metrics_data.get("equity_curve", []),
+            total_trades=metrics_data.get("total_trades", 0),
+            equity_curve=equity_curve,
         )
-        
+
         results.append(
             StrategySummaryResponse(
                 strategy_id=s.strategy_id,

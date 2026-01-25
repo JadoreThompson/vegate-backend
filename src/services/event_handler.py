@@ -1,17 +1,22 @@
 import json
 import logging
-from datetime import datetime
-from uuid import UUID
+from datetime import UTC, datetime
 
 from redis.asyncio import Redis
 
-from config import REDIS_ORDER_EVENTS_KEY
-from events.order import OrderEventType, OrderPlaced, OrderCancelled, OrderModified
+from config import REDIS_ORDER_EVENTS_KEY, REDIS_SNAPSHOT_EVENTS_KEY
+from enums import SnapshotType
+from events.order import (
+    OrderEventType,
+    OrderPlacedEvent,
+    OrderCancelledEvent,
+    OrderModifiedEvent,
+)
 from events.snapshot import SnapshotCreated, SnapshotEventType
 from infra.db import get_db_sess_sync
 from infra.db.models import Orders, AccountSnapshots
+from infra.db.models.strategy_deployments import StrategyDeployments
 from infra.redis import REDIS_CLIENT
-from utils import get_datetime
 
 
 class OrderEventHandler:
@@ -33,6 +38,10 @@ class OrderEventHandler:
                 await ps.subscribe(REDIS_ORDER_EVENTS_KEY)
                 self._logger.info(
                     f"Subscribed to order events channel: {REDIS_ORDER_EVENTS_KEY}"
+                )
+                await ps.subscribe(REDIS_SNAPSHOT_EVENTS_KEY)
+                self._logger.info(
+                    f"Subscribed to snapshot events channel: {REDIS_SNAPSHOT_EVENTS_KEY}"
                 )
 
                 async for message in ps.listen():
@@ -77,43 +86,32 @@ class OrderEventHandler:
             event_data: Event data containing order details
         """
         try:
-            event = OrderPlaced(**event_data)
+            event = OrderPlacedEvent(**event_data)
             deployment_id = event.deployment_id
             order = event.order
 
             with get_db_sess_sync() as db_sess:
                 # Create new order record
                 db_order = Orders(
-                    order_id=(
-                        UUID(order.order_id)
-                        if isinstance(order.order_id, str)
-                        else order.order_id
-                    ),
+                    # order_id=(
+                    #     UUID(order.order_id)
+                    #     if isinstance(order.order_id, str)
+                    #     else order.order_id
+                    # ),
                     symbol=order.symbol,
-                    side=(
-                        order.side.value if hasattr(order.side, "value") else order.side
-                    ),
-                    order_type=(
-                        order.order_type.value
-                        if hasattr(order.order_type, "value")
-                        else order.order_type
-                    ),
+                    side=order.side.value,
+                    order_type=order.order_type.value,
                     quantity=order.quantity,
                     filled_quantity=order.executed_quantity,
                     limit_price=order.limit_price,
                     stop_price=order.stop_price,
                     avg_fill_price=order.filled_avg_price,
-                    status=(
-                        order.status.value
-                        if hasattr(order.status, "value")
-                        else order.status
-                    ),
-                    time_in_force="day",
-                    submitted_at=order.submitted_at or get_datetime(),
+                    status=order.status.value,
+                    submitted_at=order.submitted_at,
                     filled_at=order.executed_at,
-                    client_order_id=order.order_id,
+                    broker_order_id=order.order_id,
                     deployment_id=deployment_id,
-                    broker_metadata=order.details,
+                    details=order.details,
                 )
 
                 db_sess.add(db_order)
@@ -134,7 +132,7 @@ class OrderEventHandler:
             event_data: Event data containing order cancellation details
         """
         try:
-            event = OrderCancelled(**event_data)
+            event = OrderCancelledEvent(**event_data)
             deployment_id = event.deployment_id
             order_id = event.order_id
             success = event.success
@@ -150,7 +148,7 @@ class OrderEventHandler:
                 db_order = (
                     db_sess.query(Orders)
                     .filter(
-                        Orders.client_order_id == order_id,
+                        Orders.broker_order_id == order_id,
                         Orders.deployment_id == deployment_id,
                     )
                     .first()
@@ -178,7 +176,7 @@ class OrderEventHandler:
             event_data: Event data containing modified order details
         """
         try:
-            event = OrderModified(**event_data)
+            event = OrderModifiedEvent(**event_data)
             deployment_id = event.deployment_id
             order = event.order
             success = event.success
@@ -194,7 +192,7 @@ class OrderEventHandler:
                 db_order = (
                     db_sess.query(Orders)
                     .filter(
-                        Orders.client_order_id == order.order_id,
+                        Orders.broker_order_id == order.order_id,
                         Orders.deployment_id == deployment_id,
                     )
                     .first()
@@ -205,11 +203,7 @@ class OrderEventHandler:
                     db_order.quantity = order.quantity
                     db_order.limit_price = order.limit_price
                     db_order.stop_price = order.stop_price
-                    db_order.status = (
-                        order.status.value
-                        if hasattr(order.status, "value")
-                        else order.status
-                    )
+                    db_order.status = order.status.value
                     db_sess.commit()
                     self._logger.info(
                         f"Order modified: {order.order_id} for deployment {deployment_id}"
@@ -239,11 +233,19 @@ class OrderEventHandler:
                 # Create new snapshot record
                 db_snapshot = AccountSnapshots(
                     deployment_id=deployment_id,
-                    timestamp=datetime.fromtimestamp(event.timestamp),
+                    timestamp=datetime.fromtimestamp(event.timestamp, UTC),
                     snapshot_type=snapshot_type,
                     value=value,
                 )
 
+                db_deployment = db_sess.get(StrategyDeployments, deployment_id)
+                if (
+                    db_deployment.starting_balance is None
+                    and snapshot_type == SnapshotType.BALANCE
+                ):
+                    db_deployment.starting_balance = value
+
+                db_sess.add(db_deployment)
                 db_sess.add(db_snapshot)
                 db_sess.commit()
 

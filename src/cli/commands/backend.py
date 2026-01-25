@@ -5,7 +5,7 @@ from multiprocessing import Process, Queue
 
 import click
 
-from runners import BacktestListenerRunner, ListenerRunner, RunnerConfig, APIRunner
+from runners import BacktestListenerRunner, RunnerConfig, APIRunner
 from runners.utils import run_runner
 
 logger = logging.getLogger("commands.backend")

@@ -22,6 +22,7 @@ from infra.db.models import (
 from engine.backtesting.metrics import calculate_sharpe_ratio, calculate_max_drawdown
 from engine.backtesting.types import EquityCurve
 from enums import BrokerType, OrderSide, OrderStatus, Timeframe
+from models import EquityCurvePoint
 from services import PriceService
 from infra.redis import REDIS_CLIENT
 from utils import get_datetime
@@ -406,8 +407,8 @@ async def calculate_deployment_metrics(
     if not equity_snapshots or not balance_snapshots:
         return default_metrics
 
-    # Build equity curve from snapshots
-    equity_curve = [
+    # Build equity curve from snapshots (tuples for internal calculations)
+    equity_curve_tuples = [
         (snapshot.timestamp, snapshot.value) for snapshot in equity_snapshots
     ]
 
@@ -421,16 +422,22 @@ async def calculate_deployment_metrics(
     total_return_pct = (latest_equity - starting_balance) / starting_balance
 
     # Calculate Sharpe ratio from equity curve
-    if len(equity_curve) >= 2:
-        sharpe_ratio = calculate_sharpe_ratio(equity_curve)
+    if len(equity_curve_tuples) >= 2:
+        sharpe_ratio = calculate_sharpe_ratio(equity_curve_tuples)
     else:
         sharpe_ratio = 0.0
 
     # Calculate max drawdown from equity curve
-    if len(equity_curve) >= 2:
-        _, max_dd_pct = calculate_max_drawdown(equity_curve, [])
+    if len(equity_curve_tuples) >= 2:
+        _, max_dd_pct = calculate_max_drawdown(equity_curve_tuples, [])
     else:
         max_dd_pct = 0.0
+
+    # Convert equity curve to EquityCurvePoint objects for API response
+    equity_curve = [
+        EquityCurvePoint(timestamp=timestamp, value=value)
+        for timestamp, value in equity_curve_tuples
+    ]
 
     return PerformanceMetrics(
         realised_pnl=realised_pnl,

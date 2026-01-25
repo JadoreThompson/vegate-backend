@@ -278,15 +278,14 @@ async def get_deployment_orders_endpoint(
             side=o.side,
             order_type=o.order_type,
             quantity=o.quantity,
+            notional=o.notional,
             filled_quantity=o.filled_quantity,
             limit_price=o.limit_price,
             stop_price=o.stop_price,
             average_fill_price=o.avg_fill_price,
             status=o.status,
-            time_in_force=o.time_in_force,
             submitted_at=o.submitted_at,
             filled_at=o.filled_at,
-            client_order_id=o.client_order_id,
             broker_order_id=o.broker_order_id,
         )
         for o in orders

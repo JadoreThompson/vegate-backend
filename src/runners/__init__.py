@@ -2,7 +2,7 @@ from .base import BaseRunner
 from .backtest_listener import BacktestListenerRunner
 from .backtest_runner import BacktestRunner
 from .deployment_runner import DeploymentRunner
-from .listener_runner import ListenerRunner
+from .event_runner import EventRunner
 from .loader_runner import LoaderRunner
 from .runner_config import RunnerConfig
 from .server_runner import APIRunner
@@ -12,7 +12,7 @@ __all__ = [
     "BacktestListenerRunner",
     "BacktestRunner",
     "DeploymentRunner",
-    "ListenerRunner",
+    "EventRunner",
     "LoaderRunner",
     "RunnerConfig",
     "APIRunner",

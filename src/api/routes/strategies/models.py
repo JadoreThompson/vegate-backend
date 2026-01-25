@@ -3,8 +3,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from api.shared.models import PerformanceMetrics
 from enums import BacktestStatus, BrokerType, Timeframe
-from models import CustomBaseModel, EquityCurvePoint
+from models import CustomBaseModel
 
 
 class StrategyCreate(BaseModel):
@@ -20,6 +21,7 @@ class StrategyUpdate(BaseModel):
 
 class BacktestCreate(BaseModel):
     """Request body for creating a backtest."""
+
     symbol: str = Field(min_length=1, max_length=10)
     broker: str = Field(min_length=1, max_length=20)
     timeframe: Timeframe
@@ -30,6 +32,7 @@ class BacktestCreate(BaseModel):
 
 class BacktestResponse(BaseModel):
     """Response for backtest creation."""
+
     backtest_id: UUID
     strategy_id: UUID
     symbol: str
@@ -55,14 +58,5 @@ class StrategyDetailResponse(StrategyResponse):
     prompt: str
 
 
-class StrategyMetrics(BaseModel):
-    realised_pnl: float
-    unrealised_pnl: float
-    total_return: float
-    sharpe_ratio: float
-    max_drawdown: float
-    equity_curve: list[EquityCurvePoint]
-
-
 class StrategySummaryResponse(StrategyResponse):
-    metrics: StrategyMetrics
+    metrics: PerformanceMetrics

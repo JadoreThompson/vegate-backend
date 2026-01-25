@@ -3,8 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
-from engine.backtesting.types import EquityCurve
-from models import CustomBaseModel
+from models import CustomBaseModel, EquityCurvePoint
 
 
 class OrderResponse(CustomBaseModel):
@@ -12,16 +11,15 @@ class OrderResponse(CustomBaseModel):
     symbol: str
     side: str
     order_type: str
-    quantity: float
+    quantity: float | None
+    notional: float | None
     filled_quantity: float
     limit_price: float | None
     stop_price: float | None
     average_fill_price: float | None
     status: str
-    time_in_force: str
     submitted_at: datetime
     filled_at: datetime | None
-    client_order_id: str | None
     broker_order_id: str | None
 
 
@@ -32,7 +30,7 @@ class PerformanceMetrics(BaseModel):
     sharpe_ratio: float
     max_drawdown: float
     total_trades: int
-    equity_curve: EquityCurve = Field(default_factory=list)
+    equity_curve: list[EquityCurvePoint] = Field(default_factory=list)
 
     @field_validator(
         "realised_pnl",

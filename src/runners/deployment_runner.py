@@ -18,7 +18,7 @@ from infra.redis import REDIS_CLIENT
 from core.events import DeploymentEvent, DeploymentEventType
 from utils import get_datetime
 from services import EncryptionService
-from services.brokers_apis.alpaca import AlpacaOAuthPayload
+from services.alpaca import AlpacaOAuthPayload
 from user_strategy import Strategy
 from .base import BaseRunner
 
@@ -62,7 +62,8 @@ class DeploymentRunner(BaseRunner):
 
             # Create deployment config
             self._deployment_config = DeploymentConfig(
-                symbol=db_deployment.symbol,
+                # symbol=db_deployment.symbol,
+                symbol="BTC/USD",
                 deployment_id=self._deployment_id,
                 broker=BrokerType(db_broker_conn.broker),
             )

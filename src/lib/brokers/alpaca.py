@@ -18,7 +18,7 @@ from alpaca.trading.requests import (
     LimitOrderRequest,
     StopOrderRequest,
     StopLimitOrderRequest,
-    ReplaceOrderRequest
+    ReplaceOrderRequest,
 )
 
 from enums import OrderSide, OrderType, OrderStatus, Timeframe
@@ -127,14 +127,11 @@ class AlpacaBroker(BaseBroker):
                 alpaca_request = StopLimitOrderRequest(
                     symbol=order_request.symbol,
                     qty=order_request.quantity,
-                    side=(
-                        AlpacaOrderSide.BUY
-                        if order_request.notional > 0
-                        else AlpacaOrderSide.SELL
-                    ),
+                    notional=order_request.notional,
+                    side=side,
                     limit_price=order_request.limit_price,
                     stop_price=order_request.stop_price,
-                    time_in_force=AlpacaTimeInForce.DAY,
+                    time_in_force=AlpacaTimeInForce.GTC,
                 )
             else:
                 raise ValueError(f"Unsupported order type: {alpaca_order_type}")
@@ -179,7 +176,7 @@ class AlpacaBroker(BaseBroker):
                 ReplaceOrderRequest(
                     limit_price=limit_price or alpaca_order.limit_price,
                     stop_price=stop_price or alpaca_order.stop_price,
-                )
+                ),
             )
 
             order = self._convert_alpaca_order(modified_alpaca_order)
@@ -317,10 +314,9 @@ class AlpacaBroker(BaseBroker):
                 pass
 
     async def _handle_stream_alpaca(self, symbol: str, timeframe: Timeframe) -> None:
-        print(1)
         async with websockets.connect(
-            "wss://stream.data.alpaca.markets/v2/iex"
-            # "wss://stream.data.alpaca.markets/v1beta3/crypto/eu-1"
+            # "wss://stream.data.alpaca.markets/v2/iex"
+            "wss://stream.data.alpaca.markets/v1beta3/crypto/eu-1"
         ) as ws:
             auth_msg = {
                 "action": "auth",

@@ -5,7 +5,7 @@ from redis import Redis
 
 from config import REDIS_ORDER_EVENTS_KEY, REDIS_SNAPSHOT_EVENTS_KEY
 from enums import SnapshotType, Timeframe
-from events.order import OrderCancelled, OrderModified, OrderPlaced
+from events.order import OrderCancelledEvent, OrderModifiedEvent, OrderPlacedEvent
 from events.snapshot import SnapshotCreated
 from infra.redis.client import REDIS_CLIENT_SYNC
 from models import OHLC, Order, OrderRequest
@@ -48,7 +48,7 @@ class ProxyBroker(BaseBroker):
             Order object
         """
         order = self.broker.place_order(order_request)
-        event = OrderPlaced(deployment_id=self.deployment_id, order=order)
+        event = OrderPlacedEvent(deployment_id=self.deployment_id, order=order)
         self.redis_client.publish(REDIS_ORDER_EVENTS_KEY, event.model_dump_json())
         return order
 
@@ -69,7 +69,7 @@ class ProxyBroker(BaseBroker):
             Modified Order object
         """
         order = self.broker.modify_order(order_id, limit_price, stop_price)
-        event = OrderModified(
+        event = OrderModifiedEvent(
             deployment_id=self.deployment_id, order=order, success=True
         )
         self.redis_client.publish(REDIS_ORDER_EVENTS_KEY, event.model_dump_json())
@@ -85,7 +85,7 @@ class ProxyBroker(BaseBroker):
             True if cancelled successfully, False otherwise
         """
         success = self.broker.cancel_order(order_id)
-        event = OrderCancelled(
+        event = OrderCancelledEvent(
             deployment_id=self.deployment_id, order_id=order_id, success=success
         )
         self.redis_client.publish(REDIS_ORDER_EVENTS_KEY, event.model_dump_json())
