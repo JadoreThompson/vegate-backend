@@ -24,7 +24,7 @@ from .models import AlpacaOAuthPayload
 from .types import _RedisOAuthPayload, AlpacaTradingEnv
 
 
-class AlpacaAPI:
+class AlpacaService:
     def __init__(self):
         self._http_sess = aiohttp.ClientSession()
 
@@ -83,7 +83,6 @@ class AlpacaAPI:
         )
 
         return f"{base_url}?{query_string}"
-
 
     async def handle_oauth_callback(
         self, code: str, state: str, user_id: UUID, db_sess: AsyncSession
@@ -150,8 +149,20 @@ class AlpacaAPI:
             )
         await db_sess.commit()
 
-    async def get_order(self, order_id, oauth_payload: AlpacaOAuthPayload):
-        await self._http_sess.get()
+    async def get_account(self, api_key: str, secret_key: str) -> dict:
+        """Fetch Alpaca account details using API keys."""
+        base_url = self._get_base_url("paper")
+        endpoint = "/account"
+        headers = {
+            "APCA-API-KEY-ID": api_key,
+            "APCA-API-SECRET-KEY": secret_key,
+        }
+
+        rsp = await self._http_sess.get(f"{base_url}{endpoint}", headers=headers)
+        rsp.raise_for_status()
+        data = await rsp.json()
+        return data
+    
 
     @staticmethod
     def _get_base_url(env: AlpacaTradingEnv):

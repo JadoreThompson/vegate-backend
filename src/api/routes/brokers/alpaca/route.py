@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,12 +9,12 @@ from api.types import JWTPayload
 from config import FRONTEND_DOMAIN, SCHEME, FRONTEND_SUB_DOMAIN
 from enums import BrokerType
 from infra.db.models import BrokerConnections
-from services.alpaca import AlpacaAPI
+from services.alpaca import AlpacaService
 from .models import AlpacaConnectRequest
 
 
 router = APIRouter(prefix="/brokers/alpaca", tags=["Alpaca"])
-alpaca_api = AlpacaAPI()
+alpaca_api = AlpacaService()
 
 
 @router.get("/oauth", response_model=GetOauthUrlResponse)
@@ -50,14 +50,18 @@ async def connect_alpaca(
     jwt: JWTPayload = Depends(depends_jwt()),
     db_sess: AsyncSession = Depends(depends_db_sess),
 ):
-    # TODO: Fetch broker accoutn id
+    account = await alpaca_api.get_account(body.api_key, body.secret_key)
+    account_id = account.get("account_number")
+    if account_id is None:
+        raise HTTPException(status_code=400, detail="Failed to fetch Alpaca account ID")
+    
     await db_sess.execute(
         insert(BrokerConnections).values(
             broker=BrokerType.ALPACA,
             user_id=jwt.sub,
             api_key=body.api_key,
             secret_key=body.secret_key,
-            broker_account_id="<TMP>",
+            broker_account_id=account_id,
         )
     )
     await db_sess.commit()
