@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from .strategies import Strategies
     from .broker_connections import BrokerConnections
     from .orders import Orders
+    from .account_snapshots import AccountSnapshots
 
 
 class StrategyDeployments(Base):
@@ -51,5 +52,8 @@ class StrategyDeployments(Base):
         back_populates="strategy_deployments"
     )
     orders: Mapped[list["Orders"]] = relationship(
+        back_populates="deployment", cascade="all, delete-orphan"
+    )
+    account_snapshots: Mapped[list["AccountSnapshots"]] = relationship(
         back_populates="deployment", cascade="all, delete-orphan"
     )

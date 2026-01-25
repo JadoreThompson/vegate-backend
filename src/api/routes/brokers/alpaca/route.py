@@ -19,7 +19,7 @@ alpaca_api = AlpacaAPI()
 
 @router.get("/oauth", response_model=GetOauthUrlResponse)
 async def get_oauth_url(jwt: JWTPayload = Depends(depends_jwt())):
-    url = await alpaca_api.get_oauth_url(jwt.sub, "paper")
+    url = await alpaca_api.get_oauth_url_v2(jwt.sub, "paper")
     return GetOauthUrlResponse(url=url)
 
 

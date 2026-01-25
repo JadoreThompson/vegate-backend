@@ -114,14 +114,6 @@ class OrderSide(str, Enum):
     SELL = "sell"
 
 
-class TimeInForce(str, Enum):
-    """Time-in-force options for orders."""
-
-    DAY = "day"  # Valid for the trading day
-    GTC = "gtc"  # Good till cancelled
-    IOC = "ioc"  # Immediate or cancel
-    FOK = "fok"  # Fill or kill
-
 
 class BrokerType(str, Enum):
     """Supported broker platforms."""

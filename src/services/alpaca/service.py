@@ -4,6 +4,7 @@ import string
 from urllib.parse import quote, urlencode
 from uuid import UUID
 
+import aiohttp
 from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,45 +15,18 @@ from config import (
     REDIS_ALPACA_OAUTH_PREFIX,
     REDIS_ALPACA_OAUTH_TTL_SECS,
 )
+from enums import BrokerType
 from infra.db.models import BrokerConnections
-from engine.enums import BrokerType
-from services import EncryptionService
 from infra.redis import REDIS_CLIENT
+from services import EncryptionService
+from .exc import AlpacaOauthError
 from .models import AlpacaOAuthPayload
 from .types import _RedisOAuthPayload, AlpacaTradingEnv
-from ..exc import BrokerOAuthError
-from ..base import BaseBrokerAPI
-from ..mixins import HTTPSessMixin
 
 
-class AlpacaAPI(HTTPSessMixin, BaseBrokerAPI):
+class AlpacaAPI:
     def __init__(self):
-        super().__init__()
-
-    # async def get_oauth_url(self, user_id: UUID, env: AlpacaTradingEnv) -> str:
-    #     """Generate OAuth URL for Alpaca authentication."""
-    #     state = "".join(random.choices(string.ascii_uppercase + string.digits, k=24))
-
-    #     base_url = "https://app.alpaca.markets/oauth/authorize"
-
-    #     params = (
-    #         ("response_type", "code"),
-    #         ("client_id", ALPACA_OAUTH_CLIENT_ID),
-    #         ("redirect_uri", quote(ALPACA_OAUTH_REDIRECT_URI)),
-    #         ("state", quote(state)),
-    #         ("scope", "trading"),
-    #         ("scope", "data"),
-    #     )
-    #     query_string = "&".join(f"{key}={value}" for key, value in params)
-
-    #     payload: _RedisOAuthPayload = {"user_id": str(user_id), "env": env}
-    #     await REDIS_CLIENT.set(
-    #         f"{REDIS_ALPACA_OAUTH_PREFIX}{state}",
-    #         json.dumps(payload),
-    #         ex=REDIS_ALPACA_OAUTH_TTL_SECS,
-    #     )
-
-    #     return f"{base_url}?{query_string}"
+        self._http_sess = aiohttp.ClientSession()
 
     async def get_oauth_url(self, user_id: UUID, env: AlpacaTradingEnv) -> str:
         """Generate OAuth URL for Alpaca authentication."""
@@ -60,14 +34,39 @@ class AlpacaAPI(HTTPSessMixin, BaseBrokerAPI):
 
         base_url = "https://app.alpaca.markets/oauth/authorize"
 
-        scopes = ["trading", "data"]  # add/remove as needed
+        params = (
+            ("response_type", "code"),
+            ("client_id", ALPACA_OAUTH_CLIENT_ID),
+            ("redirect_uri", quote(ALPACA_OAUTH_REDIRECT_URI)),
+            ("state", quote(state)),
+            ("scope", "trading"),
+            ("scope", "data"),
+        )
+        query_string = "&".join(f"{key}={value}" for key, value in params)
+
+        payload: _RedisOAuthPayload = {"user_id": str(user_id), "env": env}
+        await REDIS_CLIENT.set(
+            f"{REDIS_ALPACA_OAUTH_PREFIX}{state}",
+            json.dumps(payload),
+            ex=REDIS_ALPACA_OAUTH_TTL_SECS,
+        )
+
+        return f"{base_url}?{query_string}"
+
+    async def get_oauth_url_v2(self, user_id: UUID, env: AlpacaTradingEnv) -> str:
+        """Generate OAuth URL for Alpaca authentication."""
+        state = "".join(random.choices(string.ascii_uppercase + string.digits, k=24))
+
+        base_url = "https://app.alpaca.markets/oauth/authorize"
+
+        scopes = ["trading", "data"]
 
         params = {
             "response_type": "code",
             "client_id": ALPACA_OAUTH_CLIENT_ID,
             "redirect_uri": ALPACA_OAUTH_REDIRECT_URI,
             "state": state,
-            "scope": " ".join(scopes),  # 👈 space-delimited
+            "scope": " ".join(scopes),
         }
 
         query_string = urlencode(params)
@@ -106,7 +105,7 @@ class AlpacaAPI(HTTPSessMixin, BaseBrokerAPI):
             "redirect_uri": ALPACA_OAUTH_REDIRECT_URI,
         }
 
-        rsp = await self.http_session.post(
+        rsp = await self._http_sess.post(
             "https://api.alpaca.markets/oauth/token",
             headers={"Content-Type": "application/x-www-form-urlencoded"},
             data=body,
@@ -114,7 +113,7 @@ class AlpacaAPI(HTTPSessMixin, BaseBrokerAPI):
 
         data = await rsp.json()
         if not 200 <= rsp.status <= 300:
-            raise BrokerOAuthError(data["message"])
+            raise AlpacaOauthError(data["message"])
 
         data["env"] = payload["env"]
 

@@ -12,6 +12,7 @@ from config import REDIS_DEPLOYMENT_EVENTS_KEY
 from core.enums import DeploymentEventType, DeploymentStatus
 from core.events import DeploymentEvent
 from infra.db.models import (
+    AccountSnapshots,
     BrokerConnections,
     Orders,
     Strategies,
@@ -20,7 +21,7 @@ from infra.db.models import (
 )
 from engine.backtesting.metrics import calculate_sharpe_ratio, calculate_max_drawdown
 from engine.backtesting.types import EquityCurve
-from engine.enums import BrokerType, OrderSide, OrderStatus, Timeframe
+from enums import BrokerType, OrderSide, OrderStatus, Timeframe
 from services import PriceService
 from infra.redis import REDIS_CLIENT
 from utils import get_datetime
@@ -239,18 +240,27 @@ async def build_weekly_equity_graph(
     broker: BrokerType,
     db_sess: AsyncSession,
 ) -> EquityCurve:
-    result = await db_sess.execute(
-        select(Orders)
-        .where(
-            Orders.deployment_id == deployment.deployment_id,
-            Orders.status.in_((OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED)),
-        )
-        .order_by(Orders.filled_at.asc())
-    )
-    orders = list(result.scalars().all())
+    """Build a weekly equity graph using account snapshots.
 
-    if not orders or not deployment.starting_balance:
-        now = get_datetime()
+    Returns 6 data points spanning the last 7 days from equity snapshots.
+    """
+    # Get equity snapshots from the last 7 days
+    now = get_datetime()
+    week_ago = now - timedelta(days=7)
+
+    result = await db_sess.execute(
+        select(AccountSnapshots)
+        .where(
+            AccountSnapshots.deployment_id == deployment.deployment_id,
+            AccountSnapshots.snapshot_type == "equity",
+            AccountSnapshots.timestamp >= week_ago,
+        )
+        .order_by(AccountSnapshots.timestamp.asc())
+    )
+    snapshots = list(result.scalars().all())
+
+    # If no snapshots, return default graph with starting balance
+    if not snapshots:
         starting_balance = deployment.starting_balance or 0
         return [
             (now - timedelta(days=7), starting_balance),
@@ -261,8 +271,7 @@ async def build_weekly_equity_graph(
             (now, starting_balance),
         ]
 
-    now = get_datetime()
-    week_ago = now - timedelta(days=7)
+    # Define 6 target timestamps across the week
     timestamps = [
         week_ago,
         week_ago + timedelta(days=1.4),  # ~1.4 days
@@ -273,98 +282,26 @@ async def build_weekly_equity_graph(
     ]
 
     equity_graph: EquityCurve = []
-    starting_balance = deployment.starting_balance
 
-    for timestamp in timestamps:
-        # Calculate equity at this timestamp
-        cash = starting_balance
-        positions: dict[str, dict] = {}  # symbol -> {quantity, avg_price}
-        realised_pnl = 0
+    # For each target timestamp, find the closest snapshot
+    for target_time in timestamps:
+        # Find the snapshot closest to (but not after) this timestamp
+        closest_snapshot = None
+        min_diff = float("inf")
 
-        # Process all orders up to this timestamp
-        for order in orders:
-            if order.filled_at > timestamp:
-                break
+        for snapshot in snapshots:
+            time_diff = (target_time - snapshot.timestamp).total_seconds()
+            # Only consider snapshots at or before the target time
+            if time_diff >= 0 and time_diff < min_diff:
+                min_diff = time_diff
+                closest_snapshot = snapshot
 
-            symbol = order.symbol
-            side = order.side
-            quantity = order.filled_quantity
-            price = order.avg_fill_price
-
-            if not price or not quantity:
-                continue
-
-            # Initialize position if it doesn't exist
-            if symbol not in positions:
-                positions[symbol] = {"quantity": 0, "avg_price": 0}
-
-            position = positions[symbol]
-
-            if side == OrderSide.BUY:
-                cash -= quantity * price
-
-                total_cost = position["quantity"] * position["avg_price"]
-                new_cost = quantity * price
-                new_quantity = position["quantity"] + quantity
-
-                if new_quantity > 0:
-                    position["avg_price"] = (total_cost + new_cost) / new_quantity
-                position["quantity"] = new_quantity
-
-            elif side == OrderSide.SELL:
-                cash += quantity * price
-
-                if position["quantity"] > 0:
-                    sold_quantity = min(quantity, position["quantity"])
-                    pnl = (price - position["avg_price"]) * sold_quantity
-                    realised_pnl += pnl
-                    position["quantity"] -= sold_quantity
-
-                    if position["quantity"] == 0:
-                        position["avg_price"] = 0
-
-        # Calculate unrealised PnL using tick data at this timestamp
-        unrealised_pnl = 0
-        for symbol, position in positions.items():
-            if position["quantity"] > 0:
-                # Get price from ticks table at this timestamp
-                timestamp_ms = int(timestamp.timestamp() * 1000)
-
-                # Find the closest tick at or before this timestamp
-                tick_result = await db_sess.execute(
-                    select(Ticks)
-                    .where(
-                        Ticks.source == broker,
-                        Ticks.symbol == symbol,
-                        Ticks.market_type == deployment.market_type,
-                        Ticks.timestamp <= timestamp_ms,
-                    )
-                    .order_by(Ticks.timestamp.desc())
-                    .limit(1)
-                )
-                tick = tick_result.scalar_one_or_none()
-
-                if tick:
-                    market_price = tick.price
-                else:
-                    # Fallback to most recent order price if no tick data
-                    market_price = position["avg_price"]
-                    for order in reversed(orders):
-                        if (
-                            order.symbol == symbol
-                            and order.avg_fill_price
-                            and order.filled_at <= timestamp
-                        ):
-                            market_price = order.avg_fill_price
-                            break
-
-                unrealised_pnl += (market_price - position["avg_price"]) * position[
-                    "quantity"
-                ]
-
-        # Calculate total equity
-        equity = cash + unrealised_pnl
-        equity_graph.append((timestamp, equity))
+        if closest_snapshot:
+            equity_graph.append((target_time, closest_snapshot.value))
+        else:
+            # If no snapshot found before this time, use starting balance
+            starting_balance = deployment.starting_balance or 0
+            equity_graph.append((target_time, starting_balance))
 
     return equity_graph
 
@@ -422,18 +359,14 @@ async def calculate_deployment_metrics(
     broker: BrokerType,
     db_sess: AsyncSession,
 ) -> PerformanceMetrics:
+    """Calculate deployment metrics using account snapshots.
+
+    Uses the AccountSnapshots table to get equity and balance data,
+    which provides accurate tracking of account state over time.
+    """
     total_trades = await db_sess.scalar(
         select(func.count()).where(Orders.deployment_id == deployment.deployment_id)
     )
-    result = await db_sess.execute(
-        select(Orders)
-        .where(
-            Orders.deployment_id == deployment.deployment_id,
-            Orders.status.in_((OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED)),
-        )
-        .order_by(Orders.submitted_at.asc())
-    )
-    orders = result.scalars().all()
 
     starting_balance = deployment.starting_balance or 0
     default_metrics = PerformanceMetrics(
@@ -448,131 +381,62 @@ async def calculate_deployment_metrics(
     if not starting_balance:
         return default_metrics
 
-    if not orders:
-        return default_metrics
-    cur_price = await PriceService.get_price(broker, deployment.symbol)
-    if not cur_price:
-        logger.debug(f"Failed to find price for {deployment.symbol}")
-        return default_metrics
-
-    asset_points: list[Point] = []
-    asset_avg_price = 0.0
-    cur_balance = starting_balance
-    start_date: datetime = None
-    end_date: datetime = None
-    equity_curve = []
-
-    for order in orders:
-        filled_quantity = order.filled_quantity
-        filled_price = order.avg_fill_price
-        order_value = filled_quantity * filled_price
-
-        # Asset Balances
-        if not asset_points:
-            if order.side == OrderSide.BUY:
-                filled_qty = filled_quantity
-                cur_balance -= order_value
-                asset_avg_price = filled_price
-            else:
-                continue
-        else:
-            prev_point = asset_points[-1]
-
-            if order.side == OrderSide.BUY:
-                total_cost = prev_point.quantity * asset_avg_price + order_value
-                filled_qty = prev_point.quantity + filled_quantity
-                if filled_qty > 0:
-                    asset_avg_price = total_cost / filled_qty
-                cur_balance -= order_value
-            else:
-                filled_qty = prev_point.quantity - filled_quantity
-                cur_balance += order_value
-
-        # Dates
-        if start_date is None or order.submitted_at < start_date:
-            start_date = order.submitted_at
-        if end_date is None or order.filled_at > end_date:
-            end_date = order.filled_at
-
-        asset_points.append(
-            Point(
-                timestamp=order.filled_at,
-                quantity=filled_qty,
-            )
+    # Get equity snapshots ordered by timestamp
+    equity_result = await db_sess.execute(
+        select(AccountSnapshots)
+        .where(
+            AccountSnapshots.deployment_id == deployment.deployment_id,
+            AccountSnapshots.snapshot_type == "equity",
         )
-
-    # Equity Curve
-
-    time_diff = (end_date - start_date).total_seconds()
-
-    if time_diff < Timeframe.H1.get_seconds():
-        tf = Timeframe.m1
-    elif time_diff < Timeframe.D1.get_seconds():
-        tf = Timeframe.m5
-    elif time_diff < Timeframe.W1.get_seconds():
-        tf = Timeframe.H1
-    elif time_diff < Timeframe.m1.get_seconds():
-        tf = Timeframe.H4
-    else:
-        tf = Timeframe.D1
-
-    n_points = 5
-    price_points = await get_price_points(
-        broker, deployment.symbol, tf, start_date, end_date, db_sess, n=n_points
+        .order_by(AccountSnapshots.timestamp.asc())
     )
-    equity_curve = []
+    equity_snapshots = list(equity_result.scalars().all())
 
-    if price_points:
-        current_point_t, current_point_price = price_points[0]
-        price_points_idx = 0
-        equity_curve = [(current_point_t, starting_balance)]
-        cur_quantity = None
-        equity_curve_idx = 0
+    # Get balance snapshots ordered by timestamp
+    balance_result = await db_sess.execute(
+        select(AccountSnapshots)
+        .where(
+            AccountSnapshots.deployment_id == deployment.deployment_id,
+            AccountSnapshots.snapshot_type == "balance",
+        )
+        .order_by(AccountSnapshots.timestamp.asc())
+    )
+    balance_snapshots = list(balance_result.scalars().all())
 
-        for point in asset_points:
-            pts = int(point.timestamp.timestamp())
+    if not equity_snapshots or not balance_snapshots:
+        return default_metrics
 
-            while pts >= current_point_t:
-                if cur_quantity is None:
-                    continue
+    # Build equity curve from snapshots
+    equity_curve = [
+        (snapshot.timestamp, snapshot.value) for snapshot in equity_snapshots
+    ]
 
-                price_points_idx += 1
-                equity_curve_idx += 1
-                current_point_t, current_point_price = price_points[price_points_idx]
-                equity_curve.append(
-                    (current_point_t, cur_quantity * current_point_price)
-                )
+    # Get latest equity and balance values
+    latest_equity = equity_snapshots[-1].value
+    latest_balance = balance_snapshots[-1].value
 
-            cur_quantity = point.quantity
-            equity_curve[equity_curve_idx] = (
-                current_point_t,
-                cur_quantity * current_point_price,
-            )
+    # Calculate P&L
+    realised_pnl = latest_balance - starting_balance
+    unrealised_pnl = latest_equity - latest_balance
+    total_return_pct = (latest_equity - starting_balance) / starting_balance
 
-        for i in range(len(equity_curve)):
-            if equity_curve[i] is None:
-                t, price = price_points[i]
-                equity_curve[i] = (t, price * cur_quantity)
-    else:
-        equity_curve = []
-
-    unrealised_pnl = 0.0
-    avg_price = asset_avg_price
-    unrealised_pnl += (cur_price - avg_price) * asset_points[-1].quantity
-
-    # Calculate max drawdown
-    if equity_curve:
+    # Calculate Sharpe ratio from equity curve
+    if len(equity_curve) >= 2:
         sharpe_ratio = calculate_sharpe_ratio(equity_curve)
-        _, max_dd_pct = calculate_max_drawdown(equity_curve, [])
     else:
         sharpe_ratio = 0.0
+
+    # Calculate max drawdown from equity curve
+    if len(equity_curve) >= 2:
+        _, max_dd_pct = calculate_max_drawdown(equity_curve, [])
+    else:
         max_dd_pct = 0.0
 
     return PerformanceMetrics(
-        realised_pnl=cur_balance - starting_balance,
+        realised_pnl=realised_pnl,
         unrealised_pnl=unrealised_pnl,
         sharpe_ratio=sharpe_ratio,
-        total_return_pct=(cur_balance + unrealised_pnl) / starting_balance - 1,
+        total_return_pct=total_return_pct,
         max_drawdown=max_dd_pct,
         total_trades=total_trades,
         equity_curve=equity_curve,
