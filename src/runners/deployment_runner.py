@@ -19,7 +19,6 @@ from core.events import DeploymentEvent, DeploymentEventType
 from utils import get_datetime
 from services.alpaca import AlpacaOAuthPayload
 from services.encryption import EncryptionService
-from user_strategy import Strategy
 from .base import BaseRunner
 
 
@@ -187,6 +186,7 @@ class DeploymentRunner(BaseRunner):
             proxy_broker = ProxyBroker(self._deployment_id, broker)
 
             # Instantiate strategy
+            from user_strategy import Strategy
             strategy = Strategy(name=self._deployment_config.symbol, broker=proxy_broker)
             self._logger.info("Strategy instantiated")
 
