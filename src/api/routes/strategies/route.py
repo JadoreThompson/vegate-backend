@@ -224,7 +224,7 @@ async def list_strategy_summaries_endpoint(
         metrics = PerformanceMetrics(
             realised_pnl=metrics_data.get("realised_pnl", 0.0),
             unrealised_pnl=metrics_data.get("unrealised_pnl", 0.0),
-            total_return_pct=metrics_data.get("total_return", 0.0),
+            total_return_pct=metrics_data.get("total_return_pct", 0.0),
             sharpe_ratio=metrics_data.get("sharpe_ratio", 0.0),
             max_drawdown=metrics_data.get("max_drawdown", 0.0),
             total_trades=metrics_data.get("total_trades", 0),
