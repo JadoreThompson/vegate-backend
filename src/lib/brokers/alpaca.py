@@ -3,7 +3,7 @@ import json
 import logging
 import websockets
 from collections.abc import AsyncGenerator, Generator
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from alpaca.data.models import Bar
 from alpaca.trading.client import TradingClient
@@ -12,14 +12,16 @@ from alpaca.trading.enums import (
     OrderType as AlpacaOrderType,
     TimeInForce as AlpacaTimeInForce,
 )
+from alpaca.trading.models import Order as AlpacaOrder
 from alpaca.trading.requests import (
     MarketOrderRequest,
     LimitOrderRequest,
     StopOrderRequest,
     StopLimitOrderRequest,
+    ReplaceOrderRequest
 )
 
-from enums import OrderType, OrderStatus, Timeframe
+from enums import OrderSide, OrderType, OrderStatus, Timeframe
 from models import Order, OrderRequest, OHLC
 from .base import BaseBroker
 
@@ -89,42 +91,37 @@ class AlpacaBroker(BaseBroker):
         try:
             # Map our OrderType to Alpaca OrderType
             alpaca_order_type = self._map_order_type(order_request.order_type)
-
+            side = (
+                AlpacaOrderSide.BUY
+                if order_request.side == OrderSide.BUY
+                else AlpacaOrderSide.SELL
+            )
             # Create the appropriate Alpaca order request
             if alpaca_order_type == AlpacaOrderType.MARKET:
                 alpaca_request = MarketOrderRequest(
                     symbol=order_request.symbol,
+                    notional=order_request.notional,
                     qty=order_request.quantity,
-                    side=(
-                        AlpacaOrderSide.BUY
-                        if order_request.notional > 0
-                        else AlpacaOrderSide.SELL
-                    ),
-                    time_in_force=AlpacaTimeInForce.DAY,
+                    side=side,
+                    time_in_force=AlpacaTimeInForce.GTC,
                 )
             elif alpaca_order_type == AlpacaOrderType.LIMIT:
                 alpaca_request = LimitOrderRequest(
                     symbol=order_request.symbol,
+                    notional=order_request.notional,
                     qty=order_request.quantity,
-                    side=(
-                        AlpacaOrderSide.BUY
-                        if order_request.notional > 0
-                        else AlpacaOrderSide.SELL
-                    ),
+                    side=side,
                     limit_price=order_request.limit_price,
-                    time_in_force=AlpacaTimeInForce.DAY,
+                    time_in_force=AlpacaTimeInForce.GTC,
                 )
             elif alpaca_order_type == AlpacaOrderType.STOP:
                 alpaca_request = StopOrderRequest(
                     symbol=order_request.symbol,
+                    notional=order_request.notional,
                     qty=order_request.quantity,
-                    side=(
-                        AlpacaOrderSide.BUY
-                        if order_request.notional > 0
-                        else AlpacaOrderSide.SELL
-                    ),
+                    side=side,
                     stop_price=order_request.stop_price,
-                    time_in_force=AlpacaTimeInForce.DAY,
+                    time_in_force=AlpacaTimeInForce.GTC,
                 )
             elif alpaca_order_type == AlpacaOrderType.STOP_LIMIT:
                 alpaca_request = StopLimitOrderRequest(
@@ -178,10 +175,11 @@ class AlpacaBroker(BaseBroker):
 
             # Use replace_order_by_id to modify the order
             modified_alpaca_order = self.client.replace_order_by_id(
-                order_id=order_id,
-                qty=alpaca_order.qty,
-                limit_price=limit_price or alpaca_order.limit_price,
-                stop_price=stop_price or alpaca_order.stop_price,
+                alpaca_order.id,
+                ReplaceOrderRequest(
+                    limit_price=limit_price or alpaca_order.limit_price,
+                    stop_price=stop_price or alpaca_order.stop_price,
+                )
             )
 
             order = self._convert_alpaca_order(modified_alpaca_order)
@@ -205,6 +203,11 @@ class AlpacaBroker(BaseBroker):
         """
         try:
             self.client.cancel_order_by_id(order_id)
+
+            # Update the order status in cache
+            if order_id in self._orders:
+                self._orders[order_id].status = OrderStatus.CANCELLED
+
             self._logger.info(f"Order cancelled: {order_id}")
             return True
         except Exception as e:
@@ -218,9 +221,21 @@ class AlpacaBroker(BaseBroker):
             True if all orders cancelled successfully, False otherwise
         """
         try:
-            self.client.cancel_orders()
-            self._logger.info("All orders cancelled")
-            return True
+            # Get all orders first
+            orders = self.get_orders()
+
+            # Cancel each order individually
+            all_cancelled = True
+            for order in orders:
+                if not self.cancel_order(order.order_id):
+                    all_cancelled = False
+
+            if all_cancelled:
+                self._logger.info("All orders cancelled")
+            else:
+                self._logger.warning("Some orders failed to cancel")
+
+            return all_cancelled
         except Exception as e:
             self._logger.error(f"Failed to cancel all orders: {e}")
             return False
@@ -303,17 +318,17 @@ class AlpacaBroker(BaseBroker):
 
     async def _handle_stream_alpaca(self, symbol: str, timeframe: Timeframe) -> None:
         print(1)
-        async with websockets.connect("wss://stream.data.alpaca.markets/v2/iex") as ws:
-            print(2)
-            # auth_msg = {"action": "auth", "key": "oauth", "secret": self.oauth_token}
+        async with websockets.connect(
+            "wss://stream.data.alpaca.markets/v2/iex"
+            # "wss://stream.data.alpaca.markets/v1beta3/crypto/eu-1"
+        ) as ws:
             auth_msg = {
                 "action": "auth",
                 "key": self._api_key,
                 "secret": self._secret_key,
             }
-            print(3)
+
             await ws.send(json.dumps(auth_msg))
-            print(4)
 
             resp = await ws.recv()
             self._logger.info(f"Auth response: {resp}")
@@ -343,10 +358,13 @@ class AlpacaBroker(BaseBroker):
                 "is_intraday": is_intraday,
             }
 
+            # Skipping the first message which is usually a confirmation
+            message = await ws.recv()
+
             while True:
                 message = await ws.recv()
-                print(message)
-                await handler(message)
+                data = json.loads(message)
+                handler(data[0])
 
     def _on_minute_bar(self, bar: dict, timeframe_seconds: int) -> None:
         """Handle minute bar updates for intraday aggregation.
@@ -361,12 +379,13 @@ class AlpacaBroker(BaseBroker):
         state = self._aggregation_state
 
         # Convert bar timestamp to the candle period
-        print(bar)
-        bar_time = datetime.fromisoformat(bar["t"])
-        period_start = self._get_period_start(bar_time, timeframe_seconds)
+        bar_start = datetime.fromisoformat(bar["t"])
+        period_start = self._get_period_start(bar_start, timeframe_seconds)
 
-        # Initialize or update current candle
         if state["current_candle"] is None:
+            if period_start != bar_start:
+                return  # Not the start of a new candle yet
+
             state["current_candle"] = {
                 "open": bar["o"],
                 "high": bar["h"],
@@ -374,39 +393,34 @@ class AlpacaBroker(BaseBroker):
                 "close": bar["c"],
                 "volume": bar["v"],
                 "period_start": period_start,
+                "period_end": period_start + timedelta(seconds=timeframe_seconds),
             }
-        else:
-            current = state["current_candle"]
 
-            # Check if we've moved to a new period
-            if period_start > current["period_start"]:
-                # Create and push the completed candle to the queue
-                ohlc = OHLC(
-                    symbol=state["symbol"],
-                    timeframe=state["timeframe"],
-                    timestamp=current["period_start"],
-                    open=current["open"],
-                    high=current["high"],
-                    low=current["low"],
-                    close=current["close"],
-                    volume=current["volume"],
-                )
-                self._candle_queue.put_nowait(ohlc)
-                self._logger.debug(f"Completed candle: {ohlc}")
+        bar_end = bar_start + timedelta(seconds=timeframe_seconds)
+        cur_candle = state["current_candle"]
+        period_end = cur_candle["period_end"]
 
-                state["current_candle"] = {
-                    "open": bar["o"],
-                    "high": bar["h"],
-                    "low": bar["l"],
-                    "close": bar["c"],
-                    "volume": bar["v"],
-                    "period_start": period_start,
-                }
-            else:
-                current["high"] = max(current["high"], bar["h"])
-                current["low"] = min(current["low"], bar["l"])
-                current["close"] = bar["c"]
-                current["volume"] += bar["v"]
+        if bar_end <= period_end:
+            cur_candle["high"] = max(cur_candle["high"], bar["h"])
+            cur_candle["low"] = min(cur_candle["low"], bar["l"])
+            cur_candle["close"] = bar["c"]
+            cur_candle["volume"] += bar["v"]
+
+        if bar_end == period_end:
+            cur_candle = state["current_candle"]
+            ohlc = OHLC(
+                symbol=state["symbol"],
+                timeframe=state["timeframe"],
+                timestamp=cur_candle["period_start"],
+                open=cur_candle["open"],
+                high=cur_candle["high"],
+                low=cur_candle["low"],
+                close=cur_candle["close"],
+                volume=cur_candle["volume"],
+            )
+            self._candle_queue.put_nowait(ohlc)
+            self._logger.debug(f"Completed candle: {ohlc}")
+            state["current_candle"] = None
 
     def _on_daily_bar(self, bar: Bar) -> None:
         """Handle daily bar updates.
@@ -465,7 +479,7 @@ class AlpacaBroker(BaseBroker):
         }
         return mapping.get(order_type, AlpacaOrderType.MARKET)
 
-    def _convert_alpaca_order(self, alpaca_order) -> Order:
+    def _convert_alpaca_order(self, alpaca_order: AlpacaOrder) -> Order:
         """Convert an Alpaca order to our Order model.
 
         Args:
@@ -475,21 +489,27 @@ class AlpacaBroker(BaseBroker):
             Our Order model
         """
         return Order(
-            order_id=alpaca_order.id,
+            order_id=str(alpaca_order.id),
             symbol=alpaca_order.symbol,
-            quantity=float(alpaca_order.qty),
+            quantity=float(alpaca_order.qty) if alpaca_order.qty else None,
+            executed_quantity=float(alpaca_order.filled_qty),
             notional=float(alpaca_order.notional) if alpaca_order.notional else 0.0,
-            order_type=self._map_alpaca_order_type(alpaca_order.order_type),
-            price=(
-                float(alpaca_order.filled_avg_price)
-                if alpaca_order.filled_avg_price
-                else None
+            order_type=self._map_alpaca_order_type(alpaca_order.type),
+            side=(
+                OrderSide.BUY
+                if alpaca_order.side == AlpacaOrderSide.BUY
+                else OrderSide.SELL
             ),
             limit_price=(
                 float(alpaca_order.limit_price) if alpaca_order.limit_price else None
             ),
             stop_price=(
                 float(alpaca_order.stop_price) if alpaca_order.stop_price else None
+            ),
+            filled_avg_price=(
+                float(alpaca_order.filled_avg_price)
+                if alpaca_order.filled_avg_price
+                else None
             ),
             executed_at=alpaca_order.filled_at,
             submitted_at=alpaca_order.created_at,

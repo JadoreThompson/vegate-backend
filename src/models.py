@@ -21,7 +21,7 @@ class OrderRequest(BaseModel):
     """Represents an order request."""
 
     symbol: str
-    quantity: float
+    quantity: float | None = None
     notional: float | None = None
     order_type: OrderType
     side: OrderSide
@@ -34,7 +34,7 @@ class Order(BaseModel):
 
     order_id: str
     symbol: str
-    quantity: float
+    quantity: float | None = None
     executed_quantity: float
     notional: float | None = None
     order_type: OrderType
