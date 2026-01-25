@@ -1,3 +1,4 @@
+import subprocess
 import sys
 import time
 import logging
@@ -5,8 +6,8 @@ from multiprocessing import Process, Queue
 
 import click
 
-from runners import BacktestListenerRunner, RunnerConfig, APIRunner
-from runners.utils import run_runner
+from infra.db import write_db_url_alembic_ini
+from runners import BacktestListenerRunner, RunnerConfig, APIRunner, run_runner
 
 logger = logging.getLogger("commands.backend")
 
@@ -25,7 +26,8 @@ def backend():
     help="Number of worker processes",
     show_default=True,
 )
-def backend_run(workers):
+@click.option("--upgrade-db", is_flag=True, default=False, help="Upgrade the database")
+def backend_run(workers, upgrade_db):
     """
     Run the backend server.
     """
@@ -64,6 +66,10 @@ def backend_run(workers):
     for p in ps:
         p.start()
         logger.info(f"Started process '{p.name}' (PID: {p.pid}).")
+
+    if upgrade_db:
+        write_db_url_alembic_ini()
+        subprocess.run(["uv", "run", "alembic", "upgrade", "head"])
 
     exit_code = 1
     try:

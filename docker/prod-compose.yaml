@@ -25,7 +25,7 @@ services:
 
   backend:
     image: wifimemes/vegate-backend:latest
-    command: backend run
+    command: backend run --upgrade-db
     ports:
       - 8000:8000
     networks:
