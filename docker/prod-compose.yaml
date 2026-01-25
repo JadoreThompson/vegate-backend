@@ -51,18 +51,31 @@ services:
         delay: 3s
         monitor: 1m
 
-  # crypto_pipeline:
-  #   image: wifimemes/vegate-backend:latest
-  #   networks:
-  #     - vegate_network
-  #   command: pipeline run --broker alpaca --market crypto --symbol BTC/USD
-  #   deploy:
-  #     update_config:
-  #       parallelism: 1
-  #       order: start-first
-  #       failure_action: rollback
-  #       delay: 3s
-  #       monitor: 10s
+  event_handler:
+    image: wifimemes/vegate-backend:latest
+    command: events run
+    networks:
+      - vegate_network
+    deploy:
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+        delay: 3s
+        monitor: 1m
+
+  ohlc_loader:
+    image: wifimemes/vegate-backend:latest
+    command: loader run --broker alpaca --symbol AAPL --timeframe 1m --start-date 2021-01-01 --end-date 2026-01-01
+    networks:
+      - vegate_network
+    deploy:
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+        delay: 3s
+        monitor: 1m
 
   traefik:
     image: traefik:v3.6
@@ -82,12 +95,6 @@ services:
       placement:
         constraints:
           - node.role == manager # Swarm manager node
-
-  # db_upgrade:
-  #   image: wifimemes/gova-backend
-  #   networks:
-  #     - vegate_network
-  #   command: db upgrade
 
 volumes:
   postgres:

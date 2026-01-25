@@ -1,11 +1,11 @@
 import logging
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import AsyncIterator
 
 import aiohttp
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.timeframe import TimeFrame as AlpacaTimeFrame
-from sqlalchemy import insert
+from sqlalchemy import delete, insert, select
 
 from enums import BrokerType, Timeframe
 from infra.db.models import OHLCs
@@ -59,10 +59,6 @@ class AlpacaLoader(BaseLoader):
         async for bar_batch in self._fetch_bars(
             symbol, timeframe, start_date, end_date
         ):
-            # with open("f.json", "w") as f:
-            #     import json
-
-            #     json.dump(bar_batch, f)
             records = [
                 {
                     "source": BrokerType.ALPACA,
@@ -78,6 +74,34 @@ class AlpacaLoader(BaseLoader):
             ]
 
             async with get_db_sess() as db_sess:
+                sdate = records[0]["timestamp"]
+                edate = records[-1]["timestamp"]
+
+                res = await db_sess.execute(
+                    select(OHLCs).where(
+                        OHLCs.source == BrokerType.ALPACA,
+                        OHLCs.symbol == symbol,
+                        OHLCs.timeframe == timeframe,
+                        OHLCs.timestamp.between(sdate, edate),
+                    )
+                )
+
+                if res.first() is not None:
+                    self._logger.info(
+                        f"Existing OHLCs found for {symbol} from {sdate} to {edate}, deleting..."
+                    )
+                    await db_sess.execute(
+                        delete(OHLCs).where(
+                            OHLCs.source == BrokerType.ALPACA,
+                            OHLCs.symbol == symbol,
+                            OHLCs.timeframe == timeframe,
+                            OHLCs.timestamp.between(sdate, edate),
+                        )
+                    )
+
+                self._logger.info(
+                    f"Deleting existing OHLCs for {symbol} from {sdate} to {edate}"
+                )
                 await db_sess.execute(insert(OHLCs), records)
                 await db_sess.commit()
 
