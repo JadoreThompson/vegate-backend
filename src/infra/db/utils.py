@@ -1,6 +1,7 @@
 import configparser
 import os
 from contextlib import asynccontextmanager, contextmanager
+import shutil
 from typing import AsyncGenerator, Generator
 from urllib.parse import quote
 
@@ -48,6 +49,10 @@ def write_db_url_alembic_ini():
 
     config = configparser.ConfigParser()
     fp = os.path.join(PROJECT_PATH, "alembic.ini")
+    example_fp = os.path.join(PROJECT_PATH, "alembic.ini.example")
+
+    if not os.path.exists(fp):
+        shutil.copyfile(example_fp, fp)
 
     config.read(fp)
     config["alembic"]["sqlalchemy.url"] = db_url
