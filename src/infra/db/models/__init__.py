@@ -7,6 +7,7 @@ from infra.db.models.strategy_deployments import StrategyDeployments
 from infra.db.models.orders import Orders
 from infra.db.models.ticks import Ticks
 from infra.db.models.ohlcs import OHLCs
+from infra.db.models.account_snapshots import AccountSnapshots
 
 __all__ = [
     "Base",
@@ -20,4 +21,5 @@ __all__ = [
     "Orders",
     "Ticks",
     "OHLCs",
+    "AccountSnapshots",
 ]

@@ -1,11 +1,11 @@
 import asyncio
 import logging
 
-from services.order_event_handler import OrderEventHandler
+from services.event_handler import OrderEventHandler
 from .base import BaseRunner
 
 
-class OrderEventRunner(BaseRunner):
+class EventRunner(BaseRunner):
     """Runs the order event handler to listen for and process order events."""
 
     def __init__(self):

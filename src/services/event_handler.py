@@ -6,9 +6,10 @@ from uuid import UUID
 from redis.asyncio import Redis
 
 from config import REDIS_ORDER_EVENTS_KEY
-from events.order import OrderPlaced, OrderCancelled, OrderModified
+from events.order import OrderEventType, OrderPlaced, OrderCancelled, OrderModified
+from events.snapshot import SnapshotCreated, SnapshotEventType
 from infra.db import get_db_sess_sync
-from infra.db.models import Orders
+from infra.db.models import Orders, AccountSnapshots
 from infra.redis import REDIS_CLIENT
 from utils import get_datetime
 
@@ -58,12 +59,14 @@ class OrderEventHandler:
         """
         event_type = event_data.get("type")
 
-        if event_type == "order_placed":
+        if event_type == OrderEventType.ORDER_PLACED:
             await self._handle_order_placed(event_data)
-        elif event_type == "order_cancelled":
+        elif event_type == OrderEventType.ORDER_CANCELLED:
             await self._handle_order_cancelled(event_data)
-        elif event_type == "order_modified":
+        elif event_type == OrderEventType.ORDER_MODIFIED:
             await self._handle_order_modified(event_data)
+        elif event_type == SnapshotEventType.SNAPSHOT_CREATED:
+            await self._handle_snapshot_created(event_data)
         else:
             self._logger.warning(f"Unknown order event type: {event_type}")
 
@@ -81,16 +84,30 @@ class OrderEventHandler:
             with get_db_sess_sync() as db_sess:
                 # Create new order record
                 db_order = Orders(
-                    order_id=UUID(order.order_id) if isinstance(order.order_id, str) else order.order_id,
+                    order_id=(
+                        UUID(order.order_id)
+                        if isinstance(order.order_id, str)
+                        else order.order_id
+                    ),
                     symbol=order.symbol,
-                    side=order.side.value if hasattr(order.side, 'value') else order.side,
-                    order_type=order.order_type.value if hasattr(order.order_type, 'value') else order.order_type,
+                    side=(
+                        order.side.value if hasattr(order.side, "value") else order.side
+                    ),
+                    order_type=(
+                        order.order_type.value
+                        if hasattr(order.order_type, "value")
+                        else order.order_type
+                    ),
                     quantity=order.quantity,
                     filled_quantity=order.executed_quantity,
                     limit_price=order.limit_price,
                     stop_price=order.stop_price,
                     avg_fill_price=order.filled_avg_price,
-                    status=order.status.value if hasattr(order.status, 'value') else order.status,
+                    status=(
+                        order.status.value
+                        if hasattr(order.status, "value")
+                        else order.status
+                    ),
                     time_in_force="day",
                     submitted_at=order.submitted_at or get_datetime(),
                     filled_at=order.executed_at,
@@ -130,10 +147,14 @@ class OrderEventHandler:
 
             with get_db_sess_sync() as db_sess:
                 # Find and update order status
-                db_order = db_sess.query(Orders).filter(
-                    Orders.client_order_id == order_id,
-                    Orders.deployment_id == deployment_id,
-                ).first()
+                db_order = (
+                    db_sess.query(Orders)
+                    .filter(
+                        Orders.client_order_id == order_id,
+                        Orders.deployment_id == deployment_id,
+                    )
+                    .first()
+                )
 
                 if db_order:
                     db_order.status = "cancelled"
@@ -170,17 +191,25 @@ class OrderEventHandler:
 
             with get_db_sess_sync() as db_sess:
                 # Find and update order
-                db_order = db_sess.query(Orders).filter(
-                    Orders.client_order_id == order.order_id,
-                    Orders.deployment_id == deployment_id,
-                ).first()
+                db_order = (
+                    db_sess.query(Orders)
+                    .filter(
+                        Orders.client_order_id == order.order_id,
+                        Orders.deployment_id == deployment_id,
+                    )
+                    .first()
+                )
 
                 if db_order:
                     # Update order fields
                     db_order.quantity = order.quantity
                     db_order.limit_price = order.limit_price
                     db_order.stop_price = order.stop_price
-                    db_order.status = order.status.value if hasattr(order.status, 'value') else order.status
+                    db_order.status = (
+                        order.status.value
+                        if hasattr(order.status, "value")
+                        else order.status
+                    )
                     db_sess.commit()
                     self._logger.info(
                         f"Order modified: {order.order_id} for deployment {deployment_id}"
@@ -192,4 +221,36 @@ class OrderEventHandler:
 
         except Exception as e:
             self._logger.exception(f"Error handling order modified event: {e}")
+            raise
+
+    async def _handle_snapshot_created(self, event_data: dict) -> None:
+        """Handle snapshot created event.
+
+        Args:
+            event_data: Event data containing snapshot details
+        """
+        try:
+            event = SnapshotCreated(**event_data)
+            deployment_id = event.deployment_id
+            snapshot_type = event.snapshot_type
+            value = event.value
+
+            with get_db_sess_sync() as db_sess:
+                # Create new snapshot record
+                db_snapshot = AccountSnapshots(
+                    deployment_id=deployment_id,
+                    timestamp=datetime.fromtimestamp(event.timestamp),
+                    snapshot_type=snapshot_type,
+                    value=value,
+                )
+
+                db_sess.add(db_snapshot)
+                db_sess.commit()
+
+                self._logger.info(
+                    f"Snapshot created: {snapshot_type.value} = {value} for deployment {deployment_id}"
+                )
+
+        except Exception as e:
+            self._logger.exception(f"Error handling snapshot created event: {e}")
             raise

@@ -199,3 +199,10 @@ class PricingTierType(str, Enum):
     FREE = "free"
     PRO = "pro"
     ENTERPRISE = "enterprise"
+
+
+class SnapshotType(str, Enum):
+    """Types of account snapshots."""
+
+    EQUITY = "equity"
+    BALANCE = "balance"

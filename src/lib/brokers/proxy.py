@@ -3,19 +3,24 @@ from uuid import UUID
 
 from redis import Redis
 
-from config import REDIS_ORDER_EVENTS_KEY
+from config import REDIS_ORDER_EVENTS_KEY, REDIS_SNAPSHOT_EVENTS_KEY
+from enums import SnapshotType, Timeframe
 from events.order import OrderCancelled, OrderModified, OrderPlaced
+from events.snapshot import SnapshotCreated
 from infra.redis.client import REDIS_CLIENT_SYNC
 from models import OHLC, Order, OrderRequest
-from enums import Timeframe
 from .base import BaseBroker
-
 
 
 class ProxyBroker(BaseBroker):
     """Proxy broker that wraps another broker and emits events for order operations."""
 
-    def __init__(self, deployment_id: UUID, broker: BaseBroker,  redis_client: Redis = REDIS_CLIENT_SYNC):
+    def __init__(
+        self,
+        deployment_id: UUID,
+        broker: BaseBroker,
+        redis_client: Redis = REDIS_CLIENT_SYNC,
+    ):
         """Initialize the proxy broker.
 
         Args:
@@ -29,7 +34,7 @@ class ProxyBroker(BaseBroker):
 
     def get_balance(self):
         return self.broker.get_balance()
-    
+
     def get_equity(self):
         return self.broker.get_equity()
 
@@ -44,7 +49,6 @@ class ProxyBroker(BaseBroker):
         """
         order = self.broker.place_order(order_request)
         event = OrderPlaced(deployment_id=self.deployment_id, order=order)
-        # self.producer.send("orders", json.dumps(event.model_dump()).encode())
         self.redis_client.publish(REDIS_ORDER_EVENTS_KEY, event.model_dump_json())
         return order
 
@@ -65,8 +69,9 @@ class ProxyBroker(BaseBroker):
             Modified Order object
         """
         order = self.broker.modify_order(order_id, limit_price, stop_price)
-        event = OrderModified(deployment_id=self.deployment_id, order=order, success=True)
-        # self.producer.send("orders", json.dumps(event.model_dump()).encode())
+        event = OrderModified(
+            deployment_id=self.deployment_id, order=order, success=True
+        )
         self.redis_client.publish(REDIS_ORDER_EVENTS_KEY, event.model_dump_json())
         return order
 
@@ -83,7 +88,6 @@ class ProxyBroker(BaseBroker):
         event = OrderCancelled(
             deployment_id=self.deployment_id, order_id=order_id, success=success
         )
-        # self.producer.send("orders", json.dumps(event.model_dump()).encode())
         self.redis_client.publish(REDIS_ORDER_EVENTS_KEY, event.model_dump_json())
         return success
 
@@ -117,7 +121,7 @@ class ProxyBroker(BaseBroker):
     def stream_candles(
         self, symbol: str, timeframe: Timeframe
     ) -> Generator[OHLC, None, None]:
-        """Stream candles synchronously.
+        """Stream candles synchronously and emit snapshot events.
 
         Args:
             symbol: Trading symbol
@@ -126,12 +130,35 @@ class ProxyBroker(BaseBroker):
         Yields:
             OHLC candles
         """
-        return self.broker.stream_candles(symbol, timeframe)
+        for candle in self.broker.stream_candles(symbol, timeframe):
+            # Emit equity snapshot event
+            equity = self.broker.get_equity()
+            equity_event = SnapshotCreated(
+                deployment_id=self.deployment_id,
+                snapshot_type=SnapshotType.EQUITY,
+                value=equity,
+            )
+            self.redis_client.publish(
+                REDIS_SNAPSHOT_EVENTS_KEY, equity_event.model_dump_json()
+            )
+
+            # Emit balance snapshot event
+            balance = self.broker.get_balance()
+            balance_event = SnapshotCreated(
+                deployment_id=self.deployment_id,
+                snapshot_type=SnapshotType.BALANCE,
+                value=balance,
+            )
+            self.redis_client.publish(
+                REDIS_SNAPSHOT_EVENTS_KEY, balance_event.model_dump_json()
+            )
+
+            yield candle
 
     async def stream_candles_async(
         self, symbol: str, timeframe: Timeframe
     ) -> AsyncGenerator[OHLC, None]:
-        """Stream candles asynchronously.
+        """Stream candles asynchronously and emit snapshot events.
 
         Args:
             symbol: Trading symbol
@@ -141,4 +168,26 @@ class ProxyBroker(BaseBroker):
             OHLC candles
         """
         async for candle in self.broker.stream_candles_async(symbol, timeframe):
+            # Emit equity snapshot event
+            equity = self.broker.get_equity()
+            equity_event = SnapshotCreated(
+                deployment_id=self.deployment_id,
+                snapshot_type=SnapshotType.EQUITY,
+                value=equity,
+            )
+            self.redis_client.publish(
+                REDIS_SNAPSHOT_EVENTS_KEY, equity_event.model_dump_json()
+            )
+
+            # Emit balance snapshot event
+            balance = self.broker.get_balance()
+            balance_event = SnapshotCreated(
+                deployment_id=self.deployment_id,
+                snapshot_type=SnapshotType.BALANCE,
+                value=balance,
+            )
+            self.redis_client.publish(
+                REDIS_SNAPSHOT_EVENTS_KEY, balance_event.model_dump_json()
+            )
+
             yield candle
