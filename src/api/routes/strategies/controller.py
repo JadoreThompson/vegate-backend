@@ -750,7 +750,7 @@ async def create_backtest(
     # Step 5: Push backtest_id to queue for processing
     backtest_queue = get_backtest_queue()
     if backtest_queue is not None:
-        backtest_queue.put(new_backtest.backtest_id)
+        backtest_queue.put({"backtest_id": str(new_backtest.backtest_id)})
     else:
         logger.info("Backtest queue not set.")
     return new_backtest
