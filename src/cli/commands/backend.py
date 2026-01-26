@@ -38,7 +38,6 @@ def backend_run(workers, upgrade_db):
     configs = [
         RunnerConfig(
             cls=APIRunner,
-            name="ServerRunner",
             args=(backtest_queue,),
             kwargs={
                 "host": "0.0.0.0",
@@ -49,7 +48,6 @@ def backend_run(workers, upgrade_db):
         ),
         RunnerConfig(
             cls=BacktestListenerRunner,
-            name="BacktestListenerRunner",
             args=(backtest_queue,),
         ),
     ]
