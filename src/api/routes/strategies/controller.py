@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 import logging
 from uuid import UUID
 
@@ -711,14 +712,16 @@ async def create_backtest(
         )
 
     # Step 3: Check if OHLC data exists for the specified period
+    date_to_utc_timestamp = lambda d: datetime(
+        d.year, d.month, d.day, tzinfo=UTC
+    ).timestamp()
     ohlc_count = await db_sess.scalar(
-        select(OHLCs)
-        .where(
+        select(OHLCs).where(
             OHLCs.source == broker_type.value,
             OHLCs.symbol == data.symbol,
             OHLCs.timeframe == data.timeframe,
-            OHLCs.timestamp >= int(data.start_date.timestamp()),
-            OHLCs.timestamp < int(data.end_date.timestamp()),
+            OHLCs.timestamp >= int(date_to_utc_timestamp(data.start_date)),
+            OHLCs.timestamp < int(date_to_utc_timestamp(data.end_date)),
         )
     )
 
