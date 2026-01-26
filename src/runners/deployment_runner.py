@@ -7,7 +7,6 @@ from uuid import UUID
 from sqlalchemy import update
 
 from config import BASE_PATH, REDIS_DEPLOYMENT_EVENTS_KEY
-from core.enums import DeploymentStatus
 from enums import BrokerType, DeploymentStatus
 from infra.db.models import BrokerConnections, StrategyDeployments, Strategies
 from lib.brokers import AlpacaBroker, ProxyBroker
@@ -15,7 +14,7 @@ from lib.strategy_manager import StrategyManager
 from models import DeploymentConfig
 from infra.db import get_db_sess_sync
 from infra.redis import REDIS_CLIENT
-from core.events import DeploymentEvent, DeploymentEventType
+from events.deployment import DeploymentEventType
 from utils import get_datetime
 from services.alpaca import AlpacaOAuthPayload
 from services.encryption import EncryptionService
@@ -225,17 +224,19 @@ class DeploymentRunner(BaseRunner):
                     if message["type"] == "message":
                         try:
                             event_data = json.loads(message["data"])
-                            event = DeploymentEvent(**event_data)
+                            # event = DeploymentEvent(**event_data)
+                            event_type = event_data['type']
+                            deployment_id = UUID(event_data['deployment_id'])
 
                             # Only handle events for this deployment
-                            if event.deployment_id != self._deployment_id:
+                            if deployment_id != self._deployment_id:
                                 continue
 
                             self._logger.info(
-                                f"Received event: {event.type} for deployment {event.deployment_id}"
+                                f"Received event: {event_type} for deployment {deployment_id}"
                             )
 
-                            if event.type == DeploymentEventType.STOP:
+                            if event_type == DeploymentEventType.STOP:
                                 self._logger.info(
                                     f"Stop event received for deployment {self._deployment_id}"
                                 )

@@ -173,23 +173,23 @@ The backend includes a comprehensive CLI for managing the platform:
 
 ```bash
 # Start all backend processes
-uv run vegate backend run
+uv run src/main.py backend run
 ```
 
 ### Database Operations
 
 ```bash
 # Run migrations
-uv run vegate db migrate
+uv run src/main.py db migrate
 
 # Create a new migration
-uv run vegate db revision -m "description"
+uv run src/main.py db revision -m "description"
 
 # Rollback migration
-uv run vegate db downgrade
+uv run src/main.py db downgrade
 
 # Reset database (caution: deletes all data)
-uv run vegate db reset
+uv run src/main.py db reset
 ```
 
 ### Backtesting
@@ -207,11 +207,11 @@ uv run vegate backtest run \
 uv run vegate deployment run --deployment-id <deployment-id>
 ```
 
-### Data Pipeline
+### Data Loader
 
 ```bash
-# Start market data listener
-uv run vegate pipeline run --broker alpaca --symbol SPY --market stocks --timeframe 1m
+# Load historical candles from broker and persist to database
+uv run vegate loader run --broker alpaca --symbol SPY --timeframe 1d --start-date 2024-01-01 --end-date 2024-12-31
 ```
 
 ---
@@ -224,7 +224,7 @@ The backtesting engine simulates strategy execution against historical data:
 
 ```python
 from engine.backtesting import BacktestEngine, BacktestConfig
-from engine.enums import Timeframe
+from enums import Timeframe
 from datetime import date
 
 config = BacktestConfig(
@@ -232,7 +232,7 @@ config = BacktestConfig(
     start_date=date(2023, 1, 1),
     end_date=date(2023, 12, 31),
     starting_balance=100000.0,
-    timeframe=Timeframe.DAY_1
+    timeframe=Timeframe.D1
 )
 
 engine = BacktestEngine(strategy=my_strategy, config=config)
@@ -245,25 +245,27 @@ print(f"Max Drawdown: {result.max_drawdown:.2f}%")
 
 #### Strategy Base Class
 
-All strategies inherit from [`BaseStrategy`](src/engine/strategy/base.py):
+All strategies inherit from [`BaseStrategy`](src/lib/strategy.py):
 
 ```python
-from engine.strategy import BaseStrategy, StrategyContext
+from enums import orderType, OrderSide
+from lib.strategy import BaseStrategy
+from models import OHLC, OrderRequest
 
 class MyStrategy(BaseStrategy):
-    def on_candle(self, context: StrategyContext):
+    def on_candle(self, candle: OHLC):
         """Called for each new candle"""
-        candle = context.current_candle
-
         # Your trading logic here
-        if should_buy(candle):
-            context.broker.submit_order(OrderRequest(
+        if self._should_buy(candle):
+            self.broker.place_order(OrderRequest(
                 symbol=candle.symbol,
                 order_type=OrderType.MARKET,
                 side=OrderSide.BUY,
-                time_in_force=TimeInForce.GTC,
-                qty=0.01,
+                quantity=0.01,
             ))
+
+    def _should_buy(self, candle: OHLC):
+        return True
 
     def cleanup(self):
         """Cleanup resources"""
@@ -272,23 +274,22 @@ class MyStrategy(BaseStrategy):
 
 #### Broker Interface
 
-Unified broker interface in [`BaseBroker`](src/engine/brokers/base.py):
+Unified broker interface in [`BaseBroker`](src/lib/brokers/base.py):
 
 ```python
-from engine.brokers import AlpacaBroker
+from lib.brokers import AlpacaBroker
 
 broker = AlpacaBroker(
-    deployment_id="...",
     oauth_token="...",
     paper=True
 )
 
 # Get account info
-account = broker.get_account()
-print(f"Cash: ${account.cash}")
+balance = broker.get_balance()
+print(f"Balance: ${balance}")
 
 # Stream live data
-async for candle in broker.yield_ohlcv_async("SPY", Timeframe.m1):
+async for candle in broker.stream_candle_async("SPY", Timeframe.m1):
     print(f"Price: ${candle.close}")
 ```
 

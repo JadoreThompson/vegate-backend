@@ -10,19 +10,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.shared.models import PerformanceMetrics
 from config import REDIS_DEPLOYMENT_EVENTS_KEY
-from core.enums import DeploymentEventType, DeploymentStatus
-from core.events import DeploymentEvent
+from enums import BrokerType, Timeframe, DeploymentStatus
+from events.deployment import DeploymentStopEvent
 from infra.db.models import (
     AccountSnapshots,
     BrokerConnections,
     Orders,
     Strategies,
     StrategyDeployments,
-    Ticks,
 )
-from enums import BrokerType, OrderSide, OrderStatus, Timeframe
-from models import EquityCurvePoint
 from infra.redis import REDIS_CLIENT
+from models import EquityCurvePoint
 from utils import get_datetime
 from .models import DeployStrategyRequest
 
@@ -340,7 +338,7 @@ async def stop_deployment(
     await db_sess.flush()
     await db_sess.refresh(deployment)
 
-    event = DeploymentEvent(type=DeploymentEventType.STOP, deployment_id=deployment_id)
+    event = DeploymentStopEvent(deployment_id=deployment_id)
     await REDIS_CLIENT.publish(REDIS_DEPLOYMENT_EVENTS_KEY, event.model_dump_json())
 
     return deployment

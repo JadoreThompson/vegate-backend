@@ -3,8 +3,8 @@ from typing import Literal
 from pydantic import BaseModel, field_validator
 
 from api.exc import CustomValidationError
-from core.enums import PricingTierType
-from core.models import CustomBaseModel
+from enums import PricingTierType
+from models import CustomBaseModel
 
 
 class PasswordField(BaseModel):

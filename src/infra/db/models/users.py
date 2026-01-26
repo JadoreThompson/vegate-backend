@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import DateTime, String, UUID as SaUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from core.enums import PricingTierType
+from enums import PricingTierType
 from utils import get_datetime, get_uuid
 from .base import Base, datetime_tz
 
