@@ -34,23 +34,22 @@ jobs:
         run: |
           TAG=$(openssl rand -hex 16)
 
-          docker build \
+          sudo docker build \
             -f docker/Dockerfile \
             -t wifimemes/vegate-backend:$TAG \
             -t wifimemes/vegate-backend:latest \
             --no-cache \
             .
 
-          docker push wifimemes/vegate-backend:latest
-          docker push wifimemes/vegate-backend:$TAG
+          sudo docker push wifimemes/vegate-backend:latest
+          sudo docker push wifimemes/vegate-backend:$TAG
 
       - name: Initialise swarm manager
-        run: docker swarm init || true
-
+        run: sudo docker swarm init || true
       - name: Create network
         run: |
-          if ! docker network inspect vegate_network >/dev/null 2>&1; then
-            docker network create \
+          if ! sudo docker network inspect vegate_network >/dev/null 2>&1; then
+            sudo docker network create \
               --driver overlay \
               --attachable vegate_network
           fi
@@ -69,10 +68,10 @@ jobs:
 
       - name: Deploy stack
         run: |
-          docker stack deploy \
+          sudo docker stack deploy \
             -c docker/docker-compose.yaml \
             -d=false \
             vegate_stack
 
       - name: Cleanup
-        run: docker system prune -af
+        run: sudo docker system prune -af
