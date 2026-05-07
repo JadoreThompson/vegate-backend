@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import AsyncIterator
 
 import aiohttp
@@ -157,8 +157,16 @@ class AlpacaOHLCLoader(BaseOHLCLoader):
 
             rsp = await self._http_sess.get(url, params=params)
             data: dict = await rsp.json()
+            if rsp.status == 403 and data.get("message") == "subscription does not permit querying recent SIP data":
+                page_count -= 1
+                params['end'] = (datetime.strptime(params['end'], "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+                self._logger.warning(
+                    f"Received 403 with message 'subscription does not permit querying recent SIP data'. "
+                    f"Decrementing end date by 1 day to {params['end']} and retrying..."
+                )
+                continue
             if not rsp.ok:
-                raise RuntimeError(f"Error in client response {data}")
+                raise RuntimeError(f"Error in client response status: {rsp.status} - {data}")
 
             yield data["bars"][symbol.upper()]
 

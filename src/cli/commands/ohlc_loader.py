@@ -8,6 +8,7 @@ from enums import BrokerType, Timeframe
 from runners import LoaderRunner, RunnerConfig
 from runners.loader_runner import LoaderConfig
 from service.ohlc.loader import AlpacaOHLCLoader
+from utils import get_datetime
 
 logger = logging.getLogger("commands.loader")
 
@@ -47,7 +48,8 @@ def loader():
 @click.option(
     "--end-date",
     type=click.DateTime(formats=["%Y-%m-%d"]),
-    required=True,
+    # required=True,
+    default=get_datetime().date().strftime("%Y-%m-%d"),
     help="End date (YYYY-MM-DD)",
 )
 @click.option(
