@@ -19,3 +19,6 @@ class OHLCLoadStartRecord(LogRecord):
 class OHLCLoadCompleteRecord(LogRecord):
     type: LogRecordType = LogRecordType.OHLC_LOAD_COMPLETE
     count: int
+
+
+OHLCLogRecord = OHLCLoadStartRecord | OHLCLoadCompleteRecord

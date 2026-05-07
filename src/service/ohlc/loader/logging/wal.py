@@ -12,9 +12,11 @@ class WALogger:
         self._broker_type = broker_type
         self._symbol = symbol
         self._timeframe = timeframe
+        if not os.path.exists(OHLC_LOG_FOLDER):
+            os.makedirs(OHLC_LOG_FOLDER)
         self._fname = os.path.join(
-            OHLC_LOG_FOLDER, broker_type.value, symbol, timeframe.value
-        ) + ".log"
+            OHLC_LOG_FOLDER, f"{broker_type.value}_{symbol}_{timeframe.value}.log"
+        )
 
     @property
     def broker_type(self) -> BrokerType:
@@ -37,7 +39,7 @@ class WALogger:
         with open(self._fname, "a") as f:
             f.write(record.model_dump_json() + "\n")
 
-    def read_logs(self) -> Generator[LogRecord]:
+    def read_logs(self) -> Generator[LogRecord, None, None]:
         """Read log records from the WAL file."""
         if not os.path.exists(self._fname):
             return
