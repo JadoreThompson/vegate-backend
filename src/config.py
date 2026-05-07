@@ -98,6 +98,9 @@ RAILWAY_PROJECT_ID = os.getenv("RAILWAY_PROJECT_ID")
 RAILWAY_SERVICE_IMAGE = os.getenv("RAILWAY_SERVICE_IMAGE")
 RAILWAY_ENVIRONMENT_ID = os.getenv("RAILWAY_ENVIRONMENT_ID")
 
+# OHLC Loaders
+OHLC_LOG_FOLDER = os.getenv("OHLC_LOG_FOLDER", "ohlc_loader_logs")
+
 # Logging
 logging.basicConfig(
     filename="app.log",
