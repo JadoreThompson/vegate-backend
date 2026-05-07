@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timedelta
 
@@ -9,6 +10,7 @@ from sqlalchemy import delete, func, insert, select
 from enums import BrokerType, MarketType, Timeframe
 from infra.db.models import OHLCs
 from infra.db.utils import get_db_sess
+from service.ohlc.loader.loader_config import LoaderConfig
 from service.ohlc.loader.logging.record import (
     OHLCLoadCompleteRecord,
     OHLCLoadStartRecord,
@@ -37,11 +39,29 @@ class AlpacaOHLCLoader(BaseOHLCLoader):
         self._walogger: WALogger | None = None
         self._http_sess: aiohttp.ClientSession | None = None
         self.client = StockHistoricalDataClient(api_key, secret_key)
+        self._last_record: OHLCLogRecord | None = None
 
     def _get_walogger(self, symbol: str, timeframe: Timeframe) -> WALogger:
         if self._walogger is None:
             self._walogger = WALogger(BrokerType.ALPACA, self._format_symbol(symbol), timeframe)
         return self._walogger
+    
+    async def run(self, config: LoaderConfig) -> None:
+        async def load_candles():
+            await self.load_candles(
+                config.symbol,
+                config.market_type,
+                config.timeframe,
+                config.start_date,
+                config.end_date
+            )
+
+        await load_candles()
+
+        while True:
+            self._logger.info(f"Sleeping for {config.poll_interval} seconds before next poll...")
+            await asyncio.sleep(config.poll_interval)
+            await load_candles()
 
     async def load_candles(
         self,
@@ -55,7 +75,9 @@ class AlpacaOHLCLoader(BaseOHLCLoader):
         fmt_symbol = self._format_symbol(symbol)
         total_bars = 0
         walogger = self._get_walogger(symbol, timeframe)
-        last_record = self._restore(symbol, timeframe)
+        
+        if self._last_record is None:
+            self._last_record = self._restore(symbol, timeframe)
 
         async for bar_batch, fetch_params in self._fetch_bars(
             symbol,
@@ -63,13 +85,14 @@ class AlpacaOHLCLoader(BaseOHLCLoader):
             timeframe,
             start_date,
             end_date,
-            last_record.params if last_record is not None else None,
+            self._last_record.params if self._last_record is not None else None,
         ):
-            walogger.log(OHLCLoadStartRecord(params=fetch_params))
+            self._last_record = OHLCLoadStartRecord(params=fetch_params)
+            walogger.log(self._last_record)
             records = [
                 {
                     "source": BrokerType.ALPACA,
-                    "symbol": symbol,
+                    "symbol": fmt_symbol,
                     "open": bar["o"],
                     "high": bar["h"],
                     "low": bar["l"],
@@ -104,9 +127,8 @@ class AlpacaOHLCLoader(BaseOHLCLoader):
                         self._logger.info(
                             "Count matches, skipping deletion and insertion"
                         )
-                        walogger.log(
-                            OHLCLoadCompleteRecord(params=fetch_params, count=count)
-                        )
+                        self._last_record = OHLCLoadCompleteRecord(params=fetch_params, count=count)
+                        walogger.log(self._last_record)
                         continue
 
                     self._logger.info(
@@ -128,7 +150,9 @@ class AlpacaOHLCLoader(BaseOHLCLoader):
                 await db_sess.execute(insert(OHLCs), records)
                 await db_sess.commit()
 
-            walogger.log(OHLCLoadCompleteRecord(params=fetch_params, count=count))
+
+            self._last_record = OHLCLoadCompleteRecord(params=fetch_params, count=count)
+            walogger.log(self._last_record)
 
             total_bars += len(records)
             self._logger.info(f"Persisted {len(bar_batch)} bars for {symbol}")

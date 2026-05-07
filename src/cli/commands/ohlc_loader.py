@@ -6,8 +6,7 @@ import click
 from cli.param.enum import EnumParam
 from enums import BrokerType, MarketType, Timeframe
 from runners import LoaderRunner, RunnerConfig
-from runners.loader_runner import LoaderConfig
-from service.ohlc.loader import AlpacaOHLCLoader
+from service.ohlc.loader import LoaderConfig, AlpacaOHLCLoader
 from utils import get_datetime
 
 logger = logging.getLogger("commands.loader")
@@ -65,6 +64,12 @@ def loader():
     envvar="ALPACA_SECRET_KEY",
     help="Alpaca secret key (or set ALPACA_SECRET_KEY env var)",
 )
+@click.option(
+    "--poll-interval",
+    type=int,
+    default=5,
+    help="Polling interval in seconds",
+)
 @click.option("--verbose", is_flag=True, help="Enable verbose output")
 def loader_run(
     broker,
@@ -76,6 +81,7 @@ def loader_run(
     api_key,
     secret_key,
     verbose,
+    poll_interval,
 ):
     """
     Load historical candles from a broker and persist to database.
@@ -108,6 +114,7 @@ def loader_run(
         timeframe=timeframe,
         start_date=start_date.date(),
         end_date=end_date.date(),
+        poll_interval=poll_interval,
     )
 
     click.echo(
