@@ -9,7 +9,7 @@ from api.types import JWTPayload
 from config import FRONTEND_DOMAIN, SCHEME, FRONTEND_SUB_DOMAIN
 from enums import BrokerType
 from infra.db.models import BrokerConnections
-from services.alpaca import AlpacaService
+from service.alpaca import AlpacaService
 from .models import AlpacaConnectRequest
 
 

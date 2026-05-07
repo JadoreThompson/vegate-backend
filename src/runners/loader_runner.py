@@ -3,12 +3,12 @@ from datetime import date
 from typing import NamedTuple, Type
 
 from enums import Timeframe
-from services.loaders import BaseLoader
+from service.ohlc.loader import BaseOHLCLoader
 from .base import BaseRunner
 
 
 class LoaderConfig(NamedTuple):
-    cls: Type[BaseLoader]
+    cls: Type[BaseOHLCLoader]
     symbol: str
     timeframe: Timeframe
     start_date: date

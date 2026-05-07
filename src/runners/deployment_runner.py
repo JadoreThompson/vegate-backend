@@ -16,8 +16,8 @@ from infra.db import get_db_sess_sync
 from infra.redis import REDIS_CLIENT
 from events.deployment import DeploymentEventType
 from utils import get_datetime
-from services.alpaca import AlpacaOAuthPayload
-from services.encryption import EncryptionService
+from service.alpaca import AlpacaOAuthPayload
+from service.encryption import EncryptionService
 from .base import BaseRunner
 
 

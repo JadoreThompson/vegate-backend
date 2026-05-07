@@ -7,7 +7,7 @@ import click
 from enums import BrokerType, Timeframe
 from runners import LoaderRunner, RunnerConfig
 from runners.loader_runner import LoaderConfig
-from services.loaders import AlpacaLoader
+from service.ohlc.loader import AlpacaOHLCLoader
 
 logger = logging.getLogger("commands.loader")
 
@@ -87,7 +87,7 @@ def loader_run(
             )
             sys.exit(1)
 
-        loader_cls = AlpacaLoader
+        loader_cls = AlpacaOHLCLoader
         loader_kwargs = {"api_key": api_key, "secret_key": secret_key}
     else:
         click.echo(f"Error: Unsupported broker: {broker}", err=True)

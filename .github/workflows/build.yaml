@@ -46,6 +46,7 @@ jobs:
 
       - name: Initialise swarm manager
         run: sudo docker swarm init || true
+
       - name: Create network
         run: |
           if ! sudo docker network inspect vegate_network >/dev/null 2>&1; then

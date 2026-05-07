@@ -15,9 +15,9 @@ from config import (
     REDIS_EMAIL_VERIFCATION_EXPIRY_SECS,
 )
 from infra.db.models import Users
-from services.email import BrevoEmailService
+from service.email import BrevoEmailService
 from infra.redis import REDIS_CLIENT
-from services.jwt import JWTService
+from service.jwt import JWTService
 from utils import get_datetime
 from .controller import gen_verification_code
 from .models import (

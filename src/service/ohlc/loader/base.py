@@ -6,7 +6,7 @@ from enums import BrokerType, Timeframe
 from models import OHLC
 
 
-class BaseLoader(ABC):
+class BaseOHLCLoader(ABC):
     """Abstract base class for historical candle loaders."""
 
     def __init__(self, broker_type: BrokerType):

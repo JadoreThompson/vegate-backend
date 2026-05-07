@@ -21,18 +21,6 @@ services:
       - vegate_redis:/data
     command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
 
-  http_server:
-    build:
-      dockerfile: docker/Dockerfile
-      context: ..
-      no_cache: true
-    command: backend run
-    ports:
-      - 8000:8000
-    depends_on:
-      - postgres
-      - redis
-
 volumes:
   vegate_postgres:
   vegate_redis:

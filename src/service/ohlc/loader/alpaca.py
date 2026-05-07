@@ -5,16 +5,16 @@ from typing import AsyncIterator
 import aiohttp
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.timeframe import TimeFrame as AlpacaTimeFrame
-from sqlalchemy import delete, insert, select
+from sqlalchemy import delete, func, insert, select
 
 from enums import BrokerType, Timeframe
 from infra.db.models import OHLCs
 from infra.db.utils import get_db_sess
 from models import OHLC
-from .base import BaseLoader
+from .base import BaseOHLCLoader
 
 
-class AlpacaLoader(BaseLoader):
+class AlpacaOHLCLoader(BaseOHLCLoader):
     """Loader for fetching historical candles from Alpaca API and persisting to database."""
 
     def __init__(self, api_key: str, secret_key: str):
@@ -56,6 +56,7 @@ class AlpacaLoader(BaseLoader):
             OHLC candles in chronological order
         """
         symbol = symbol.upper()
+        total_bars = 0
         async for bar_batch in self._fetch_bars(
             symbol, timeframe, start_date, end_date
         ):
@@ -76,19 +77,29 @@ class AlpacaLoader(BaseLoader):
             async with get_db_sess() as db_sess:
                 sdate = records[0]["timestamp"]
                 edate = records[-1]["timestamp"]
+                fsdate = datetime.fromtimestamp(sdate)
+                fedate = datetime.fromtimestamp(edate)
 
                 res = await db_sess.execute(
-                    select(OHLCs).where(
+                    select(func.count(OHLCs.ohlc_id)).where(
                         OHLCs.source == BrokerType.ALPACA,
                         OHLCs.symbol == symbol,
                         OHLCs.timeframe == timeframe,
                         OHLCs.timestamp.between(sdate, edate),
                     )
                 )
+                data = res.first()
+                if data is not None:
+                    count = data[0]
+                    self._logger.info(f"Found {count} existing OHLCs for {symbol} from {fsdate} to {fedate}")
+                    if count == len(records):
+                        self._logger.info("Count matches, skipping deletion and insertion")
+                        continue
 
-                if res.first() is not None:
+                    self._logger.info("Count mismatch, deleting existing records and inserting new ones")
+
                     self._logger.info(
-                        f"Existing OHLCs found for {symbol} from {sdate} to {edate}, deleting..."
+                        f"Existing OHLCs found for {symbol} from {fsdate} to {fedate}, deleting..."
                     )
                     await db_sess.execute(
                         delete(OHLCs).where(
@@ -99,13 +110,13 @@ class AlpacaLoader(BaseLoader):
                         )
                     )
 
-                self._logger.info(
-                    f"Deleting existing OHLCs for {symbol} from {sdate} to {edate}"
-                )
                 await db_sess.execute(insert(OHLCs), records)
                 await db_sess.commit()
 
+            total_bars += len(records)
             self._logger.info(f"Persisted {len(bar_batch)} bars for {symbol}")
+
+        self._logger.info(f"Finished loading candles for {symbol}. Total bars: {total_bars}")
 
     async def _fetch_bars(
         self,

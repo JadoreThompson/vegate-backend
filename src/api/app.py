@@ -12,7 +12,7 @@ from api.routes.deployments.route import router as deployment_router
 from api.routes.public.route import router as public_router
 from api.routes.strategies.route import router as strategies_router
 from config import FRONTEND_DOMAIN, SCHEME, FRONTEND_SUB_DOMAIN
-from services.jwt import JWTError
+from service.jwt import JWTError
 
 
 app = FastAPI()

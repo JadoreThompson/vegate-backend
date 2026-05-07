@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from services.event_handler import OrderEventHandler
+from service.event_handler import OrderEventHandler
 from .base import BaseRunner
 
 
