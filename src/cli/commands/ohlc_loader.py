@@ -1,10 +1,10 @@
 import sys
 import logging
-from datetime import datetime
 
 import click
 
-from enums import BrokerType, Timeframe
+from cli.param.enum import EnumParam
+from enums import BrokerType, MarketType, Timeframe
 from runners import LoaderRunner, RunnerConfig
 from runners.loader_runner import LoaderConfig
 from service.ohlc.loader import AlpacaOHLCLoader
@@ -22,11 +22,9 @@ def loader():
 @loader.command(name="run")
 @click.option(
     "--broker",
-    type=click.Choice(
-        list(BrokerType._value2member_map_.keys()), case_sensitive=False
-    ),
+    type=EnumParam(BrokerType),
     required=True,
-    help="Broker to load data from",
+    help=f"Broker to load data from ({', '.join(BrokerType._value2member_map_.keys())})",
 )
 @click.option(
     "--symbol",
@@ -34,10 +32,16 @@ def loader():
     help="Trading symbol (e.g., AAPL)",
 )
 @click.option(
-    "--timeframe",
-    type=click.Choice(list(Timeframe._value2member_map_.keys()), case_sensitive=False),
+    "--market-type",
+    type=EnumParam(MarketType),
     required=True,
-    help="Candle timeframe",
+    help=f"Market type ({', '.join(MarketType._value2member_map_.keys())})",
+)
+@click.option(
+    "--timeframe",
+    type=EnumParam(Timeframe),
+    required=True,
+    help=f"Candle timeframe ({', '.join(Timeframe._value2member_map_.keys())})",
 )
 @click.option(
     "--start-date",
@@ -48,7 +52,6 @@ def loader():
 @click.option(
     "--end-date",
     type=click.DateTime(formats=["%Y-%m-%d"]),
-    # required=True,
     default=get_datetime().date().strftime("%Y-%m-%d"),
     help="End date (YYYY-MM-DD)",
 )
@@ -64,23 +67,25 @@ def loader():
 )
 @click.option("--verbose", is_flag=True, help="Enable verbose output")
 def loader_run(
-    broker, symbol, timeframe, start_date, end_date, api_key, secret_key, verbose
+    broker,
+    symbol,
+    market_type,
+    timeframe,
+    start_date,
+    end_date,
+    api_key,
+    secret_key,
+    verbose,
 ):
     """
     Load historical candles from a broker and persist to database.
-
-    Examples:
-      vegate loader run --broker alpaca --symbol AAPL --timeframe 1d \\
-        --start-date 2024-01-01 --end-date 2024-12-31
-
-      vegate loader run --broker alpaca --symbol AAPL --timeframe 1h \\
-        --start-date 2024-01-01 --end-date 2024-01-31 \\
-        --api-key YOUR_KEY --secret-key YOUR_SECRET
     """
+
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    broker_enum = BrokerType(broker)
+    broker_enum = broker
+
     if broker_enum == BrokerType.ALPACA:
         if not api_key or not secret_key:
             click.echo(
@@ -92,25 +97,22 @@ def loader_run(
         loader_cls = AlpacaOHLCLoader
         loader_kwargs = {"api_key": api_key, "secret_key": secret_key}
     else:
-        click.echo(f"Error: Unsupported broker: {broker}", err=True)
+        click.echo(f"Error: Unsupported broker: {broker_enum}", err=True)
         sys.exit(1)
 
-    timeframe_enum = Timeframe(timeframe)
-
-    def create_loader():
-        return loader_cls(**loader_kwargs)
-
-    # Create LoaderConfig
+    create_loader = lambda: loader_cls(**loader_kwargs)
     loader_config = LoaderConfig(
         cls=create_loader,
         symbol=symbol,
-        timeframe=timeframe_enum,
+        market_type=market_type,
+        timeframe=timeframe,
         start_date=start_date.date(),
         end_date=end_date.date(),
     )
 
     click.echo(
-        f"Loading {symbol} candles ({timeframe}) from {start_date.date()} to {end_date.date()}"
+        f"Loading {symbol} candles ({timeframe}) "
+        f"from {start_date.date()} to {end_date.date()}"
     )
 
     try:
@@ -123,9 +125,11 @@ def loader_run(
         runner.run()
 
         click.echo("Data loaded successfully")
+
     except KeyboardInterrupt:
         click.echo("\nLoader stopped by user")
         sys.exit(0)
+
     except Exception as e:
         click.echo(f"Error loading data: {e}", err=True)
         logger.exception("Loader failed")

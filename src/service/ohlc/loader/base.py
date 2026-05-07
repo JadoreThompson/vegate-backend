@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import AsyncIterator
 
-from enums import BrokerType, Timeframe
+from enums import BrokerType, MarketType, Timeframe
 from models import OHLC
 
 
@@ -16,20 +16,22 @@ class BaseOHLCLoader(ABC):
     async def load_candles(
         self,
         symbol: str,
+        market_type: MarketType,
         timeframe: Timeframe,
         start_date: datetime,
         end_date: datetime,
-    ) -> AsyncIterator[OHLC]:
-        """
-        Asynchronously load historical candles from broker API.
+    ) -> None:
+        """Asynchronously load historical OHLC candles from Alpaca API and persist to database.
+
+        Note:
+            Alpaca's historical data client is synchronous, so this
+            implementation wraps the synchronous call.
 
         Args:
-            symbol: Trading symbol (e.g., 'AAPL')
-            timeframe: Candle timeframe (e.g., Timeframe.ONE_MINUTE)
-            start_date: Start date for historical data
-            end_date: End date for historical data
-
-        Yields:
-            OHLC candles in chronological order
+            symbol: Trading symbol (e.g., "AAPL").
+            market_type: Market category for the asset (e.g., stocks, crypto).
+            timeframe: Candle timeframe (e.g., Timeframe.ONE_MINUTE).
+            start_date: Start datetime for historical data range (inclusive).
+            end_date: End datetime for historical data range (inclusive).
         """
         pass

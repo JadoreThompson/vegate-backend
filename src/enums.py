@@ -114,3 +114,11 @@ class SnapshotType(str, Enum):
 
     EQUITY = "equity"
     BALANCE = "balance"
+
+
+class MarketType(str, Enum):
+    """Types of markets."""
+
+    STOCKS = "stocks"
+    FOREX = "forex"
+    CRYPTO = "crypto"

@@ -2,7 +2,7 @@ import asyncio
 from datetime import date
 from typing import NamedTuple, Type
 
-from enums import Timeframe
+from enums import MarketType, Timeframe
 from service.ohlc.loader import BaseOHLCLoader
 from .base import BaseRunner
 
@@ -10,6 +10,7 @@ from .base import BaseRunner
 class LoaderConfig(NamedTuple):
     cls: Type[BaseOHLCLoader]
     symbol: str
+    market_type: MarketType
     timeframe: Timeframe
     start_date: date
     end_date: date
@@ -27,6 +28,7 @@ class LoaderRunner(BaseRunner):
             *[
                 loader_config.cls().load_candles(
                     loader_config.symbol,
+                    loader_config.market_type,
                     loader_config.timeframe,
                     loader_config.start_date,
                     loader_config.end_date,
