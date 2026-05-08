@@ -4,11 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.backtest_queue import get_backtest_queue
-from api.dependencies import depends_db_sess, depends_jwt
+from api.dependencies import depends_db_sess, depends_deployment_service, depends_jwt
 from api.types import JWTPayload
 from enums import DeploymentStatus
 from infra.db.models import Strategies
+from service.deployment.base import DeploymentService
 from .controller import (
     create_deployment,
     get_deployment_orders,
@@ -34,6 +34,7 @@ async def deploy_strategy_endpoint(
     body: DeployStrategyRequest,
     jwt: JWTPayload = Depends(depends_jwt()),
     db_sess: AsyncSession = Depends(depends_db_sess),
+    deployment_service: DeploymentService = Depends(depends_deployment_service),
 ):
     """
     Deploy a strategy to a broker connection.
@@ -44,14 +45,15 @@ async def deploy_strategy_endpoint(
     deployment = await create_deployment(jwt.sub, strategy_id, body, db_sess)
 
     # Push deployment job to the queue
-    queue = get_backtest_queue()
-    if queue is not None:
-        queue.put({"deployment_id": str(deployment.deployment_id)})
-    else:
-        raise HTTPException(
-            status_code=503,
-            detail="Deployment queue is not available. Backend service may not be running.",
-        )
+    # queue = get_backtest_queue()
+    # if queue is not None:
+    #     queue.put({"deployment_id": str(deployment.deployment_id)})
+    # else:
+    #     raise HTTPException(
+    #         status_code=503,
+    #         detail="Deployment queue is not available. Backend service may not be running.",
+    #     )
+    await deployment_service.deploy_strategy(deployment.deployment_id)
 
     rsp_body = DeploymentResponse(
         deployment_id=deployment.deployment_id,

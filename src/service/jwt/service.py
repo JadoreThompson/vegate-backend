@@ -6,7 +6,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import COOKIE_ALIAS, IS_PRODUCTION, JWT_SECRET, JWT_ALGO, JWT_EXPIRY_SECS
-from infra.db import get_db_sess
+from infra.db import get_db_session
 from infra.db.models import Users
 from utils import get_datetime
 from .exc import JWTError
@@ -116,7 +116,7 @@ class JWTService:
         if payload.exp < int(get_datetime().timestamp()):
             raise JWTError("Expired token")
 
-        async with get_db_sess() as db_sess:
+        async with get_db_session() as db_sess:
             user = await db_sess.scalar(
                 select(Users).where(Users.user_id == payload.sub)
             )

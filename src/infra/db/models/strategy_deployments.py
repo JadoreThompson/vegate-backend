@@ -44,6 +44,7 @@ class StrategyDeployments(Base):
         DateTime(timezone=True), nullable=True
     )
     server_data: Mapped[dict] = mapped_column(JSONB, nullable=True)
+    service_id: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Relationships
     strategy: Mapped["Strategies"] = relationship(back_populates="strategy_deployments")

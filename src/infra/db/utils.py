@@ -18,13 +18,12 @@ from config import (
 )
 from .client import DB_ENGINE, DB_ENGINE_SYNC
 
-
 smaker = sessionmaker(bind=DB_ENGINE, class_=AsyncSession, expire_on_commit=False)
 smaker_sync = sessionmaker(bind=DB_ENGINE_SYNC, class_=Session, expire_on_commit=False)
 
 
 @asynccontextmanager
-async def get_db_sess() -> AsyncGenerator[AsyncSession, None]:
+async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     global smaker
 
     async with smaker.begin() as session:

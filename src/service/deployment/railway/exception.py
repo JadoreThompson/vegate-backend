@@ -1,0 +1,2 @@
+class RailwayDeploymentException(Exception):
+    pass

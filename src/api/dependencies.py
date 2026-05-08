@@ -4,14 +4,17 @@ from fastapi import Depends, Request
 
 # from api.exc import JWTError
 from api.types import JWTPayload
+
 # from api.services import JWTService
 from config import COOKIE_ALIAS
 from infra.db import smaker
+from service.deployment.base import DeploymentService
+from service.deployment.process import ProcessDeploymentService
 from service.jwt import JWTService, JWTError
-
 
 T = TypeVar("T")
 DEFAULT = object()
+deployment_service = ProcessDeploymentService()
 
 
 async def depends_db_sess():
@@ -46,7 +49,9 @@ def depends_jwt(is_authenticated: bool = True):
     return func
 
 
-def CSVQuery(name: str, Typ: Type[T], default = DEFAULT, default_factory: Callable[[], Any] = list):
+def CSVQuery(
+    name: str, Typ: Type[T], default=DEFAULT, default_factory: Callable[[], Any] = list
+):
     def func(req: Request) -> list[T]:
         vals = req.query_params.get(name)
         if name is None or vals is None:
@@ -54,7 +59,11 @@ def CSVQuery(name: str, Typ: Type[T], default = DEFAULT, default_factory: Callab
                 return default
             if default_factory:
                 return default_factory()
-        
+
         return [Typ(val.strip()) for val in vals.strip().split(",")]
 
     return Depends(func)
+
+
+def depends_deployment_service() -> DeploymentService:
+    return deployment_service

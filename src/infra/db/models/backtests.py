@@ -34,6 +34,7 @@ class Backtests(Base):
     )
     created_at: Mapped[datetime] = datetime_tz()
     server_data: Mapped[dict] = mapped_column(JSONB, nullable=True)
+    service_id: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Relationships
     strategy: Mapped["Strategies"] = relationship(

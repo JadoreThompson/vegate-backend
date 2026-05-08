@@ -12,10 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import LLM_API_KEY
 from infra.db.models import Strategies, Backtests, OHLCs
+from service.deployment.base import DeploymentService
 from .models import StrategyCreate, StrategyUpdate, BacktestCreate
 from enums import BacktestStatus, BrokerType
-from api.backtest_queue import get_backtest_queue
-
 
 logger = logging.getLogger("strategies.controller")
 
@@ -684,7 +683,7 @@ async def list_strategy_summaries(
 
 
 async def create_backtest(
-    user_id: UUID, strategy_id: UUID, data: BacktestCreate, db_sess: AsyncSession
+    user_id: UUID, strategy_id: UUID, data: BacktestCreate, db_sess: AsyncSession, deplyoment_service: DeploymentService
 ) -> Backtests:
     """Create a new backtest for a strategy.
 
@@ -748,9 +747,11 @@ async def create_backtest(
     await db_sess.refresh(new_backtest)
 
     # Step 5: Push backtest_id to queue for processing
-    backtest_queue = get_backtest_queue()
-    if backtest_queue is not None:
-        backtest_queue.put({"backtest_id": str(new_backtest.backtest_id)})
-    else:
-        logger.info("Backtest queue not set.")
+    # backtest_queue = get_backtest_queue()
+    # if backtest_queue is not None:
+    #     backtest_queue.put({"backtest_id": str(new_backtest.backtest_id)})
+    # else:
+    #     logger.info("Backtest queue not set.")
+    # return new_backtest
+    await deplyoment_service.deploy_backtest(new_backtest.backtest_id)
     return new_backtest

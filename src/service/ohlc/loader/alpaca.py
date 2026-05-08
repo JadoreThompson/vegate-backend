@@ -9,7 +9,7 @@ from sqlalchemy import delete, func, insert, select
 
 from enums import BrokerType, MarketType, Timeframe
 from infra.db.models import OHLCs
-from infra.db.utils import get_db_sess
+from infra.db.utils import get_db_session
 from service.ohlc.loader.loader_config import LoaderConfig
 from service.ohlc.loader.logging.record import (
     OHLCLoadCompleteRecord,
@@ -43,9 +43,11 @@ class AlpacaOHLCLoader(BaseOHLCLoader):
 
     def _get_walogger(self, symbol: str, timeframe: Timeframe) -> WALogger:
         if self._walogger is None:
-            self._walogger = WALogger(BrokerType.ALPACA, self._format_symbol(symbol), timeframe)
+            self._walogger = WALogger(
+                BrokerType.ALPACA, self._format_symbol(symbol), timeframe
+            )
         return self._walogger
-    
+
     async def run(self, config: LoaderConfig) -> None:
         async def load_candles():
             await self.load_candles(
@@ -53,13 +55,15 @@ class AlpacaOHLCLoader(BaseOHLCLoader):
                 config.market_type,
                 config.timeframe,
                 config.start_date,
-                config.end_date
+                config.end_date,
             )
 
         await load_candles()
 
         while True:
-            self._logger.info(f"Sleeping for {config.poll_interval} seconds before next poll...")
+            self._logger.info(
+                f"Sleeping for {config.poll_interval} seconds before next poll..."
+            )
             await asyncio.sleep(config.poll_interval)
             await load_candles()
 
@@ -75,7 +79,7 @@ class AlpacaOHLCLoader(BaseOHLCLoader):
         fmt_symbol = self._format_symbol(symbol)
         total_bars = 0
         walogger = self._get_walogger(symbol, timeframe)
-        
+
         if self._last_record is None:
             self._last_record = self._restore(symbol, timeframe)
 
@@ -103,7 +107,7 @@ class AlpacaOHLCLoader(BaseOHLCLoader):
                 for bar in bar_batch
             ]
 
-            async with get_db_sess() as db_sess:
+            async with get_db_session() as db_sess:
                 sdate = records[0]["timestamp"]
                 edate = records[-1]["timestamp"]
                 fsdate = datetime.fromtimestamp(sdate)
@@ -127,7 +131,9 @@ class AlpacaOHLCLoader(BaseOHLCLoader):
                         self._logger.info(
                             "Count matches, skipping deletion and insertion"
                         )
-                        self._last_record = OHLCLoadCompleteRecord(params=fetch_params, count=count)
+                        self._last_record = OHLCLoadCompleteRecord(
+                            params=fetch_params, count=count
+                        )
                         walogger.log(self._last_record)
                         continue
 
@@ -149,7 +155,6 @@ class AlpacaOHLCLoader(BaseOHLCLoader):
 
                 await db_sess.execute(insert(OHLCs), records)
                 await db_sess.commit()
-
 
             self._last_record = OHLCLoadCompleteRecord(params=fetch_params, count=count)
             walogger.log(self._last_record)
@@ -278,7 +283,7 @@ class AlpacaOHLCLoader(BaseOHLCLoader):
             raise ValueError(f"Unsupported timeframe: {timeframe}")
 
         return mapping[timeframe]
-    
+
     @staticmethod
     def _format_symbol(symbol: str) -> str:
         """Format symbol for consistent storage and comparison.

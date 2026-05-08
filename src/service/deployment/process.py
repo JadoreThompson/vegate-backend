@@ -65,3 +65,16 @@ class ProcessDeploymentService(DeploymentService):
         self._deployments[deployment_id].terminate()
         self._deployments[deployment_id].join(timeout=5)
         return {"status": "stopped"}
+    
+    async def stop_all(self) -> dict:
+        for backtest_id, process in self._backtests.items():
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout=5)
+
+        for deployment_id, process in self._deployments.items():
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout=5)
+
+        return {"status": "all stopped"}

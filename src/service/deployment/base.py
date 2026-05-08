@@ -21,3 +21,7 @@ class DeploymentService:
     @abstractmethod
     async def stop_strategy(self, deployment_id: UUID) -> dict:
         pass
+
+    @abstractmethod
+    async def stop_all(self) -> dict:
+        pass
