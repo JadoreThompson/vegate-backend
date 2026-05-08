@@ -27,16 +27,21 @@ class RailwayDeploymentService(DeploymentService):
             "Content-Type": "application/json",
             "Authorization": f"Bearer {RAILWAY_API_KEY}",
         }
-        self._http_sess = ClientSession()
+        self._http_sess: ClientSession | None = None
         self._logger = logging.getLogger(type(self).__name__)
+
+    async def init(self) -> None:
+        """Initialize the HTTP session. Must be called before using the service."""
+        if self._http_sess is None:
+            self._http_sess = ClientSession()
 
     async def deploy_backtest(self, backtest_id: UUID) -> dict:
         name = f"bt_{backtest_id}"
         start_command = f"uv run src/main.py backtest run --backtest-id {backtest_id}"
-        service_id = await self._create_service(name)
-        await self._set_backtest_service_id(backtest_id, service_id)
-        await self._update_service(service_id, start_command)
-        await self._deploy_service(service_id)
+        service_id = await self.create_service(name)
+        await self.set_backtest_service_id(backtest_id, service_id)
+        await self.update_service(service_id, start_command)
+        await self.deploy_service(service_id)
 
         return {
             "service_id": service_id,
@@ -52,9 +57,11 @@ class RailwayDeploymentService(DeploymentService):
             service_id = result.scalar()
         
         if service_id is None:
-            raise RailwayDeploymentException(f"No service ID found for backtest {backtest_id}")
+            service_id = await self.get_service_id_by_name(f"bt_{backtest_id}")
+            if service_id is None:
+                raise RailwayDeploymentException(f"No service ID found for backtest {backtest_id}")
         
-        await self._stop_service(service_id)
+        await self.stop_service(service_id)
         return {"service_id": service_id}
 
     async def deploy_strategy(self, deployment_id: UUID) -> dict:
@@ -62,10 +69,10 @@ class RailwayDeploymentService(DeploymentService):
         start_command = (
             f"uv run src/main.py deployment run --deployment-id {deployment_id}"
         )
-        service_id = await self._create_service(name)
-        await self._set_deployment_service_id(deployment_id, service_id)
-        await self._update_service(service_id, start_command)
-        await self._deploy_service(service_id)
+        service_id = await self.create_service(name)
+        await self.set_deployment_service_id(deployment_id, service_id)
+        await self.update_service(service_id, start_command)
+        await self.deploy_service(service_id)
 
         return {
             "service_id": service_id,
@@ -81,12 +88,14 @@ class RailwayDeploymentService(DeploymentService):
             service_id = result.scalar()
 
         if service_id is None:
-            raise RailwayDeploymentException(f"No service ID found for deployment {deployment_id}")
+            service_id = await self.get_service_id_by_name(f"dp_{deployment_id}")
+            if service_id is None:
+                raise RailwayDeploymentException(f"No service ID found for deployment {deployment_id}")
         
-        await self._stop_service(service_id)
+        await self.stop_service(service_id)
         return {"service_id": service_id}
 
-    async def _execute_query(self, query: str, variables: dict | None = None) -> dict:
+    async def execute_query(self, query: str, variables: dict | None = None) -> dict:
         """Execute a GraphQL query asynchronously"""
         payload = {"query": query}
         if variables:
@@ -112,7 +121,7 @@ class RailwayDeploymentService(DeploymentService):
 
         return result["data"]
 
-    async def _create_service(self, service_name: str) -> str:
+    async def create_service(self, service_name: str) -> str:
         """Create a new Railway service"""
         query = """
         mutation ServiceCreate($input: ServiceCreateInput!) {
@@ -130,11 +139,11 @@ class RailwayDeploymentService(DeploymentService):
         }
 
         self._logger.info("Creating service")
-        result = await self._execute_query(query, variables)
+        result = await self.execute_query(query, variables)
         self._logger.info(f"Service created with ID: {result['serviceCreate']['id']}")
         return result["serviceCreate"]["id"]
 
-    async def _update_service(self, service_id: str, start_command: str):
+    async def update_service(self, service_id: str, start_command: str):
         query = """
         mutation serviceInstanceUpdate($input: ServiceInstanceUpdateInput!, $serviceId: String!) {
             serviceInstanceUpdate(
@@ -146,9 +155,9 @@ class RailwayDeploymentService(DeploymentService):
 
         variables = {"input": {"startCommand": start_command}, "serviceId": service_id}
         self._logger.info(f"Updating service '{service_id}'")
-        await self._execute_query(query, variables)
+        await self.execute_query(query, variables)
 
-    async def _deploy_service(self, service_id: str):
+    async def deploy_service(self, service_id: str):
         """Deploy the service instance"""
         query = """
         mutation ServiceInstanceDeploy($serviceId: String!, $environmentId: String!) {
@@ -161,11 +170,10 @@ class RailwayDeploymentService(DeploymentService):
 
         variables = {"serviceId": service_id, "environmentId": RAILWAY_ENVIRONMENT_ID}
         self._logger.info(f"Deploying service '{service_id}'")
-        result = await self._execute_query(query, variables)
-
+        result = await self.execute_query(query, variables)
         return result
 
-    async def _get_service_id_by_name(self, service_name: str) -> str:
+    async def get_service_id_by_name(self, service_name: str) -> str:
         """Look up a service ID by name within the configured project."""
         query = """
         query GetProject($id: String!) {
@@ -183,7 +191,7 @@ class RailwayDeploymentService(DeploymentService):
         """
         variables = {"id": RAILWAY_PROJECT_ID}
         self._logger.info(f"Looking up service ID for '{service_name}'")
-        result = await self._execute_query(query, variables)
+        result = await self.execute_query(query, variables)
 
         for edge in result["project"]["services"]["edges"]:
             node = edge["node"]
@@ -191,8 +199,32 @@ class RailwayDeploymentService(DeploymentService):
                 return node["id"]
 
         raise RailwayDeploymentException(f"No service found with name '{service_name}'")
+    
+    async def get_service_by_id(self, service_id: str) -> dict:
+        query = """
+        query GetService($id: String!) {
+            service(id: $id) {
+                __typename
+                id
+                name                
+                icon
+                createdAt
+                projectId
+            }
+        }
+        """
 
-    async def _stop_service(self, service_id: str) -> None:
+        variables = {"id": service_id}
+
+        self._logger.info(f"Fetching service by id '{service_id}'")
+        result = await self.execute_query(query, variables)
+
+        if not result or not result.get("service"):
+            raise RailwayDeploymentException(f"No service found with id '{service_id}'")
+
+        return result["service"]
+
+    async def stop_service(self, service_id: str) -> None:
         """Stop a running service by deleting it."""
         query = """
         mutation serviceDelete($id: String!) {
@@ -201,9 +233,9 @@ class RailwayDeploymentService(DeploymentService):
         """
         variables = {"id": service_id}
         self._logger.info(f"Deleting service '{service_id}'")
-        await self._execute_query(query, variables)
+        await self.execute_query(query, variables)
 
-    async def _set_backtest_service_id(self, backtest_id: UUID, service_id: str):
+    async def set_backtest_service_id(self, backtest_id: UUID, service_id: str):
         """Store the Railway service ID in the database for later reference"""
         async with get_db_session() as sess:
             await sess.execute(
@@ -213,7 +245,7 @@ class RailwayDeploymentService(DeploymentService):
             )
             await sess.commit()
         
-    async def _set_deployment_service_id(self, deployment_id: UUID, service_id: str):
+    async def set_deployment_service_id(self, deployment_id: UUID, service_id: str):
         """Store the Railway service ID in the database for later reference"""
         async with get_db_session() as sess:
             await sess.execute(
@@ -222,12 +254,6 @@ class RailwayDeploymentService(DeploymentService):
                 .values(service_id=service_id)
             )
             await sess.commit()
-
-    async def stop_all(self) -> dict:
-        """Stop all running services related to backtests and deployments"""
-        # For simplicity, this example just returns a message. In a real implementation,
-        # you would query the database for all service IDs and call _stop_service on each.
-        return {"message": "stop_all not implemented yet"}
 
     async def stop_all(self) -> dict:
         """Stop all running services related to backtests and deployments"""
@@ -256,7 +282,7 @@ class RailwayDeploymentService(DeploymentService):
         self._logger.info(f"Stopping {len(service_ids)} services")
 
         results = await asyncio.gather(
-            *[self._stop_service(service_id) for service_id in service_ids],
+            *[self.stop_service(service_id) for service_id in service_ids],
             return_exceptions=True,
         )
 

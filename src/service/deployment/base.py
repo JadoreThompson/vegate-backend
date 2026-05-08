@@ -7,6 +7,10 @@ class DeploymentService:
         pass
 
     @abstractmethod
+    async def init(self) -> None:
+        pass
+
+    @abstractmethod
     async def deploy_backtest(self, backtest_id: UUID) -> dict:
         pass
 
