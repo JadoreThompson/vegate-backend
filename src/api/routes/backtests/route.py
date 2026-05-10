@@ -69,7 +69,7 @@ async def get_backtest_endpoint(
     )
     if not strategy or strategy.user_id != jwt.sub:
         raise HTTPException(status_code=404, detail="Backtest not found")
-    print(backtest.metrics)
+
     return BacktestDetailResponse(
         backtest_id=backtest.backtest_id,
         strategy_id=backtest.strategy_id,
