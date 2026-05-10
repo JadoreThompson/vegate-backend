@@ -14,8 +14,8 @@ from events.order import (
 )
 from events.snapshot import SnapshotCreated, SnapshotEventType
 from infra.db import get_db_sess_sync
-from infra.db.models import Orders, AccountSnapshots
-from infra.db.models.strategy_deployments import StrategyDeployments
+from infra.db.model import Orders, AccountSnapshots
+from infra.db.model.strategy_deployments import StrategyDeployments
 from infra.redis import REDIS_CLIENT
 
 

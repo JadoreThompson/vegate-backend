@@ -11,8 +11,8 @@ from config import (
     RAILWAY_PROJECT_ID,
     RAILWAY_SERVICE_IMAGE,
 )
-from infra.db.models.backtests import Backtests
-from infra.db.models.strategy_deployments import StrategyDeployments
+from infra.db.model.backtest import Backtest
+from infra.db.model.strategy_deployments import StrategyDeployments
 from infra.db.utils import get_db_session
 
 from .exception import RailwayDeploymentException
@@ -52,15 +52,17 @@ class RailwayDeploymentService(DeploymentService):
     async def stop_backtest(self, backtest_id: UUID) -> dict:
         async with get_db_session() as sess:
             result = await sess.execute(
-                select(Backtests.service_id).where(Backtests.backtest_id == backtest_id)
+                select(Backtest.service_id).where(Backtest.id == backtest_id)
             )
             service_id = result.scalar()
-        
+
         if service_id is None:
             service_id = await self.get_service_id_by_name(f"bt_{backtest_id}")
             if service_id is None:
-                raise RailwayDeploymentException(f"No service ID found for backtest {backtest_id}")
-        
+                raise RailwayDeploymentException(
+                    f"No service ID found for backtest {backtest_id}"
+                )
+
         await self.stop_service(service_id)
         return {"service_id": service_id}
 
@@ -83,15 +85,19 @@ class RailwayDeploymentService(DeploymentService):
     async def stop_strategy(self, deployment_id: UUID) -> dict:
         async with get_db_session() as sess:
             result = await sess.execute(
-                select(StrategyDeployments.service_id).where(StrategyDeployments.deployment_id == deployment_id)
+                select(StrategyDeployments.service_id).where(
+                    StrategyDeployments.deployment_id == deployment_id
+                )
             )
             service_id = result.scalar()
 
         if service_id is None:
             service_id = await self.get_service_id_by_name(f"dp_{deployment_id}")
             if service_id is None:
-                raise RailwayDeploymentException(f"No service ID found for deployment {deployment_id}")
-        
+                raise RailwayDeploymentException(
+                    f"No service ID found for deployment {deployment_id}"
+                )
+
         await self.stop_service(service_id)
         return {"service_id": service_id}
 
@@ -199,7 +205,7 @@ class RailwayDeploymentService(DeploymentService):
                 return node["id"]
 
         raise RailwayDeploymentException(f"No service found with name '{service_name}'")
-    
+
     async def get_service_by_id(self, service_id: str) -> dict:
         query = """
         query GetService($id: String!) {
@@ -239,12 +245,12 @@ class RailwayDeploymentService(DeploymentService):
         """Store the Railway service ID in the database for later reference"""
         async with get_db_session() as sess:
             await sess.execute(
-                update(Backtests)
-                .where(Backtests.backtest_id == backtest_id)
+                update(Backtest)
+                .where(Backtest.id == backtest_id)
                 .values(service_id=service_id)
             )
             await sess.commit()
-        
+
     async def set_deployment_service_id(self, deployment_id: UUID, service_id: str):
         """Store the Railway service ID in the database for later reference"""
         async with get_db_session() as sess:
@@ -259,7 +265,7 @@ class RailwayDeploymentService(DeploymentService):
         """Stop all running services related to backtests and deployments"""
         async with get_db_session() as sess:
             backtest_result = await sess.execute(
-                select(Backtests.service_id).where(Backtests.service_id.is_not(None))
+                select(Backtest.service_id).where(Backtest.service_id.is_not(None))
             )
             deployment_result = await sess.execute(
                 select(StrategyDeployments.service_id).where(

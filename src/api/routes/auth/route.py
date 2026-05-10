@@ -14,7 +14,7 @@ from config import (
     REDIS_EMAIL_VERIFICATION_KEY_PREFIX,
     REDIS_EMAIL_VERIFCATION_EXPIRY_SECS,
 )
-from infra.db.models import Users
+from infra.db.model import Users
 from service.email import BrevoEmailService
 from infra.redis import REDIS_CLIENT
 from service.jwt import JWTService

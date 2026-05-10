@@ -7,7 +7,7 @@ from sqlalchemy import insert, update
 from config import BASE_PATH
 from enums import BacktestStatus, BrokerType, Timeframe
 from infra.db import get_db_sess_sync
-from infra.db.models import Backtests, Orders, Strategies
+from infra.db.model import Backtest, Orders, Strategies
 from lib.backtest_engine import BacktestEngine
 from lib.brokers import BacktestBroker
 from lib.strategy import BaseStrategy
@@ -36,16 +36,21 @@ class BacktestRunner(BaseRunner):
             if db_backtest is None or db_strategy is None:
                 return
 
-            # Write strategy code to file
-
             # Create backtest configuration
-            bt_config = self._create_backtest_config(db_backtest)
+            bt_config = BacktestConfig(
+                start_date=db_backtest.start_date,
+                end_date=db_backtest.end_date,
+                symbol=db_backtest.symbol,
+                starting_balance=db_backtest.starting_balance,
+                timeframe=Timeframe(db_backtest.timeframe),
+                broker=BrokerType(db_backtest.broker),
+            )
 
             # Create broker and run backtest
             broker = BacktestBroker(db_backtest.starting_balance)
 
             self._write_strategy_code(db_strategy.code)
-            strategy = self._load_strategy(str(db_backtest.backtest_id), broker)
+            strategy = self._load_strategy(str(db_backtest.id), broker)
 
             engine = BacktestEngine(strategy, broker, bt_config)
             result = engine.run()
@@ -62,14 +67,14 @@ class BacktestRunner(BaseRunner):
 
     def _fetch_backtest_and_strategy(
         self,
-    ) -> tuple[Backtests | None, Strategies | None]:
+    ) -> tuple[Backtest | None, Strategies | None]:
         """Fetch backtest and strategy from database.
 
         Returns:
             Tuple of (db_backtest, db_strategy) or (None, None) if not found
         """
         with get_db_sess_sync() as db_sess:
-            db_backtest = db_sess.get(Backtests, self._backtest_id)
+            db_backtest = db_sess.get(Backtest, self._backtest_id)
             if db_backtest is None:
                 self._logger.error(
                     f"Backtest object not found for ID: {self._backtest_id}"
@@ -116,7 +121,7 @@ class BacktestRunner(BaseRunner):
 
         return Strategy(name, broker)
 
-    def _create_backtest_config(self, db_backtest: Backtests) -> BacktestConfig:
+    def _create_backtest_config(self, db_backtest: Backtest) -> BacktestConfig:
         """Create backtest configuration from database backtest.
 
         Args:
@@ -154,7 +159,7 @@ class BacktestRunner(BaseRunner):
         )
 
     def _store_results(
-        self, result: BacktestMetrics, db_backtest: Backtests, bt_config: BacktestConfig
+        self, result: BacktestMetrics, db_backtest: Backtest, bt_config: BacktestConfig
     ) -> None:
         """Store backtest results to database.
 
@@ -194,8 +199,8 @@ class BacktestRunner(BaseRunner):
                 db_sess.execute(insert(Orders), records)
 
             db_sess.execute(
-                update(Backtests)
-                .where(Backtests.backtest_id == self._backtest_id)
+                update(Backtest)
+                .where(Backtest.id == self._backtest_id)
                 .values(
                     status=BacktestStatus.COMPLETED,
                     metrics=metrics,
@@ -215,8 +220,8 @@ class BacktestRunner(BaseRunner):
         """
         with get_db_sess_sync() as db_sess:
             db_sess.execute(
-                update(Backtests)
-                .where(Backtests.backtest_id == self._backtest_id)
+                update(Backtest)
+                .where(Backtest.id == self._backtest_id)
                 .values(
                     status=status.value,
                     metrics=metrics,

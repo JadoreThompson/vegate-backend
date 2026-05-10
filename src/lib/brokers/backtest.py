@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import UTC, datetime
 
@@ -5,7 +6,7 @@ from sqlalchemy import select
 
 from enums import OrderSide, OrderStatus, OrderType, Timeframe
 from infra.db import get_db_sess_sync
-from infra.db.models import OHLCs
+from infra.db.model import OHLCs
 from models import Order, OrderRequest, OHLC
 from .base import BaseBroker
 
@@ -27,6 +28,7 @@ class BacktestBroker(BaseBroker):
         self._order_map: dict[str, Order] = {}
         self._pending_orders: list[Order] = []
         self._cur_candle: OHLC | None = None
+        self._logger = logging.getLogger(self.__class__.__name__)
 
     def get_balance(self):
         return self.balance
@@ -44,12 +46,15 @@ class BacktestBroker(BaseBroker):
         Returns:
             Order object
         """
+        self._logger.info(f"Balance before order: {self.balance:.2f}, Equity: {self.get_equity():.2f}  ")
         if order_request.order_type == OrderType.LIMIT:
             return self._handle_limit_order(order_request)
         elif order_request.order_type == OrderType.STOP:
             return self._handle_stop_order(order_request)
-        else:  # MARKET
+        elif order_request.order_type == OrderType.MARKET:  # MARKET
             return self._handle_market_order(order_request)
+        else:
+            raise ValueError(f"Unsupported order type: {order_request.order_type}")
 
     def _handle_limit_order(self, order_request: OrderRequest) -> Order:
         """Handle limit order with validation and add to pending orders.
@@ -209,14 +214,23 @@ class BacktestBroker(BaseBroker):
                 return order
 
         # Sufficient balance - fill order
+        if order_request.notional is not None:
+            quantity = order_request.notional / self._cur_candle.close
+        else:
+            quantity = order_request.quantity
+        
+        if order_request.quantity is not None:
+            notional = order_request.quantity * self._cur_candle.close
+        else:            
+            notional = order_request.notional
+
         order = Order(
             symbol=order_request.symbol,
-            quantity=order_request.quantity,
-            executed_quantity=order_request.quantity,
-            notional=order_request.notional,
+            quantity=round(quantity, 2),
+            executed_quantity=round(quantity, 2),
+            notional=round(notional, 2),
             order_type=order_request.order_type,
             side=order_request.side,
-            # price=order_request.price,
             limit_price=order_request.limit_price,
             stop_price=order_request.stop_price,
             filled_avg_price=price,
@@ -398,6 +412,7 @@ class BacktestBroker(BaseBroker):
         return list(self._order_map.values())
 
     def stream_candles(self, symbol, timeframe, source, start_date, end_date):
+
         with get_db_sess_sync() as db_sess:
             results = db_sess.scalars(
                 select(OHLCs)

@@ -16,7 +16,7 @@ from config import (
     REDIS_ALPACA_OAUTH_TTL_SECS,
 )
 from enums import BrokerType
-from infra.db.models import BrokerConnections
+from infra.db.model import BrokerConnections
 from infra.redis import REDIS_CLIENT
 from service.encryption import EncryptionService
 from .exc import AlpacaOauthError

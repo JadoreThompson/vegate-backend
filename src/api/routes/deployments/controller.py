@@ -12,7 +12,7 @@ from api.shared.models import PerformanceMetrics
 from config import REDIS_DEPLOYMENT_EVENTS_KEY
 from enums import BrokerType, Timeframe, DeploymentStatus
 from events.deployment import DeploymentStopEvent
-from infra.db.models import (
+from infra.db.model import (
     AccountSnapshots,
     BrokerConnections,
     Orders,

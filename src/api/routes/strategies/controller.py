@@ -11,7 +11,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import LLM_API_KEY
-from infra.db.models import Strategies, Backtests, OHLCs
+from infra.db.model import Strategies, Backtest, OHLCs
 from service.deployment.base import DeploymentService
 from .models import StrategyCreate, StrategyUpdate, BacktestCreate
 from enums import BacktestStatus, BrokerType
@@ -683,8 +683,12 @@ async def list_strategy_summaries(
 
 
 async def create_backtest(
-    user_id: UUID, strategy_id: UUID, data: BacktestCreate, db_sess: AsyncSession, deplyoment_service: DeploymentService
-) -> Backtests:
+    user_id: UUID,
+    strategy_id: UUID,
+    data: BacktestCreate,
+    db_sess: AsyncSession,
+    deplyoment_service: DeploymentService,
+) -> Backtest:
     """Create a new backtest for a strategy.
 
     Validates that:
@@ -731,7 +735,7 @@ async def create_backtest(
         )
 
     # Step 4: Create backtest record
-    new_backtest = Backtests(
+    new_backtest = Backtest(
         strategy_id=strategy_id,
         symbol=data.symbol,
         starting_balance=data.starting_balance,
@@ -753,5 +757,5 @@ async def create_backtest(
     # else:
     #     logger.info("Backtest queue not set.")
     # return new_backtest
-    await deplyoment_service.deploy_backtest(new_backtest.backtest_id)
+    await deplyoment_service.deploy_backtest(new_backtest.id)
     return new_backtest

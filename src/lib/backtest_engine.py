@@ -6,8 +6,7 @@ import numpy as np
 from enums import OrderSide, OrderStatus, OrderType
 from lib.brokers import BacktestBroker
 from lib.strategy import BaseStrategy
-from models import BacktestMetrics, EquityCurvePoint, BacktestConfig
-
+from models import BacktestMetrics, EquityCurvePoint, BacktestConfig, Order
 
 logger = logging.getLogger(__name__)
 
@@ -45,16 +44,24 @@ class BacktestEngine:
 
         self._strategy.startup()
         self._process_candles()
-        self._strategy.shutdown()
 
         logger.info("Backtest completed")
-        return self._calculate_metrics()
+        metrics = self._calculate_metrics()
+        self._strategy.shutdown()
+        return metrics
 
     def _process_candles(self) -> None:
         """Stream and process candles from database."""
         candle_count = 0
         last_log_count = 0
         log_interval = 100  # Log every 100 candles
+
+        self._balance_curve.append(
+            EquityCurvePoint(timestamp=0, value=self._broker.get_balance())
+        )
+        self._equity_curve.append(
+            EquityCurvePoint(timestamp=0, value=self._broker.get_equity())
+        )
 
         for candle in self._broker.stream_candles(
             self._config.symbol,
@@ -65,6 +72,7 @@ class BacktestEngine:
         ):
             candle_count += 1
 
+            self._strategy.on_candle(candle)
             self._balance_curve.append(
                 EquityCurvePoint(
                     timestamp=candle.timestamp, value=self._broker.get_balance()
@@ -75,7 +83,6 @@ class BacktestEngine:
                     timestamp=candle.timestamp, value=self._broker.get_equity()
                 )
             )
-            self._strategy.on_candle(candle)
 
             if candle_count - last_log_count >= log_interval:
                 orders_placed = len(self._broker.get_orders())
@@ -100,8 +107,10 @@ class BacktestEngine:
         """
         orders = self._broker.get_orders()
 
-        realised_pnl = self._calculate_pnl()
-        end_balance = self._config.starting_balance + realised_pnl
+        # realised_pnl = self._calculate_pnl()
+        # end_balance = self._config.starting_balance + realised_pnl
+        end_balance = self._broker.get_balance()
+        realised_pnl = end_balance - self._config.starting_balance
         end_equity = self._broker.get_equity()
         total_return_pct = (
             end_balance - self._config.starting_balance
@@ -128,10 +137,9 @@ class BacktestEngine:
             config=self._config,
             realised_pnl=realised_pnl,
             unrealised_pnl=end_equity - end_balance,
-            total_return_pct=total_return_pct,
+            total_return_pct=total_return_pct * 100,
             equity_curve=self._equity_curve,
             sharpe_ratio=sharpe_ratio,
-            max_drawdown=self._calculate_max_drawdown(),
             orders=orders,
             total_orders=len(orders),
         )
@@ -308,24 +316,12 @@ class BacktestEngine:
         return self._calculate_sharpe_from_equity_curve(
             resampled_points, periods_per_year
         )
+    
+    def _calculate_profit_factor(self, orders: list[Order]) -> float:
+        """Calculate profit factor from list of orders.
 
-    def _calculate_max_drawdown(self) -> float:
-        """Calculate maximum drawdown from equity curve.
-
-        Maximum drawdown is the largest peak-to-trough decline in equity value.
-        It's calculated as: (Trough Value - Peak Value) / Peak Value
-
-        Returns:
-            Maximum drawdown as a decimal (e.g., 0.2 for 20% drawdown)
-            Returns 0.0 if no drawdown occurred or insufficient data
+        Args:
+            orders: List of Order objects
         """
-        if len(self._equity_curve) < 2:
-            return 0.0
-
-        equity_values = np.array([point.value for point in self._equity_curve])
-        running_max = np.maximum.accumulate(equity_values)
-
-        drawdowns = (equity_values - running_max) / running_max
-        max_drawdown = np.min(drawdowns)
-
-        return abs(float(max_drawdown))
+        for order in orders:
+            ...

@@ -8,7 +8,7 @@ from sqlalchemy import update
 
 from config import BASE_PATH, REDIS_DEPLOYMENT_EVENTS_KEY
 from enums import BrokerType, DeploymentStatus
-from infra.db.models import BrokerConnections, StrategyDeployments, Strategies
+from infra.db.model import BrokerConnections, StrategyDeployments, Strategies
 from lib.brokers import AlpacaBroker, ProxyBroker
 from lib.strategy_manager import StrategyManager
 from models import DeploymentConfig

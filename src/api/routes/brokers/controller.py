@@ -4,7 +4,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from infra.db.models import BrokerConnections, StrategyDeployments
+from infra.db.model import BrokerConnections, StrategyDeployments
 
 
 async def get_broker_connection(

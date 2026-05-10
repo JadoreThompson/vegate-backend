@@ -8,7 +8,7 @@ from api.dependencies import CSVQuery, depends_db_sess, depends_jwt
 from api.shared.models import OrderResponse
 from api.types import JWTPayload
 from enums import BacktestStatus
-from infra.db.models import Strategies
+from infra.db.model import Strategies, BacktestMetrics
 from service.railway import RailwayService
 from .controller import (
     create_backtest,
@@ -22,7 +22,6 @@ from .models import (
     BacktestDetailResponse,
     BacktestResponse,
 )
-
 
 router = APIRouter(prefix="/backtests", tags=["Backtests"])
 railway_service = RailwayService()
@@ -38,7 +37,7 @@ async def create_backtest_endpoint(
     backtest = await create_backtest(jwt.sub, body, db_sess)
 
     rsp_body = BacktestResponse(
-        backtest_id=backtest.backtest_id,
+        backtest_id=backtest.id,
         strategy_id=backtest.strategy_id,
         symbol=backtest.symbol,
         starting_balance=backtest.starting_balance,
@@ -46,7 +45,7 @@ async def create_backtest_endpoint(
         created_at=backtest.created_at,
     )
 
-    deployment_data = await railway_service.deploy(backtest_id=backtest.backtest_id)
+    deployment_data = await railway_service.deploy(backtest_id=backtest.id)
     backtest.server_data = deployment_data
     await db_sess.commit()
 
@@ -64,6 +63,12 @@ async def get_backtest_endpoint(
     if not backtest:
         raise HTTPException(status_code=404, detail="Backtest not found")
 
+    metrics = await db_sess.scalar(
+        select(BacktestMetrics).where(BacktestMetrics.backtest_id == backtest_id)
+    )
+    if metrics is None:
+        raise HTTPException(status_code=404, detail="Backtest metrics not found")
+
     strategy = await db_sess.scalar(
         select(Strategies).where(Strategies.strategy_id == backtest.strategy_id)
     )
@@ -71,13 +76,13 @@ async def get_backtest_endpoint(
         raise HTTPException(status_code=404, detail="Backtest not found")
 
     return BacktestDetailResponse(
-        backtest_id=backtest.backtest_id,
+        backtest_id=backtest.id,
         strategy_id=backtest.strategy_id,
         symbol=backtest.symbol,
         starting_balance=backtest.starting_balance,
         status=backtest.status,
         created_at=backtest.created_at,
-        metrics=backtest.metrics,
+        metrics=metrics,
     )
 
 
@@ -94,7 +99,7 @@ async def list_backtests_endpoint(
     backtests = await list_backtests(jwt.sub, db_sess, status, symbols, skip, limit)
     res = [
         BacktestResponse(
-            backtest_id=b.backtest_id,
+            backtest_id=b.id,
             strategy_id=b.strategy_id,
             symbol=b.symbol,
             starting_balance=b.starting_balance,

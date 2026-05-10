@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.dependencies import depends_db_sess, depends_jwt
 from api.shared.models import PerformanceMetrics
 from api.types import JWTPayload
-from infra.db.models import Strategies
+from infra.db.model import Strategies
 from models import EquityCurvePoint
 from .controller import (
     create_strategy,

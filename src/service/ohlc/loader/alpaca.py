@@ -8,7 +8,7 @@ from alpaca.data.timeframe import TimeFrame as AlpacaTimeFrame
 from sqlalchemy import delete, func, insert, select
 
 from enums import BrokerType, MarketType, Timeframe
-from infra.db.models import OHLCs
+from infra.db.model import OHLCs
 from infra.db.utils import get_db_session
 from service.ohlc.loader.loader_config import LoaderConfig
 from service.ohlc.loader.logging.record import (

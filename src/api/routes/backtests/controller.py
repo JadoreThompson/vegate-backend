@@ -5,13 +5,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from enums import BacktestStatus
-from infra.db.models import Backtests, Orders, Strategies
+from infra.db.model import Backtest, Orders, Strategies
 from .models import BacktestCreate
 
 
 async def create_backtest(
     user_id: UUID, data: BacktestCreate, db_sess: AsyncSession
-) -> Backtests:
+) -> Backtest:
     """Create a new backtest."""
     # Verify the strategy exists and belongs to the user
     strategy = await db_sess.scalar(
@@ -23,9 +23,10 @@ async def create_backtest(
     if not strategy:
         raise HTTPException(404, "Strategy not found")
 
-    new_backtest = Backtests(
+    new_backtest = Backtest(
         strategy_id=data.strategy_id,
         symbol=data.symbol,
+        broker=data.broker,
         starting_balance=data.starting_balance,
         start_date=data.start_date,
         end_date=data.end_date,
@@ -37,11 +38,9 @@ async def create_backtest(
     return new_backtest
 
 
-async def get_backtest(backtest_id: UUID, db_sess: AsyncSession) -> Backtests | None:
+async def get_backtest(backtest_id: UUID, db_sess: AsyncSession) -> Backtest | None:
     """Get a backtest by ID."""
-    return await db_sess.scalar(
-        select(Backtests).where(Backtests.backtest_id == backtest_id)
-    )
+    return await db_sess.scalar(select(Backtest).where(Backtest.id == backtest_id))
 
 
 async def list_backtests(
@@ -51,21 +50,21 @@ async def list_backtests(
     symbols: list[str] | None = None,
     offset: int = 0,
     limit: int = 100,
-) -> list[Backtests]:
+) -> list[Backtest]:
     """List all backtests for a user with pagination."""
     stmt = (
-        select(Backtests)
+        select(Backtest)
         .join(Strategies)
         .where(Strategies.user_id == user_id)
         .offset(offset)
         .limit(limit)
-        .order_by(Backtests.created_at.desc())
+        .order_by(Backtest.created_at.desc())
     )
 
     if status is not None:
-        stmt = stmt.where(Backtests.status.in_(status))
+        stmt = stmt.where(Backtest.status.in_(status))
     if symbols is not None:
-        stmt = stmt.where(Backtests.symbol.in_(symbols))
+        stmt = stmt.where(Backtest.symbol.in_(symbols))
 
     result = await db_sess.execute(stmt)
     return list(result.scalars().all())

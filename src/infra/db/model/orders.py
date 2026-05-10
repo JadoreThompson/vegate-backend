@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .base import Base, datetime_tz, uuid_pk
 
 if TYPE_CHECKING:
-    from .backtests import Backtests
+    from .backtest import Backtest
     from .strategy_deployments import StrategyDeployments
 
 
@@ -39,7 +39,7 @@ class Orders(Base):
     # Foreign keys (nullable for backtest vs live)
     backtest_id: Mapped[UUID | None] = mapped_column(
         SaUUID(as_uuid=True),
-        ForeignKey("backtests.backtest_id", ondelete="CASCADE"),
+        ForeignKey("backtests.id", ondelete="CASCADE"),
         nullable=True,
     )
     deployment_id: Mapped[UUID | None] = mapped_column(
@@ -49,7 +49,7 @@ class Orders(Base):
     )
 
     # Relationships
-    backtest: Mapped["Backtests | None"] = relationship(back_populates="orders")
+    backtest: Mapped["Backtest | None"] = relationship(back_populates="orders")
     deployment: Mapped["StrategyDeployments | None"] = relationship(
         back_populates="orders"
     )

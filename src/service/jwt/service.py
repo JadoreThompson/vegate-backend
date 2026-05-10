@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import COOKIE_ALIAS, IS_PRODUCTION, JWT_SECRET, JWT_ALGO, JWT_EXPIRY_SECS
 from infra.db import get_db_session
-from infra.db.models import Users
+from infra.db.model import Users
 from utils import get_datetime
 from .exc import JWTError
 from .models import JWTPayload

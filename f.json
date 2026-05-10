@@ -1,0 +1,56 @@
+{
+  "config": {
+    "timeframe": "1m",
+    "starting_balance": 10000.0,
+    "symbol": "AAPL",
+    "start_date": "2024-01-01T01:01:00+00:00",
+    "end_date": "2024-01-01T01:04:00+00:00",
+    "broker": "alpaca"
+  },
+  "realised_pnl": 0.0,
+  "unrealised_pnl": 2.97,
+  "total_return_pct": 0.0,
+  "sharpe_ratio": 903.59,
+  "equity_curve": [
+    { "timestamp": "1970-01-01T00:00:00Z", "value": 10000.0 },
+    { "timestamp": "2024-01-01T01:01:00Z", "value": 10000.0 },
+    { "timestamp": "2024-01-01T01:02:00Z", "value": 10000.990099009901 },
+    { "timestamp": "2024-01-01T01:03:00Z", "value": 10001.980198019803 },
+    { "timestamp": "2024-01-01T01:04:00Z", "value": 10002.970297029702 }
+  ],
+  "orders": [
+    {
+      "order_id": "66a38ac5-d5f8-48d6-a697-90a84f21689b",
+      "symbol": "AAPL",
+      "quantity": 0.9900990099009901,
+      "executed_quantity": 0.9900990099009901,
+      "notional": 100.0,
+      "order_type": "market",
+      "side": "buy",
+      "limit_price": null,
+      "stop_price": null,
+      "filled_avg_price": 101.0,
+      "executed_at": "2024-01-01T01:01:00Z",
+      "submitted_at": "2024-01-01T01:01:00Z",
+      "status": "filled",
+      "details": null
+    },
+    {
+      "order_id": "a4c4adee-df4d-4f28-8f74-74f44ff5dae2",
+      "symbol": "AAPL",
+      "quantity": 0.9615384615384616,
+      "executed_quantity": 0.9615384615384616,
+      "notional": 100.0,
+      "order_type": "market",
+      "side": "sell",
+      "limit_price": null,
+      "stop_price": null,
+      "filled_avg_price": 104.0,
+      "executed_at": "2024-01-01T01:04:00Z",
+      "submitted_at": "2024-01-01T01:04:00Z",
+      "status": "filled",
+      "details": null
+    }
+  ],
+  "total_orders": 2
+}

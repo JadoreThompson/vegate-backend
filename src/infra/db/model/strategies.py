@@ -11,7 +11,7 @@ from utils import get_datetime
 
 if TYPE_CHECKING:
     from .users import Users
-    from .backtests import Backtests
+    from .backtest import Backtest
     from .strategy_deployments import StrategyDeployments
 
 
@@ -34,7 +34,7 @@ class Strategies(Base):
     metrics: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     # Relationships
-    backtests: Mapped[list["Backtests"]] = relationship(
+    backtests: Mapped[list["Backtest"]] = relationship(
         back_populates="strategy", cascade="all, delete-orphan", passive_deletes=True
     )
     strategy_deployments: Mapped[list["StrategyDeployments"]] = relationship(
