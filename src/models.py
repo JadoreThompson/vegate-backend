@@ -94,7 +94,8 @@ class BacktestMetrics(BaseModel):
     realised_pnl: float
     unrealised_pnl: float
     total_return_pct: float
-    sharpe_ratio: float
+    # sharpe_ratio: float
+    profit_factor: float
     equity_curve: list[EquityCurvePoint]
     orders: list[Order]
     total_orders: int
@@ -103,7 +104,8 @@ class BacktestMetrics(BaseModel):
         "realised_pnl",
         "unrealised_pnl",
         "total_return_pct",
-        "sharpe_ratio",
+        # "sharpe_ratio",
+        "profit_factor",
         mode="after",
     )
     def round_values(cls, value):

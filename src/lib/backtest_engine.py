@@ -139,9 +139,10 @@ class BacktestEngine:
             unrealised_pnl=end_equity - end_balance,
             total_return_pct=total_return_pct * 100,
             equity_curve=self._equity_curve,
-            sharpe_ratio=sharpe_ratio,
+            # sharpe_ratio=sharpe_ratio,
             orders=orders,
             total_orders=len(orders),
+            profit_factor=self._calculate_profit_factor(orders),
         )
 
     def _calculate_pnl(self) -> float:
@@ -322,6 +323,60 @@ class BacktestEngine:
 
         Args:
             orders: List of Order objects
+
+        Returns:
+            Profit factor (gross profit / gross loss), or 0.0 if no losing trades
         """
+        gross_profit = 0.0
+        gross_loss = 0.0
+
+        positions: dict[str, dict] = {}
+
         for order in orders:
-            ...
+            if order.status not in {OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED}:
+                continue
+
+            symbol = order.symbol
+            if symbol not in positions:
+                positions[symbol] = {"qty": 0.0, "avg_price": 0.0}
+
+            pos = positions[symbol]
+
+            # Resolve the executed price
+            if order.filled_avg_price is not None:
+                price = order.filled_avg_price
+            elif order.order_type == OrderType.LIMIT:
+                price = order.limit_price
+            elif order.order_type == OrderType.MARKET:
+                price = order.filled_avg_price  # best available
+            else:
+                price = order.stop_price
+
+            if price is None:
+                logger.warning(f"Order {order.order_id} has no resolvable price, skipping")
+                continue
+
+            qty = order.executed_quantity
+
+            if order.side == OrderSide.BUY:
+                total_cost = pos["qty"] * pos["avg_price"] + qty * price
+                pos["qty"] += qty
+                pos["avg_price"] = total_cost / pos["qty"] if pos["qty"] > 0 else 0.0
+
+            elif order.side == OrderSide.SELL:
+                pnl = qty * (price - pos["avg_price"])
+                pos["qty"] -= qty
+
+                if pos["qty"] <= 0:
+                    pos["qty"] = 0.0
+                    pos["avg_price"] = 0.0
+
+                if pnl >= 0:
+                    gross_profit += pnl
+                else:
+                    gross_loss += abs(pnl)
+
+        if gross_loss == 0.0:
+            return float("inf") if gross_profit > 0 else 0.0
+
+        return round(gross_profit / gross_loss, 2)
