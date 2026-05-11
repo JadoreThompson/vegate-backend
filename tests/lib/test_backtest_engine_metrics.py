@@ -267,3 +267,301 @@ class TestBacktestMetricsCalculation:
             metrics = engine.run()
 
         assert metrics.total_return_pct == 0.02  # 2% return
+
+    def test_profit_factor_with_winning_trade(self):
+        broker = BacktestBroker(starting_balance=10000)
+        strategy = SimpleStrategy("SimpleStrategy", broker)
+        candles = [
+            OHLC(
+                open=100.0,
+                high=105.0,
+                low=95.0,
+                close=100.0 + i,
+                volume=0.0,
+                timestamp=datetime(2024, 1, 1, 1, i + 1, tzinfo=UTC),
+                timeframe=Timeframe.m1,
+                symbol="AAPL",
+            )
+            for i in range(9)
+        ]
+
+        config = BacktestConfig(
+            timeframe=Timeframe.m1,
+            starting_balance=10000.0,
+            symbol="AAPL",
+            start_date=candles[0].timestamp,
+            end_date=candles[-1].timestamp,
+            broker=BrokerType.ALPACA,
+        )
+
+        with patch("lib.brokers.backtest.get_db_sess_sync") as mock_get_db:
+            mock_db_sess = MagicMock()
+            mock_context_manager = MagicMock()
+            mock_context_manager.__enter__.return_value = mock_db_sess
+            mock_context_manager.__exit__.return_value = None
+            mock_get_db.return_value = mock_context_manager
+
+            mock_results = MagicMock()
+            mock_db_sess.scalars.return_value = mock_results
+            mock_results.yield_per.return_value = iter(candles)
+
+            engine = BacktestEngine(strategy, broker, config)
+            metrics = engine.run()
+
+        assert metrics.profit_factor == float(
+            "inf"
+        ), f"Expected profit factor to be infinity when gross loss is 0, got {metrics.profit_factor}"
+
+    def test_profit_factor_with_mixed_trades(self):
+        broker = BacktestBroker(starting_balance=10000)
+        strategy = SimpleStrategy("SimpleStrategy", broker)
+        candles = [
+            OHLC(
+                open=100.0,
+                high=105.0,
+                low=95.0,
+                close=100.0,
+                volume=0.0,
+                timestamp=datetime(2024, 1, 1, 1, 1, tzinfo=UTC),
+                timeframe=Timeframe.m1,
+                symbol="AAPL",
+            ),
+            OHLC(
+                open=100.0,
+                high=105.0,
+                low=95.0,
+                close=102.0,
+                volume=0.0,
+                timestamp=datetime(2024, 1, 1, 1, 2, tzinfo=UTC),
+                timeframe=Timeframe.m1,
+                symbol="AAPL",
+            ),
+            OHLC(
+                open=102.0,
+                high=105.0,
+                low=95.0,
+                close=102.0,
+                volume=0.0,
+                timestamp=datetime(2024, 1, 1, 1, 3, tzinfo=UTC),
+                timeframe=Timeframe.m1,
+                symbol="AAPL",
+            ),
+            OHLC(
+                open=102.0,
+                high=105.0,
+                low=95.0,
+                close=101.0,
+                volume=0.0,
+                timestamp=datetime(2024, 1, 1, 1, 3, tzinfo=UTC),
+                timeframe=Timeframe.m1,
+                symbol="AAPL",
+            )
+        ]
+
+        config = BacktestConfig(
+            timeframe=Timeframe.m1,
+            starting_balance=10000.0,
+            symbol="AAPL",
+            start_date=candles[0].timestamp,
+            end_date=candles[-1].timestamp,
+            broker=BrokerType.ALPACA,
+        )
+
+        with patch("lib.brokers.backtest.get_db_sess_sync") as mock_get_db:
+            mock_db_sess = MagicMock()
+            mock_context_manager = MagicMock()
+            mock_context_manager.__enter__.return_value = mock_db_sess
+            mock_context_manager.__exit__.return_value = None
+            mock_get_db.return_value = mock_context_manager
+
+            mock_results = MagicMock()
+            mock_db_sess.scalars.return_value = mock_results
+            mock_results.yield_per.return_value = iter(candles)
+
+            engine = BacktestEngine(strategy, broker, config)
+            metrics = engine.run()
+
+        assert metrics.profit_factor == 2.0, f"Expected profit factor of 2.0 for 2 profit and 1 loss, got {metrics.profit_factor}"
+
+
+    def test_profit_factor_with_losing_trade(self):
+        broker = BacktestBroker(starting_balance=10000)
+        strategy = SimpleStrategy("SimpleStrategy", broker)
+        candles = [
+            OHLC(
+                open=100.0 - i * 0.5,
+                high=105.0 - i * 0.5,
+                low=95.0 - i * 0.5,
+                close=100.0 - i * 0.5,
+                volume=0.0,
+                timestamp=datetime(2024, 1, 1, 1, i, tzinfo=UTC),
+                timeframe=Timeframe.m1,
+                symbol="AAPL",
+            )
+            for i in range(1, 9)
+        ]
+
+        config = BacktestConfig(
+            timeframe=Timeframe.m1,
+            starting_balance=10000.0,
+            symbol="AAPL",
+            start_date=candles[0].timestamp,
+            end_date=candles[-1].timestamp,
+            broker=BrokerType.ALPACA,
+        )
+
+        with patch("lib.brokers.backtest.get_db_sess_sync") as mock_get_db:
+            mock_db_sess = MagicMock()
+            mock_context_manager = MagicMock()
+            mock_context_manager.__enter__.return_value = mock_db_sess
+            mock_context_manager.__exit__.return_value = None
+            mock_get_db.return_value = mock_context_manager
+
+            mock_results = MagicMock()
+            mock_db_sess.scalars.return_value = mock_results
+            mock_results.yield_per.return_value = iter(candles)
+
+            engine = BacktestEngine(strategy, broker, config)
+            metrics = engine.run()
+
+        assert metrics.profit_factor == 0.0, f"Expected profit factor of 0.0 for only losing trades, got {metrics.profit_factor}"
+
+    def test_profit_factor_zero_with_no_trades(self):
+        broker = BacktestBroker(starting_balance=10000)
+
+        class NoTradeStrategy(BaseStrategy):
+            def __init__(self, broker):
+                super().__init__("NoTrade", broker)
+
+            def on_candle(self, candle):
+                pass
+
+        strategy = NoTradeStrategy(broker)
+        candles = [
+            OHLC(
+                open=100.0,
+                high=105.0,
+                low=95.0,
+                close=100.0 + i * 0.5,
+                volume=0.0,
+                timestamp=datetime(2024, 1, 1, 1, i, tzinfo=UTC),
+                timeframe=Timeframe.m1,
+                symbol="AAPL",
+            )
+            for i in range(1, 21)
+        ]
+
+        config = BacktestConfig(
+            timeframe=Timeframe.m1,
+            starting_balance=10000.0,
+            symbol="AAPL",
+            start_date=candles[0].timestamp,
+            end_date=candles[-1].timestamp,
+            broker=BrokerType.ALPACA,
+        )
+
+        with patch("lib.brokers.backtest.get_db_sess_sync") as mock_get_db:
+            mock_db_sess = MagicMock()
+            mock_context_manager = MagicMock()
+            mock_context_manager.__enter__.return_value = mock_db_sess
+            mock_context_manager.__exit__.return_value = None
+            mock_get_db.return_value = mock_context_manager
+
+            mock_results = MagicMock()
+            mock_db_sess.scalars.return_value = mock_results
+            mock_results.yield_per.return_value = iter(candles)
+
+            engine = BacktestEngine(strategy, broker, config)
+            metrics = engine.run()
+
+        assert (
+            metrics.profit_factor == 0.0
+        ), f"Expected profit factor 0.0 with no trades, got {metrics.profit_factor}"
+    
+    def test_profit_factor_with_partially_filled_orders(self):
+        broker = BacktestBroker(starting_balance=10000)
+
+        class PartialFillStrategy(BaseStrategy):
+            def __init__(self, broker):
+                super().__init__("PartialFillStrategy", broker)
+                self._order: Order = None
+
+            def on_candle(self, candle):
+                if self._order is None:
+                    self._order = self.broker.place_order(
+                        OrderRequest(
+                            symbol=candle.symbol,
+                            order_type=OrderType.MARKET,
+                            side=OrderSide.BUY,
+                            quantity=2.0,
+                        )
+                    )
+                    # Simulate partial fill: half the quantity at half the cost
+                    self._order.status = OrderStatus.PARTIALLY_FILLED
+                    self._order.executed_quantity = 1.0
+                else:
+                    sell_order = self.broker.place_order(
+                        OrderRequest(
+                            symbol=candle.symbol,
+                            order_type=OrderType.MARKET,
+                            side=OrderSide.SELL,
+                            quantity=1.0,
+                        )
+                    )
+                    self._order = None
+
+        strategy = PartialFillStrategy(broker)
+
+        # Buy at 100, sell at 110 — expect profit of 10.0 on 1 unit, no losses
+        # profit_factor = inf (gross_profit=10, gross_loss=0)
+        candles = [
+            OHLC(
+                open=100.0,
+                high=105.0,
+                low=95.0,
+                close=100.0,
+                volume=0.0,
+                timestamp=datetime(2024, 1, 1, 1, 1, tzinfo=UTC),
+                timeframe=Timeframe.m1,
+                symbol="AAPL",
+            ),
+            OHLC(
+                open=110.0,
+                high=115.0,
+                low=105.0,
+                close=110.0,
+                volume=0.0,
+                timestamp=datetime(2024, 1, 1, 1, 2, tzinfo=UTC),
+                timeframe=Timeframe.m1,
+                symbol="AAPL",
+            ),
+        ]
+
+        config = BacktestConfig(
+            timeframe=Timeframe.m1,
+            starting_balance=10000.0,
+            symbol="AAPL",
+            start_date=candles[0].timestamp,
+            end_date=candles[-1].timestamp,
+            broker=BrokerType.ALPACA,
+        )
+
+        with patch("lib.brokers.backtest.get_db_sess_sync") as mock_get_db:
+            mock_db_sess = MagicMock()
+            mock_context_manager = MagicMock()
+            mock_context_manager.__enter__.return_value = mock_db_sess
+            mock_context_manager.__exit__.return_value = None
+            mock_get_db.return_value = mock_context_manager
+
+            mock_results = MagicMock()
+            mock_db_sess.scalars.return_value = mock_results
+            mock_results.yield_per.return_value = iter(candles)
+
+            engine = BacktestEngine(strategy, broker, config)
+            metrics = engine.run()
+
+        # Partially filled buy: 1 unit @ 100. Sell: 1 unit @ 110. PnL = 10.0, no losses.
+        assert metrics.profit_factor == float("inf"), (
+            f"Expected profit factor of inf for partially filled buy then winning sell, "
+            f"got {metrics.profit_factor}"
+        )
