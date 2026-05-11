@@ -122,30 +122,11 @@ class BacktestEngine:
             end_balance - self._config.starting_balance
         ) / self._config.starting_balance
 
-        # Log final metrics
-        logger.info("=" * 60)
-        logger.info("BACKTEST RESULTS")
-        logger.info("=" * 60)
-        logger.info(f"Symbol: {self._config.symbol}")
-        logger.info(f"Timeframe: {self._config.timeframe}")
-        logger.info(f"Period: {self._config.start_date} to {self._config.end_date}")
-        logger.info(f"Starting Balance: ${self._config.starting_balance:,.2f}")
-        logger.info(f"Ending Balance: ${end_balance:,.2f}")
-        logger.info(f"Realised P&L: ${realised_pnl:,.2f}")
-        logger.info(f"Total Return: {total_return_pct * 100:.2f}%")
-        logger.info(f"Total Orders: {len(orders)}")
-        logger.info(f"Final Equity: ${end_equity:,.2f}")
-        logger.info("=" * 60)
-
-        sharpe_ratio = self._calculate_sharpe_ratio()
-
         return BacktestMetrics(
-            config=self._config,
             realised_pnl=realised_pnl,
             unrealised_pnl=end_equity - end_balance,
             total_return_pct=total_return_pct * 100,
             equity_curve=self._equity_curve,
-            # sharpe_ratio=sharpe_ratio,
             orders=orders,
             total_orders=len(orders),
             profit_factor=self._calculate_profit_factor(orders),

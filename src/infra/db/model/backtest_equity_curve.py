@@ -54,7 +54,4 @@ class BacktestEquityCurve(Base):
     created_at: Mapped[datetime] = datetime_tz()
 
     # Relationships
-    backtest: Mapped["Backtest"] = relationship(
-        back_populates="equity_curve",
-        passive_deletes=True,
-    )
+    backtest: Mapped["Backtest"] = relationship(back_populates="equity_curve")

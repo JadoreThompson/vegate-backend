@@ -11,7 +11,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import LLM_API_KEY
-from infra.db.model import Strategies, Backtest, OHLCs
+from infra.db.model import Strategy, Backtest, OHLC
 from service.deployment.base import DeploymentService
 from .models import StrategyCreate, StrategyUpdate, BacktestCreate
 from enums import BacktestStatus, BrokerType
@@ -510,7 +510,7 @@ validator_agent = Agent(
 
 async def create_strategy(
     user_id: UUID, data: StrategyCreate, db_sess: AsyncSession
-) -> Strategies:
+) -> Strategy:
     """Create a new strategy with code review and validation."""
 
     # Step 1: Generate strategy code
@@ -576,9 +576,7 @@ Check for:
 
     # Step 4: Check if strategy already exists
     existing_strategy = await db_sess.scalar(
-        select(Strategies).where(
-            Strategies.name == data.name, Strategies.user_id == user_id
-        )
+        select(Strategy).where(Strategy.name == data.name, Strategy.user_id == user_id)
     )
     if existing_strategy:
         raise HTTPException(
@@ -586,7 +584,7 @@ Check for:
         )
 
     # Step 5: Persist strategy to database (without committing transaction)
-    new_strategy = Strategies(
+    new_strategy = Strategy(
         user_id=user_id,
         name=data.name,
         description=data.description,
@@ -599,23 +597,23 @@ Check for:
     return new_strategy
 
 
-async def get_strategy(strategy_id: UUID, db_sess: AsyncSession) -> Strategies | None:
+async def get_strategy(strategy_id: UUID, db_sess: AsyncSession) -> Strategy | None:
     """Get a strategy by ID."""
     return await db_sess.scalar(
-        select(Strategies).where(Strategies.strategy_id == strategy_id)
+        select(Strategy).where(Strategy.strategy_id == strategy_id)
     )
 
 
 async def list_strategies(
     user_id: UUID, db_sess: AsyncSession, offset: int = 0, limit: int = 100
-) -> list[Strategies]:
+) -> list[Strategy]:
     """List all strategies with pagination."""
     result = await db_sess.execute(
-        select(Strategies)
-        .where(Strategies.user_id == user_id)
+        select(Strategy)
+        .where(Strategy.user_id == user_id)
         .offset(offset)
         .limit(limit)
-        .order_by(Strategies.created_at.desc())
+        .order_by(Strategy.created_at.desc())
     )
     return list(result.scalars().all())
 
@@ -625,7 +623,7 @@ async def update_strategy(
     strategy_id: UUID,
     data: StrategyUpdate,
     db_sess: AsyncSession,
-) -> Strategies | None:
+) -> Strategy | None:
     """Update a strategy."""
     strategy = await get_strategy(db_sess, strategy_id)
     if not strategy or strategy.user_id != user_id:
@@ -633,10 +631,10 @@ async def update_strategy(
 
     if data.name and data.name != strategy.name:
         existing = await db_sess.scalar(
-            select(Strategies).where(
-                Strategies.name == data.name,
-                Strategies.user_id == user_id,
-                Strategies.strategy_id != strategy_id,
+            select(Strategy).where(
+                Strategy.name == data.name,
+                Strategy.user_id == user_id,
+                Strategy.strategy_id != strategy_id,
             )
         )
         if existing:
@@ -646,8 +644,8 @@ async def update_strategy(
     update_data = data.model_dump(exclude_unset=True)
     if update_data:
         await db_sess.execute(
-            update(Strategies)
-            .where(Strategies.strategy_id == strategy_id)
+            update(Strategy)
+            .where(Strategy.strategy_id == strategy_id)
             .values(**update_data)
         )
         await db_sess.flush()
@@ -658,11 +656,11 @@ async def update_strategy(
 
 async def get_strategy_summary(
     user_id: UUID, strategy_id: UUID, db_sess: AsyncSession
-) -> Strategies | None:
+) -> Strategy | None:
     """Get a strategy with its metrics for summary view."""
     strategy = await db_sess.scalar(
-        select(Strategies).where(
-            Strategies.strategy_id == strategy_id, Strategies.user_id == user_id
+        select(Strategy).where(
+            Strategy.strategy_id == strategy_id, Strategy.user_id == user_id
         )
     )
     return strategy
@@ -670,14 +668,14 @@ async def get_strategy_summary(
 
 async def list_strategy_summaries(
     user_id: UUID, db_sess: AsyncSession, offset: int = 0, limit: int = 100
-) -> list[Strategies]:
+) -> list[Strategy]:
     """List all strategies with metrics for summary view."""
     result = await db_sess.execute(
-        select(Strategies)
-        .where(Strategies.user_id == user_id)
+        select(Strategy)
+        .where(Strategy.user_id == user_id)
         .offset(offset)
         .limit(limit)
-        .order_by(Strategies.created_at.desc())
+        .order_by(Strategy.created_at.desc())
     )
     return list(result.scalars().all())
 
@@ -698,8 +696,8 @@ async def create_backtest(
     """
     # Step 1: Verify strategy exists and belongs to user
     strategy = await db_sess.scalar(
-        select(Strategies).where(
-            Strategies.strategy_id == strategy_id, Strategies.user_id == user_id
+        select(Strategy).where(
+            Strategy.strategy_id == strategy_id, Strategy.user_id == user_id
         )
     )
     if not strategy:
@@ -719,12 +717,12 @@ async def create_backtest(
         d.year, d.month, d.day, tzinfo=UTC
     ).timestamp()
     ohlc_count = await db_sess.scalar(
-        select(OHLCs).where(
-            OHLCs.source == broker_type.value,
-            OHLCs.symbol == data.symbol,
-            OHLCs.timeframe == data.timeframe,
-            OHLCs.timestamp >= int(date_to_utc_timestamp(data.start_date)),
-            OHLCs.timestamp < int(date_to_utc_timestamp(data.end_date)),
+        select(OHLC).where(
+            OHLC.source == broker_type.value,
+            OHLC.symbol == data.symbol,
+            OHLC.timeframe == data.timeframe,
+            OHLC.timestamp >= int(date_to_utc_timestamp(data.start_date)),
+            OHLC.timestamp < int(date_to_utc_timestamp(data.end_date)),
         )
     )
 

@@ -6,8 +6,8 @@ from sqlalchemy import select
 
 from enums import OrderSide, OrderStatus, OrderType, Timeframe
 from infra.db import get_db_sess_sync
-from infra.db.model import OHLCs
-from models import Order, OrderRequest, OHLC
+from infra.db.model import OHLC
+from models import Order, OrderRequest, OHLC as OHLCModel
 from .base import BaseBroker
 
 
@@ -27,7 +27,7 @@ class BacktestBroker(BaseBroker):
         self.balance = starting_balance
         self._order_map: dict[str, Order] = {}
         self._pending_orders: list[Order] = []
-        self._cur_candle: OHLC | None = None
+        self._cur_candle: OHLCModel | None = None
         self._logger = logging.getLogger(self.__class__.__name__)
 
     def get_balance(self):
@@ -413,39 +413,23 @@ class BacktestBroker(BaseBroker):
     def stream_candles(self, symbol, timeframe, source, start_date, end_date):
         """Stream candles from the database for the given symbol, timeframe, and date range.
         End date is inclusive."""
-        end_date += timedelta(days=1)
+        # end_date += timedelta(days=1)
 
         with get_db_sess_sync() as db_sess:
             results = db_sess.scalars(
-                select(OHLCs)
+                select(OHLC)
                 .where(
-                    OHLCs.source == source,
-                    OHLCs.symbol == symbol,
-                    OHLCs.timeframe == timeframe,
-                    OHLCs.timestamp
-                    >= int(
-                        datetime(
-                            year=start_date.year,
-                            month=start_date.month,
-                            day=start_date.day,
-                            tzinfo=UTC,
-                        ).timestamp()
-                    ),
-                    OHLCs.timestamp
-                    <= int(
-                        datetime(
-                            year=end_date.year,
-                            month=end_date.month,
-                            day=end_date.day,
-                            tzinfo=UTC,
-                        ).timestamp()
-                    ),
+                    OHLC.source == source,
+                    OHLC.symbol == symbol,
+                    OHLC.timeframe == timeframe,
+                    OHLC.timestamp >= int(start_date.timestamp()),
+                    OHLC.timestamp <= int(end_date.timestamp()),
                 )
-                .order_by(OHLCs.timestamp.asc())
+                .order_by(OHLC.timestamp.asc())
             )
 
             for res in results.yield_per(1000):
-                candle = OHLC(
+                candle = OHLCModel(
                     open=res.open,
                     high=res.high,
                     low=res.low,

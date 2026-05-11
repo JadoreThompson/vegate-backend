@@ -11,7 +11,7 @@ from utils import get_datetime
 from .base import Base, datetime_tz, uuid_pk
 
 if TYPE_CHECKING:
-    from .strategies import Strategies
+    from .strategy import Strategy
     from .broker_connections import BrokerConnections
     from .orders import Orders
     from .account_snapshots import AccountSnapshots
@@ -47,7 +47,7 @@ class StrategyDeployments(Base):
     service_id: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Relationships
-    strategy: Mapped["Strategies"] = relationship(back_populates="strategy_deployments")
+    strategy: Mapped["Strategy"] = relationship(back_populates="strategy_deployments")
     broker_connection: Mapped["BrokerConnections"] = relationship(
         back_populates="strategy_deployments"
     )

@@ -10,17 +10,20 @@ if TYPE_CHECKING:
     from infra.db.model.backtest import Backtest
 
 
-class BacktestMetric(Base):
+class BacktestMetrics(Base):
     __tablename__ = "backtest_metrics"
 
     id: Mapped[uuid.UUID] = uuid_pk()
     backtest_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("backtests.id"), nullable=False, unique=True
+        UUID(as_uuid=True),
+        ForeignKey("backtests.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
     realised_pnl: Mapped[float] = mapped_column(Float, nullable=False)
     unrealised_pnl: Mapped[float] = mapped_column(Float, nullable=False)
     total_return_pct: Mapped[float] = mapped_column(Float, nullable=False)
-    sharpe_ratio: Mapped[float] = mapped_column(Float, nullable=False)
+    profit_factor: Mapped[float] = mapped_column(Float, nullable=False)
     total_orders: Mapped[int] = mapped_column(Integer, nullable=False)
 
     # Relationships

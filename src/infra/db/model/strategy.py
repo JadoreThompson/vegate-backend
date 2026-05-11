@@ -10,12 +10,12 @@ from .base import Base, datetime_tz, uuid_pk
 from utils import get_datetime
 
 if TYPE_CHECKING:
-    from .users import Users
+    from .user import User
     from .backtest import Backtest
     from .strategy_deployments import StrategyDeployments
 
 
-class Strategies(Base):
+class Strategy(Base):
     __tablename__ = "strategies"
     __table_args__ = (UniqueConstraint("user_id", "name"),)
 
@@ -40,6 +40,6 @@ class Strategies(Base):
     strategy_deployments: Mapped[list["StrategyDeployments"]] = relationship(
         back_populates="strategy", cascade="all, delete-orphan", passive_deletes=True
     )
-    user: Mapped["Users"] = relationship(
+    user: Mapped["User"] = relationship(
         back_populates="strategies", passive_deletes=True
     )

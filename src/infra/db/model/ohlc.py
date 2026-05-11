@@ -8,7 +8,7 @@ from enums import BrokerType, Timeframe
 from .base import Base, datetime_tz, uuid_pk
 
 
-class OHLCs(Base):
+class OHLC(Base):
     __tablename__ = "ohlcs"
     __table_args__ = (Index("idx_ohlc_levels_source_symbol", "source", "symbol"),)
 

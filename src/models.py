@@ -91,7 +91,6 @@ class EquityCurvePoint(BaseModel):
 class BacktestMetrics(BaseModel):
     """Represents backtest performance metrics."""
 
-    config: BacktestConfig
     realised_pnl: float
     unrealised_pnl: float
     total_return_pct: float

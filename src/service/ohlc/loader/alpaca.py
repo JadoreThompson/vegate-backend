@@ -8,7 +8,7 @@ from alpaca.data.timeframe import TimeFrame as AlpacaTimeFrame
 from sqlalchemy import delete, func, insert, select
 
 from enums import BrokerType, MarketType, Timeframe
-from infra.db.model import OHLCs
+from infra.db.model import OHLC
 from infra.db.utils import get_db_session
 from service.ohlc.loader.loader_config import LoaderConfig
 from service.ohlc.loader.logging.record import (
@@ -114,11 +114,11 @@ class AlpacaOHLCLoader(BaseOHLCLoader):
                 fedate = datetime.fromtimestamp(edate)
 
                 res = await db_sess.execute(
-                    select(func.count(OHLCs.ohlc_id)).where(
-                        OHLCs.source == BrokerType.ALPACA,
-                        OHLCs.symbol == fmt_symbol,
-                        OHLCs.timeframe == timeframe,
-                        OHLCs.timestamp.between(sdate, edate),
+                    select(func.count(OHLC.ohlc_id)).where(
+                        OHLC.source == BrokerType.ALPACA,
+                        OHLC.symbol == fmt_symbol,
+                        OHLC.timeframe == timeframe,
+                        OHLC.timestamp.between(sdate, edate),
                     )
                 )
                 data = res.first()
@@ -145,15 +145,15 @@ class AlpacaOHLCLoader(BaseOHLCLoader):
                         f"Existing OHLCs found for {symbol} from {fsdate} to {fedate}, deleting..."
                     )
                     await db_sess.execute(
-                        delete(OHLCs).where(
-                            OHLCs.source == BrokerType.ALPACA,
-                            OHLCs.symbol == fmt_symbol,
-                            OHLCs.timeframe == timeframe,
-                            OHLCs.timestamp.between(sdate, edate),
+                        delete(OHLC).where(
+                            OHLC.source == BrokerType.ALPACA,
+                            OHLC.symbol == fmt_symbol,
+                            OHLC.timeframe == timeframe,
+                            OHLC.timestamp.between(sdate, edate),
                         )
                     )
 
-                await db_sess.execute(insert(OHLCs), records)
+                await db_sess.execute(insert(OHLC), records)
                 await db_sess.commit()
 
             self._last_record = OHLCLoadCompleteRecord(params=fetch_params, count=count)

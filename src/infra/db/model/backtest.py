@@ -10,9 +10,9 @@ from infra.db.model.backtest_order import BacktestOrder
 from infra.db.model.base import Base, datetime_tz, uuid_pk
 
 if TYPE_CHECKING:
-    from infra.db.model.backtest_metric import BacktestMetric
-    from infra.db.model.orders import Orders
-    from infra.db.model.strategies import Strategies
+    from infra.db.model.backtest_metric import BacktestMetrics
+    from infra.db.model.backtest_equity_curve import BacktestEquityCurve
+    from infra.db.model.strategy import Strategy
 
 
 class Backtest(Base):
@@ -37,12 +37,15 @@ class Backtest(Base):
     created_at: Mapped[datetime] = datetime_tz()
 
     # Relationships
-    strategy: Mapped["Strategies"] = relationship(
+    strategy: Mapped["Strategy"] = relationship(
         back_populates="backtests", passive_deletes=True
     )
     orders: Mapped[list["BacktestOrder"]] = relationship(
         back_populates="backtest", cascade="all, delete-orphan", passive_deletes=True
     )
-    metrics: Mapped["BacktestMetric"] = relationship(
-        back_populates="backtest", uselist=False, cascade="all, delete-orphan"
+    metrics: Mapped["BacktestMetrics"] = relationship(
+        back_populates="backtest", cascade="all, delete-orphan", passive_deletes=True
+    )
+    equity_curve: Mapped[list["BacktestEquityCurve"]] = relationship(
+        back_populates="backtest", cascade="all, delete-orphan", passive_deletes=True
     )

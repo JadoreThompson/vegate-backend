@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.dependencies import depends_db_sess, depends_deployment_service, depends_jwt
 from api.types import JWTPayload
 from enums import DeploymentStatus
-from infra.db.model import Strategies
+from infra.db.model import Strategy
 from service.deployment.base import DeploymentService
 from .controller import (
     create_deployment,
@@ -19,7 +19,6 @@ from .controller import (
 )
 from .models import DeployStrategyRequest, DeploymentResponse, DeploymentDetailResponse
 from api.shared.models import OrderResponse, PerformanceMetrics
-
 
 router = APIRouter(prefix="/deployments", tags=["Deployments"])
 
@@ -133,7 +132,7 @@ async def get_deployment_endpoint(
         raise HTTPException(status_code=404, detail="Deployment not found")
 
     strategy = await db_sess.scalar(
-        select(Strategies).where(Strategies.strategy_id == deployment.strategy_id)
+        select(Strategy).where(Strategy.strategy_id == deployment.strategy_id)
     )
     if not strategy or strategy.user_id != jwt.sub:
         raise HTTPException(status_code=404, detail="Deployment not found")

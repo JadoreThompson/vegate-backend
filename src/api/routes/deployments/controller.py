@@ -16,14 +16,13 @@ from infra.db.model import (
     AccountSnapshots,
     BrokerConnections,
     Orders,
-    Strategies,
+    Strategy,
     StrategyDeployments,
 )
 from infra.redis import REDIS_CLIENT
 from models import EquityCurvePoint
 from utils import get_datetime
 from .models import DeployStrategyRequest
-
 
 logger = logging.getLogger("deployments.controller")
 
@@ -192,9 +191,9 @@ async def create_deployment(
     """
     # Verify the strategy exists and belongs to the user
     strategy = await db_sess.scalar(
-        select(Strategies).where(
-            Strategies.strategy_id == strategy_id,
-            Strategies.user_id == user_id,
+        select(Strategy).where(
+            Strategy.strategy_id == strategy_id,
+            Strategy.user_id == user_id,
         )
     )
     if not strategy:
@@ -251,9 +250,9 @@ async def list_strategy_deployments(
     """
     # First verify the strategy exists and belongs to the user
     strategy = await db_sess.scalar(
-        select(Strategies).where(
-            Strategies.strategy_id == strategy_id,
-            Strategies.user_id == user_id,
+        select(Strategy).where(
+            Strategy.strategy_id == strategy_id,
+            Strategy.user_id == user_id,
         )
     )
     if not strategy:
@@ -283,9 +282,7 @@ async def list_all_deployments(
     Returns deployments ordered by creation date (newest first).
     """
     query = (
-        select(StrategyDeployments)
-        .join(Strategies)
-        .where(Strategies.user_id == user_id)
+        select(StrategyDeployments).join(Strategy).where(Strategy.user_id == user_id)
     )
 
     # Apply status filter if provided
@@ -318,7 +315,7 @@ async def stop_deployment(
         raise HTTPException(404, "Deployment not found")
 
     strategy = await db_sess.scalar(
-        select(Strategies).where(Strategies.strategy_id == deployment.strategy_id)
+        select(Strategy).where(Strategy.strategy_id == deployment.strategy_id)
     )
 
     if not strategy or strategy.user_id != user_id:
@@ -362,7 +359,7 @@ async def get_deployment_orders(
         raise HTTPException(404, "Deployment not found")
 
     strategy = await db_sess.scalar(
-        select(Strategies).where(Strategies.strategy_id == deployment.strategy_id)
+        select(Strategy).where(Strategy.strategy_id == deployment.strategy_id)
     )
     if not strategy or strategy.user_id != user_id:
         raise HTTPException(404, "Deployment not found")
@@ -623,7 +620,7 @@ async def get_deployment_with_metrics(
 
     # Verify user owns this deployment
     strategy = await db_sess.scalar(
-        select(Strategies).where(Strategies.strategy_id == deployment.strategy_id)
+        select(Strategy).where(Strategy.strategy_id == deployment.strategy_id)
     )
     if not strategy or strategy.user_id != user_id:
         raise HTTPException(404, "Deployment not found")

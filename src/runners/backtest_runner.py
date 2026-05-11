@@ -7,11 +7,18 @@ from sqlalchemy import insert, update
 from config import BASE_PATH
 from enums import BacktestStatus, BrokerType, Timeframe
 from infra.db import get_db_sess_sync
-from infra.db.model import Backtest, Orders, Strategies, BacktestOrder, BacktestMetric, BacktestEquityCurve
+from infra.db.model import (
+    Backtest,
+    Orders,
+    Strategy,
+    BacktestOrder,
+    BacktestMetrics,
+    BacktestEquityCurve,
+)
 from lib.backtest_engine import BacktestEngine
 from lib.brokers import BacktestBroker
 from lib.strategy import BaseStrategy
-from models import BacktestMetrics, BacktestConfig
+from models import BacktestMetrics as BacktestMetricsModel, BacktestConfig, EquityCurvePoint
 from .base import BaseRunner
 
 
@@ -26,15 +33,13 @@ class BacktestRunner(BaseRunner):
         """The main entry point for the backtest process."""
         self._logger.info(f"Starting BacktestRunner for ID '{self._backtest_id}'")
 
-        db_backtest = None
-        db_strategy = None
-        metrics = None
-
         try:
             # Fetch backtest and strategy from database
             db_backtest, db_strategy = self._fetch_backtest_and_strategy()
             if db_backtest is None or db_strategy is None:
                 return
+
+            self._update_backtest_status(BacktestStatus.IN_PROGRESS)
 
             # Create backtest configuration
             bt_config = BacktestConfig(
@@ -57,17 +62,17 @@ class BacktestRunner(BaseRunner):
             self._logger.info(f"Backtest {self._backtest_id} completed")
 
             # Store results to database
-            self._store_results(result, db_backtest, bt_config)
+            self._store_results(result)
 
         except Exception as e:
             self._logger.error(
                 f"An error occurred handling backtest {self._backtest_id}", exc_info=e
             )
-            self._update_backtest_status(BacktestStatus.FAILED, metrics)
+            self._update_backtest_status(BacktestStatus.FAILED)
 
     def _fetch_backtest_and_strategy(
         self,
-    ) -> tuple[Backtest | None, Strategies | None]:
+    ) -> tuple[Backtest | None, Strategy | None]:
         """Fetch backtest and strategy from database.
 
         Returns:
@@ -83,7 +88,7 @@ class BacktestRunner(BaseRunner):
 
             self._logger.info("Backtest object found")
 
-            db_strategy = db_sess.get(Strategies, db_backtest.strategy_id)
+            db_strategy = db_sess.get(Strategy, db_backtest.strategy_id)
             if db_strategy is None:
                 self._logger.error(
                     f"Strategy for backtest {self._backtest_id} not found with ID: {db_backtest.strategy_id}"
@@ -130,24 +135,6 @@ class BacktestRunner(BaseRunner):
         Returns:
             BacktestConfig instance
         """
-        # Get broker from backtest server_data or default to ALPACA
-        # broker_type = BrokerType.ALPACA
-        # if db_backtest.server_data and "broker" in db_backtest.server_data:
-        #     broker_value = db_backtest.server_data["broker"]
-        #     try:
-        #         broker_type = BrokerType(broker_value)
-        #     except ValueError:
-        #         self._logger.warning(
-        #             f"Invalid broker type '{broker_value}', defaulting to ALPACA"
-        #         )
-
-        # try:
-        #     timeframe_enum = Timeframe(db_backtest.timeframe)
-        # except ValueError:
-        #     self._logger.warning(
-        #         f"Invalid timeframe '{db_backtest.timeframe}'. "
-        #         f"Possible values {list(Timeframe._value2member_map_.keys())}"
-        #     )
 
         return BacktestConfig(
             start_date=db_backtest.start_date,
@@ -158,13 +145,11 @@ class BacktestRunner(BaseRunner):
             broker=BrokerType(db_backtest.broker),
         )
 
-    def _store_results(
-        self, result: BacktestMetrics, db_backtest: Backtest, bt_config: BacktestConfig
-    ) -> None:
+    def _store_results(self, result: BacktestMetricsModel) -> None:
         """Store backtest results to database.
 
         Args:
-            result: BacktestMetrics result
+            result: BacktestMetricsModel result
             db_backtest: Database backtest object
             bt_config: BacktestConfig used
         """
@@ -173,7 +158,9 @@ class BacktestRunner(BaseRunner):
         for order in result.orders:
             o = order.model_dump(mode="json")
             o["backtest_id"] = self._backtest_id
-            # o["symbol"] = bt_config.symbol
+            o['filled_quantity'] = o['executed_quantity']
+            o['avg_fill_price'] = o['filled_avg_price']
+            o['filled_at'] = o['executed_at']
             records.append(o)
 
         # Downsample equity curve if too large
@@ -194,29 +181,37 @@ class BacktestRunner(BaseRunner):
                 .values(status=BacktestStatus.COMPLETED)
             )
 
-            db_sess.execute(insert(BacktestMetric).values(
-                realised_pnl=result.realised_pnl,
-                unrealised_pnl=result.unrealised_pnl,
-                total_return_pct=result.total_return_pct,
-                profit_factor=result.profit_factor
-            ))
+            db_sess.execute(
+                insert(BacktestMetrics)
+                .values(
+                    backtest_id=self._backtest_id,
+                    realised_pnl=result.realised_pnl,
+                    unrealised_pnl=result.unrealised_pnl,
+                    total_return_pct=result.total_return_pct,
+                    profit_factor=result.profit_factor,
+                    total_orders=result.total_orders
+                )
+            )
+
+            def parse_equity_curve_point(point: EquityCurvePoint) -> dict:
+                data = point.model_dump()
+                data['backtest_id'] = self._backtest_id
+                data['timestamp'] = data['timestamp'].timestamp()
+                return data
 
             db_sess.execute(
-                insert(BacktestEquityCurve), 
-                [point.model_dump(mode="json") for point in result.equity_curve]
+                insert(BacktestEquityCurve),
+                [parse_equity_curve_point(point) for point in result.equity_curve]
             )
 
             db_sess.commit()
             self._logger.info(f"Metrics updated for backtest {self._backtest_id}")
 
-    def _update_backtest_status(
-        self, status: BacktestStatus, metrics: dict | None = None
-    ) -> None:
+    def _update_backtest_status(self, status: BacktestStatus) -> None:
         """Update backtest status in database.
 
         Args:
             status: BacktestStatus to set
-            metrics: Optional metrics to store
         """
         with get_db_sess_sync() as db_sess:
             db_sess.execute(

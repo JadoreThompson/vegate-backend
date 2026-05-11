@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.dependencies import depends_db_sess, depends_jwt
 from api.shared.models import PerformanceMetrics
 from api.types import JWTPayload
-from infra.db.model import Strategies
+from infra.db.model import Strategy
 from models import EquityCurvePoint
 from .controller import (
     create_strategy,
@@ -27,7 +27,6 @@ from .models import (
     BacktestCreate,
     BacktestResponse,
 )
-
 
 router = APIRouter(prefix="/strategies", tags=["Strategies"])
 
@@ -107,7 +106,7 @@ async def update_strategy_endpoint(
     strategy = await update_strategy(jwt.sub, strategy_id, body, db_sess)
     if not strategy:
         raise HTTPException(status_code=404, detail="Strategy not found.")
-    
+
     rsp_body = StrategyResponse(
         strategy_id=strategy.strategy_id,
         name=strategy.name,
@@ -132,8 +131,8 @@ async def delete_strategy_endpoint(
         raise HTTPException(status_code=404, detail="Strategy not found.")
 
     await db_sess.execute(
-        delete(Strategies).where(
-            Strategies.strategy_id == strategy_id, Strategies.user_id == jwt.sub
+        delete(Strategy).where(
+            Strategy.strategy_id == strategy_id, Strategy.user_id == jwt.sub
         )
     )
 
@@ -161,14 +160,11 @@ async def get_strategy_summary_endpoint(
         if isinstance(point, dict):
             equity_curve.append(
                 EquityCurvePoint(
-                    timestamp=point.get("timestamp"),
-                    value=point.get("value", 0.0)
+                    timestamp=point.get("timestamp"), value=point.get("value", 0.0)
                 )
             )
         elif isinstance(point, (list, tuple)) and len(point) == 2:
-            equity_curve.append(
-                EquityCurvePoint(timestamp=point[0], value=point[1])
-            )
+            equity_curve.append(EquityCurvePoint(timestamp=point[0], value=point[1]))
 
     metrics = PerformanceMetrics(
         realised_pnl=metrics_data.get("realised_pnl", 0.0),
@@ -212,8 +208,7 @@ async def list_strategy_summaries_endpoint(
             if isinstance(point, dict):
                 equity_curve.append(
                     EquityCurvePoint(
-                        timestamp=point.get("timestamp"),
-                        value=point.get("value", 0.0)
+                        timestamp=point.get("timestamp"), value=point.get("value", 0.0)
                     )
                 )
             elif isinstance(point, (list, tuple)) and len(point) == 2:
@@ -245,7 +240,9 @@ async def list_strategy_summaries_endpoint(
     return results
 
 
-@router.post("/{strategy_id}/backtest", response_model=BacktestResponse, status_code=201)
+@router.post(
+    "/{strategy_id}/backtest", response_model=BacktestResponse, status_code=201
+)
 async def create_backtest_endpoint(
     strategy_id: UUID,
     body: BacktestCreate,
@@ -268,7 +265,11 @@ async def create_backtest_endpoint(
         backtest_id=backtest.backtest_id,
         strategy_id=backtest.strategy_id,
         symbol=backtest.symbol,
-        broker=backtest.server_data.get("broker", "unknown") if backtest.server_data else "unknown",
+        broker=(
+            backtest.server_data.get("broker", "unknown")
+            if backtest.server_data
+            else "unknown"
+        ),
         timeframe=backtest.timeframe,
         starting_balance=backtest.starting_balance,
         start_date=backtest.start_date,

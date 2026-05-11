@@ -8,7 +8,7 @@ from sqlalchemy import update
 
 from config import BASE_PATH, REDIS_DEPLOYMENT_EVENTS_KEY
 from enums import BrokerType, DeploymentStatus
-from infra.db.model import BrokerConnections, StrategyDeployments, Strategies
+from infra.db.model import BrokerConnections, StrategyDeployments, Strategy
 from lib.brokers import AlpacaBroker, ProxyBroker
 from lib.strategy_manager import StrategyManager
 from models import DeploymentConfig
@@ -26,7 +26,7 @@ class DeploymentRunner(BaseRunner):
 
     def __init__(self, deployment_id: UUID):
         self._deployment_id = deployment_id
-        self._deployment_config: DeploymentConfig| None = None
+        self._deployment_config: DeploymentConfig | None = None
         self._strategy_manager: StrategyManager | None = None
         self._logger = logging.getLogger(type(self).__name__)
 
@@ -39,7 +39,7 @@ class DeploymentRunner(BaseRunner):
         self._logger.info(f"Starting DeploymentRunner for ID '{self._deployment_id}'")
 
         db_deployment: StrategyDeployments | None = None
-        db_strategy: Strategies | None = None
+        db_strategy: Strategy | None = None
         db_broker_conn: BrokerConnections | None = None
 
         final_status: DeploymentStatus | None = None
@@ -70,9 +70,7 @@ class DeploymentRunner(BaseRunner):
             # self._strategy_manager = StrategyManager(deployment_config)
             self._logger.info("Strategy manager initialised")
 
-            strategy_task = asyncio.create_task(
-                self._run_strategy_manager()
-            )
+            strategy_task = asyncio.create_task(self._run_strategy_manager())
             event_task = asyncio.create_task(self._listen_for_events())
             done, pending = await asyncio.wait(
                 [strategy_task, event_task], return_when=asyncio.FIRST_COMPLETED
@@ -105,7 +103,7 @@ class DeploymentRunner(BaseRunner):
 
     def _fetch_deployment_dependencies(
         self,
-    ) -> tuple[StrategyDeployments | None, Strategies | None, BrokerConnections | None]:
+    ) -> tuple[StrategyDeployments | None, Strategy | None, BrokerConnections | None]:
         """Fetch deployment, strategy, and broker connection from database.
 
         Returns:
@@ -124,7 +122,7 @@ class DeploymentRunner(BaseRunner):
                 f"Timeframe: {db_deployment.timeframe}"
             )
 
-            db_strategy = db_sess.get(Strategies, db_deployment.strategy_id)
+            db_strategy = db_sess.get(Strategy, db_deployment.strategy_id)
             if db_strategy is None:
                 self._logger.error(
                     f"Strategy not found for deployment {self._deployment_id}: "
@@ -186,7 +184,10 @@ class DeploymentRunner(BaseRunner):
 
             # Instantiate strategy
             from user_strategy import Strategy
-            strategy = Strategy(name=self._deployment_config.symbol, broker=proxy_broker)
+
+            strategy = Strategy(
+                name=self._deployment_config.symbol, broker=proxy_broker
+            )
             self._logger.info("Strategy instantiated")
 
             # Create strategy manager with pre-instantiated objects
@@ -225,8 +226,8 @@ class DeploymentRunner(BaseRunner):
                         try:
                             event_data = json.loads(message["data"])
                             # event = DeploymentEvent(**event_data)
-                            event_type = event_data['type']
-                            deployment_id = UUID(event_data['deployment_id'])
+                            event_type = event_data["type"]
+                            deployment_id = UUID(event_data["deployment_id"])
 
                             # Only handle events for this deployment
                             if deployment_id != self._deployment_id:
@@ -348,7 +349,7 @@ class DeploymentRunner(BaseRunner):
             broker_conn = db_sess.get(
                 BrokerConnections, deployment.broker_connection_id
             )
-            
+
             api_key = broker_conn.api_key
             secret_key = broker_conn.secret_key
 

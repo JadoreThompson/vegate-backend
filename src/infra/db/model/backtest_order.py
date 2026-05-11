@@ -21,7 +21,6 @@ class BacktestOrder(Base):
         UUID(as_uuid=True), ForeignKey("backtests.id", ondelete="CASCADE"), nullable=False
     )
     symbol: Mapped[str] = mapped_column(String, nullable=False)
-    broker: Mapped[BrokerType] = mapped_column(String, nullable=False)
     side: Mapped[str] = mapped_column(String, nullable=False)
     order_type: Mapped[str] = mapped_column(String, nullable=False)
     quantity: Mapped[float | None] = mapped_column(Float, nullable=True)

@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from enums import BacktestStatus
-from infra.db.model import Backtest, Orders, Strategies
+from infra.db.model import Backtest, Orders, Strategy
 from .models import BacktestCreate
 
 
@@ -15,9 +15,9 @@ async def create_backtest(
     """Create a new backtest."""
     # Verify the strategy exists and belongs to the user
     strategy = await db_sess.scalar(
-        select(Strategies).where(
-            Strategies.strategy_id == data.strategy_id,
-            Strategies.user_id == user_id,
+        select(Strategy).where(
+            Strategy.strategy_id == data.strategy_id,
+            Strategy.user_id == user_id,
         )
     )
     if not strategy:
@@ -54,8 +54,8 @@ async def list_backtests(
     """List all backtests for a user with pagination."""
     stmt = (
         select(Backtest)
-        .join(Strategies)
-        .where(Strategies.user_id == user_id)
+        .join(Strategy)
+        .where(Strategy.user_id == user_id)
         .offset(offset)
         .limit(limit)
         .order_by(Backtest.created_at.desc())
@@ -80,7 +80,7 @@ async def delete_backtest(
 
     # Verify ownership through strategy relationship
     strategy = await db_sess.scalar(
-        select(Strategies).where(Strategies.strategy_id == backtest.strategy_id)
+        select(Strategy).where(Strategy.strategy_id == backtest.strategy_id)
     )
     if not strategy or strategy.user_id != user_id:
         return False
@@ -104,7 +104,7 @@ async def get_backtest_orders(
 
     # Verify ownership through strategy relationship
     strategy = await db_sess.scalar(
-        select(Strategies).where(Strategies.strategy_id == backtest.strategy_id)
+        select(Strategy).where(Strategy.strategy_id == backtest.strategy_id)
     )
     if not strategy or strategy.user_id != user_id:
         raise HTTPException(404, "Backtest not found")

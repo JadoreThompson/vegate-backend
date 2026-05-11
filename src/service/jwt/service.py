@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import COOKIE_ALIAS, IS_PRODUCTION, JWT_SECRET, JWT_ALGO, JWT_EXPIRY_SECS
 from infra.db import get_db_session
-from infra.db.model import Users
+from infra.db.model import User
 from utils import get_datetime
 from .exc import JWTError
 from .models import JWTPayload
@@ -40,7 +40,7 @@ class JWTService:
             raise JWTError("Invalid token")
 
     @classmethod
-    def set_cookie(cls, user: Users, rsp: Response | None = None) -> Response:
+    def set_cookie(cls, user: User, rsp: Response | None = None) -> Response:
         token = cls.generate_jwt(
             sub=user.user_id,
             em=user.email,
@@ -62,7 +62,7 @@ class JWTService:
     @classmethod
     async def set_user_cookie(
         cls,
-        user: Users,
+        user: User,
         db_sess: AsyncSession | None = None,
         rsp: Response | None = None,
     ) -> Response:
@@ -76,7 +76,7 @@ class JWTService:
             rsp = Response()
 
         await db_sess.execute(
-            update(Users).values(jwt=token).where(Users.user_id == user.user_id)
+            update(User).values(jwt=token).where(User.user_id == user.user_id)
         )
 
         rsp.set_cookie(
@@ -117,9 +117,7 @@ class JWTService:
             raise JWTError("Expired token")
 
         async with get_db_session() as db_sess:
-            user = await db_sess.scalar(
-                select(Users).where(Users.user_id == payload.sub)
-            )
+            user = await db_sess.scalar(select(User).where(User.user_id == payload.sub))
 
             if user is None:
                 raise JWTError("User not found.")

@@ -8,7 +8,7 @@ from api.dependencies import CSVQuery, depends_db_sess, depends_jwt
 from api.shared.models import OrderResponse
 from api.types import JWTPayload
 from enums import BacktestStatus
-from infra.db.model import Strategies, BacktestMetric
+from infra.db.model import Strategy, BacktestMetrics
 from service.railway import RailwayService
 from .controller import (
     create_backtest,
@@ -64,13 +64,13 @@ async def get_backtest_endpoint(
         raise HTTPException(status_code=404, detail="Backtest not found")
 
     metrics = await db_sess.scalar(
-        select(BacktestMetric).where(BacktestMetric.backtest_id == backtest_id)
+        select(BacktestMetrics).where(BacktestMetrics.backtest_id == backtest_id)
     )
     if metrics is None:
         raise HTTPException(status_code=404, detail="Backtest metrics not found")
 
     strategy = await db_sess.scalar(
-        select(Strategies).where(Strategies.strategy_id == backtest.strategy_id)
+        select(Strategy).where(Strategy.strategy_id == backtest.strategy_id)
     )
     if not strategy or strategy.user_id != jwt.sub:
         raise HTTPException(status_code=404, detail="Backtest not found")

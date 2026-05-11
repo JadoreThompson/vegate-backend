@@ -8,7 +8,7 @@ from enums import BrokerType
 from .base import Base, uuid_pk
 
 if TYPE_CHECKING:
-    from .users import Users
+    from .user import User
     from .strategy_deployments import StrategyDeployments
 
 
@@ -26,7 +26,7 @@ class BrokerConnections(Base):
     broker_account_id: Mapped[str] = mapped_column(String, nullable=False)
 
     # Relationships
-    user: Mapped["Users"] = relationship(back_populates="broker_connections")
+    user: Mapped["User"] = relationship(back_populates="broker_connections")
     strategy_deployments: Mapped[list["StrategyDeployments"]] = relationship(
         back_populates="broker_connection", cascade="all, delete-orphan"
     )

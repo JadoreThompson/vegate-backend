@@ -11,10 +11,10 @@ from .base import Base, datetime_tz
 
 if TYPE_CHECKING:
     from .broker_connections import BrokerConnections
-    from .strategies import Strategies
+    from .strategy import Strategy
 
 
-class Users(Base):
+class User(Base):
     __tablename__ = "users"
 
     user_id: Mapped[UUID] = mapped_column(
@@ -40,6 +40,6 @@ class Users(Base):
     broker_connections: Mapped[list["BrokerConnections"]] = relationship(
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True
     )
-    strategies: Mapped[list["Strategies"]] = relationship(
+    strategies: Mapped[list["Strategy"]] = relationship(
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True
     )

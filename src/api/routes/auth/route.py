@@ -14,7 +14,7 @@ from config import (
     REDIS_EMAIL_VERIFICATION_KEY_PREFIX,
     REDIS_EMAIL_VERIFCATION_EXPIRY_SECS,
 )
-from infra.db.model import Users
+from infra.db.model import User
 from service.email import BrevoEmailService
 from infra.redis import REDIS_CLIENT
 from service.jwt import JWTService
@@ -31,7 +31,6 @@ from .models import (
     VerifyCode,
 )
 
-
 router = APIRouter(prefix="/auth", tags=["Auth"])
 em_service = BrevoEmailService("Vegate", "no-reply@jadore.dev")
 pw_hasher = PasswordHasher()
@@ -46,8 +45,8 @@ async def register(
     global em_service, pw_hasher
 
     res = await db_sess.scalar(
-        select(Users).where(
-            (Users.username == body.username) | (Users.email == body.email)
+        select(User).where(
+            (User.username == body.username) | (User.email == body.email)
         )
     )
     if res is not None:
@@ -56,7 +55,7 @@ async def register(
     body.password = pw_hasher.hash(body.password, salt=PW_HASH_SALT.encode())
 
     user = await db_sess.scalar(
-        insert(Users).values(**body.model_dump()).returning(Users)
+        insert(User).values(**body.model_dump()).returning(User)
     )
 
     code = gen_verification_code()
@@ -87,11 +86,11 @@ async def login(body: UserLogin, db_sess: AsyncSession = Depends(depends_db_sess
             status_code=400, detail="Either username or email must be provided."
         )
 
-    query = select(Users)
+    query = select(User)
     if body.username is not None:
-        query = query.where(Users.username == body.username)
+        query = query.where(User.username == body.username)
     if body.email is not None:
-        query = query.where(Users.email == body.email)
+        query = query.where(User.email == body.email)
 
     user = await db_sess.scalar(query)
     if user is None:
@@ -142,7 +141,7 @@ async def verify_email(
         )
 
     await REDIS_CLIENT.delete(key)
-    user = await db_sess.scalar(select(Users).where(Users.user_id == jwt.sub))
+    user = await db_sess.scalar(select(User).where(User.user_id == jwt.sub))
     user.authenticated_at = get_datetime()
     rsp = await JWTService.set_user_cookie(user, db_sess)
     await db_sess.commit()
@@ -155,9 +154,7 @@ async def logout(
     db_sess: AsyncSession = Depends(depends_db_sess),
 ):
     rsp = JWTService.remove_cookie()
-    await db_sess.execute(
-        update(Users).values(jwt=None).where(Users.user_id == jwt.sub)
-    )
+    await db_sess.execute(update(User).values(jwt=None).where(User.user_id == jwt.sub))
     await db_sess.commit()
     return rsp
 
@@ -167,7 +164,7 @@ async def get_me(
     jwt: JWTPayload = Depends(depends_jwt()),
     db_sess: AsyncSession = Depends(depends_db_sess),
 ):
-    user = await db_sess.scalar(select(Users).where(Users.user_id == jwt.sub))
+    user = await db_sess.scalar(select(User).where(User.user_id == jwt.sub))
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 
@@ -186,12 +183,12 @@ async def change_username(
 ):
     global em_service
 
-    user = await db_sess.scalar(select(Users).where(Users.user_id == jwt.sub))
+    user = await db_sess.scalar(select(User).where(User.user_id == jwt.sub))
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
     existing_user = await db_sess.scalar(
-        select(Users).where(Users.username == body.username)
+        select(User).where(User.username == body.username)
     )
     if existing_user:
         raise HTTPException(status_code=400, detail="Username already exists.")
@@ -230,7 +227,7 @@ async def change_password(
 ):
     global em_service
 
-    user = await db_sess.scalar(select(Users).where(Users.user_id == jwt.sub))
+    user = await db_sess.scalar(select(User).where(User.user_id == jwt.sub))
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -271,11 +268,11 @@ async def change_email(
 ):
     global em_service
 
-    user = await db_sess.scalar(select(Users).where(Users.user_id == jwt.sub))
+    user = await db_sess.scalar(select(User).where(User.user_id == jwt.sub))
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    existing_user = await db_sess.scalar(select(Users).where(Users.email == body.email))
+    existing_user = await db_sess.scalar(select(User).where(User.email == body.email))
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already exists.")
 
@@ -331,13 +328,13 @@ async def verify_action(
     if action == "change_username":
         # Final check for username uniqueness to avoid race conditions
         existing_user = await db_sess.scalar(
-            select(Users).where(Users.username == new_value)
+            select(User).where(User.username == new_value)
         )
         if existing_user:
             raise HTTPException(status_code=400, detail="Username already taken.")
 
         await db_sess.execute(
-            update(Users).where(Users.user_id == user_id).values(username=new_value)
+            update(User).where(User.user_id == user_id).values(username=new_value)
         )
         message = "Username changed successfully."
         await db_sess.commit()
@@ -345,14 +342,14 @@ async def verify_action(
     elif action == "change_email":
         # Final check for email uniqueness to avoid race conditions
         existing_user = await db_sess.scalar(
-            select(Users).where(Users.email == new_value)
+            select(User).where(User.email == new_value)
         )
         if existing_user:
             raise HTTPException(status_code=400, detail="Email already taken.")
 
-        user = await db_sess.scalar(select(Users).where(Users.user_id == user_id))
+        user = await db_sess.scalar(select(User).where(User.user_id == user_id))
         await db_sess.execute(
-            update(Users).where(Users.user_id == user_id).values(email=new_value)
+            update(User).where(User.user_id == user_id).values(email=new_value)
         )
 
         # Update JWT with new email
@@ -363,13 +360,13 @@ async def verify_action(
 
     elif action == "change_password":
         await db_sess.execute(
-            update(Users)
-            .where(Users.user_id == user_id)
+            update(User)
+            .where(User.user_id == user_id)
             .values(password=pw_hasher.hash(new_value, salt=PW_HASH_SALT.encode()))
         )
 
         await db_sess.execute(
-            update(Users).values(jwt=None).where(Users.user_id == user_id)
+            update(User).values(jwt=None).where(User.user_id == user_id)
         )
 
         rsp = JSONResponse(
