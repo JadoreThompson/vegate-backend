@@ -3,7 +3,8 @@ from infra.db.model.users import Users
 from infra.db.model.broker_connections import BrokerConnections
 from infra.db.model.strategies import Strategies
 from infra.db.model.backtest import Backtest
-from infra.db.model.backtest_metrics import BacktestMetrics
+from infra.db.model.backtest_equity_curve import BacktestEquityCurve
+from infra.db.model.backtest_metric import BacktestMetric
 from infra.db.model.backtest_order import BacktestOrder
 from infra.db.model.strategy_deployments import StrategyDeployments
 from infra.db.model.orders import Orders
@@ -19,7 +20,8 @@ __all__ = [
     "BrokerConnections",
     "Strategies",
     "Backtest",
-    "BacktestMetrics",
+    "BacktestEquityCurve",
+    "BacktestMetric",
     "BacktestOrder",
     "StrategyDeployments",
     "Orders",

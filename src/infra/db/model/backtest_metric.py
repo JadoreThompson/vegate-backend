@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from infra.db.model.backtest import Backtest
 
 
-class BacktestMetrics(Base):
+class BacktestMetric(Base):
     __tablename__ = "backtest_metrics"
 
     id: Mapped[uuid.UUID] = uuid_pk()

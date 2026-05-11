@@ -7,7 +7,7 @@ from sqlalchemy import insert, update
 from config import BASE_PATH
 from enums import BacktestStatus, BrokerType, Timeframe
 from infra.db import get_db_sess_sync
-from infra.db.model import Backtest, Orders, Strategies
+from infra.db.model import Backtest, Orders, Strategies, BacktestOrder, BacktestMetric, BacktestEquityCurve
 from lib.backtest_engine import BacktestEngine
 from lib.brokers import BacktestBroker
 from lib.strategy import BaseStrategy
@@ -131,31 +131,31 @@ class BacktestRunner(BaseRunner):
             BacktestConfig instance
         """
         # Get broker from backtest server_data or default to ALPACA
-        broker_type = BrokerType.ALPACA
-        if db_backtest.server_data and "broker" in db_backtest.server_data:
-            broker_value = db_backtest.server_data["broker"]
-            try:
-                broker_type = BrokerType(broker_value)
-            except ValueError:
-                self._logger.warning(
-                    f"Invalid broker type '{broker_value}', defaulting to ALPACA"
-                )
+        # broker_type = BrokerType.ALPACA
+        # if db_backtest.server_data and "broker" in db_backtest.server_data:
+        #     broker_value = db_backtest.server_data["broker"]
+        #     try:
+        #         broker_type = BrokerType(broker_value)
+        #     except ValueError:
+        #         self._logger.warning(
+        #             f"Invalid broker type '{broker_value}', defaulting to ALPACA"
+        #         )
 
-        try:
-            timeframe_enum = Timeframe(db_backtest.timeframe)
-        except ValueError:
-            self._logger.warning(
-                f"Invalid timeframe '{db_backtest.timeframe}'. "
-                f"Possible values {list(Timeframe._value2member_map_.keys())}"
-            )
+        # try:
+        #     timeframe_enum = Timeframe(db_backtest.timeframe)
+        # except ValueError:
+        #     self._logger.warning(
+        #         f"Invalid timeframe '{db_backtest.timeframe}'. "
+        #         f"Possible values {list(Timeframe._value2member_map_.keys())}"
+        #     )
 
         return BacktestConfig(
             start_date=db_backtest.start_date,
             end_date=db_backtest.end_date,
             symbol=db_backtest.symbol,
             starting_balance=db_backtest.starting_balance,
-            timeframe=timeframe_enum,
-            broker=broker_type,
+            timeframe=Timeframe(db_backtest.timeframe),
+            broker=BrokerType(db_backtest.broker),
         )
 
     def _store_results(
@@ -173,7 +173,7 @@ class BacktestRunner(BaseRunner):
         for order in result.orders:
             o = order.model_dump(mode="json")
             o["backtest_id"] = self._backtest_id
-            o["symbol"] = bt_config.symbol
+            # o["symbol"] = bt_config.symbol
             records.append(o)
 
         # Downsample equity curve if too large
@@ -183,29 +183,29 @@ class BacktestRunner(BaseRunner):
             indices = [0, n * 1 // 4, n * 2 // 4, n * 3 // 4, n - 1]
             equity_curve = [equity_curve[i] for i in indices]
 
-        # Convert equity curve points to dictionaries
-        equity_curve_data = [
-            {"timestamp": point.timestamp.isoformat(), "equity": point.value}
-            for point in equity_curve
-        ]
-
-        # Prepare metrics
-        metrics = result.model_dump(mode="json", exclude={"orders"})
-        metrics["equity_curve"] = equity_curve_data
-
         # Update database
         with get_db_sess_sync() as db_sess:
             if records:
-                db_sess.execute(insert(Orders), records)
+                db_sess.execute(insert(BacktestOrder), records)
 
             db_sess.execute(
                 update(Backtest)
                 .where(Backtest.id == self._backtest_id)
-                .values(
-                    status=BacktestStatus.COMPLETED,
-                    metrics=metrics,
-                )
+                .values(status=BacktestStatus.COMPLETED)
             )
+
+            db_sess.execute(insert(BacktestMetric).values(
+                realised_pnl=result.realised_pnl,
+                unrealised_pnl=result.unrealised_pnl,
+                total_return_pct=result.total_return_pct,
+                profit_factor=result.profit_factor
+            ))
+
+            db_sess.execute(
+                insert(BacktestEquityCurve), 
+                [point.model_dump(mode="json") for point in result.equity_curve]
+            )
+
             db_sess.commit()
             self._logger.info(f"Metrics updated for backtest {self._backtest_id}")
 
@@ -222,9 +222,6 @@ class BacktestRunner(BaseRunner):
             db_sess.execute(
                 update(Backtest)
                 .where(Backtest.id == self._backtest_id)
-                .values(
-                    status=status.value,
-                    metrics=metrics,
-                )
+                .values(status=status.value)
             )
             db_sess.commit()

@@ -56,11 +56,14 @@ class BacktestEngine:
         last_log_count = 0
         log_interval = 100  # Log every 100 candles
 
-        self._balance_curve.append(
-            EquityCurvePoint(timestamp=0, value=self._broker.get_balance())
-        )
+        # self._balance_curve.append(
+        #     EquityCurvePoint(timestamp=0, value=self._broker.get_balance())
+        # )
+        # self._equity_curve.append(
+        #     EquityCurvePoint(timestamp=0, value=self._broker.get_equity())
+        # )
         self._equity_curve.append(
-            EquityCurvePoint(timestamp=0, value=self._broker.get_equity())
+            EquityCurvePoint(timestamp=0, equity=self._broker.get_equity(), balance=self._broker.get_balance())
         )
 
         for candle in self._broker.stream_candles(
@@ -73,15 +76,18 @@ class BacktestEngine:
             candle_count += 1
 
             self._strategy.on_candle(candle)
-            self._balance_curve.append(
-                EquityCurvePoint(
-                    timestamp=candle.timestamp, value=self._broker.get_balance()
-                )
-            )
+            # self._balance_curve.append(
+            #     EquityCurvePoint(
+            #         timestamp=candle.timestamp, value=self._broker.get_balance()
+            #     )
+            # )
+            # self._equity_curve.append(
+            #     EquityCurvePoint(
+            #         timestamp=candle.timestamp, value=self._broker.get_equity()
+            #     )
+            # )
             self._equity_curve.append(
-                EquityCurvePoint(
-                    timestamp=candle.timestamp, value=self._broker.get_equity()
-                )
+                EquityCurvePoint(timestamp=candle.timestamp, equity=self._broker.get_equity(), balance=self._broker.get_balance())
             )
 
             if candle_count - last_log_count >= log_interval:

@@ -84,7 +84,8 @@ class EquityCurvePoint(BaseModel):
     """Represents a point in the equity curve."""
 
     timestamp: datetime
-    value: float
+    balance: float
+    equity: float
 
 
 class BacktestMetrics(BaseModel):
