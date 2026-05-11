@@ -49,7 +49,6 @@ class Orders(Base):
     )
 
     # Relationships
-    backtest: Mapped["Backtest | None"] = relationship(back_populates="orders")
     deployment: Mapped["StrategyDeployments | None"] = relationship(
         back_populates="orders"
     )

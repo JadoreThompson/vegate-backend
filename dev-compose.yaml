@@ -11,6 +11,16 @@ services:
     volumes:
       - vegate_postgres:/var/lib/postgresql
 
+  postgres_test:
+    image: postgres:18
+    container_name: vegate_postgres_test
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - ${DB_PORT}:5432
+
   redis:
     image: redis:7
     container_name: vegate_redis

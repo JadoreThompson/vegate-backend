@@ -4,14 +4,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from enums import BrokerType, OrderSide, OrderStatus, OrderType, Timeframe
+from infra.db.model.ohlcs import OHLCs
+from infra.db.utils import get_db_sess_sync
 from lib.backtest_engine import BacktestEngine
 from lib.brokers.backtest import BacktestBroker
 from lib.strategy import BaseStrategy
 from models import (
     OHLC,
     BacktestConfig,
-    BacktestMetrics,
-    EquityCurvePoint,
     Order,
     OrderRequest,
 )
@@ -355,7 +355,7 @@ class TestBacktestMetricsCalculation:
                 timestamp=datetime(2024, 1, 1, 1, 3, tzinfo=UTC),
                 timeframe=Timeframe.m1,
                 symbol="AAPL",
-            )
+            ),
         ]
 
         config = BacktestConfig(
@@ -381,8 +381,9 @@ class TestBacktestMetricsCalculation:
             engine = BacktestEngine(strategy, broker, config)
             metrics = engine.run()
 
-        assert metrics.profit_factor == 2.0, f"Expected profit factor of 2.0 for 2 profit and 1 loss, got {metrics.profit_factor}"
-
+        assert (
+            metrics.profit_factor == 2.0
+        ), f"Expected profit factor of 2.0 for 2 profit and 1 loss, got {metrics.profit_factor}"
 
     def test_profit_factor_with_losing_trade(self):
         broker = BacktestBroker(starting_balance=10000)
@@ -424,7 +425,9 @@ class TestBacktestMetricsCalculation:
             engine = BacktestEngine(strategy, broker, config)
             metrics = engine.run()
 
-        assert metrics.profit_factor == 0.0, f"Expected profit factor of 0.0 for only losing trades, got {metrics.profit_factor}"
+        assert (
+            metrics.profit_factor == 0.0
+        ), f"Expected profit factor of 0.0 for only losing trades, got {metrics.profit_factor}"
 
     def test_profit_factor_zero_with_no_trades(self):
         broker = BacktestBroker(starting_balance=10000)
@@ -477,7 +480,7 @@ class TestBacktestMetricsCalculation:
         assert (
             metrics.profit_factor == 0.0
         ), f"Expected profit factor 0.0 with no trades, got {metrics.profit_factor}"
-    
+
     def test_profit_factor_with_partially_filled_orders(self):
         broker = BacktestBroker(starting_balance=10000)
 
@@ -565,3 +568,127 @@ class TestBacktestMetricsCalculation:
             f"Expected profit factor of inf for partially filled buy then winning sell, "
             f"got {metrics.profit_factor}"
         )
+
+
+class TestBacktestEngineIntegration:
+    """Integration tests for BacktestEngine using a real database session."""
+
+    @pytest.fixture()
+    def seed_and_teardown(self):
+        """Seed candles into the DB before each test and clean up after."""
+        symbol = "AAPL"
+        source = BrokerType.ALPACA
+        timeframe = Timeframe.m1
+
+        # Candle timestamps as unix integers within the config date range
+        # Buy at candle 0 (close=100), sell at candle 1 (close=110)
+        # => PnL = 10.0, no losses => profit_factor = inf
+        self._candle_data = [
+            {
+                "source": source,
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "open": 100.0,
+                "high": 105.0,
+                "low": 95.0,
+                "close": 100.0,
+                "timestamp": int(datetime(2024, 1, 2, 0, 1, tzinfo=UTC).timestamp()),
+            },
+            {
+                "source": source,
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "open": 110.0,
+                "high": 115.0,
+                "low": 105.0,
+                "close": 110.0,
+                "timestamp": int(datetime(2024, 1, 2, 0, 2, tzinfo=UTC).timestamp()),
+            },
+        ]
+
+        with get_db_sess_sync() as db_session:
+            rows = [OHLCs(**data) for data in self._candle_data]
+            db_session.add_all(rows)
+            db_session.commit()
+
+        yield
+
+        with get_db_sess_sync() as db_session:
+            db_session.query(OHLCs).filter(
+                OHLCs.symbol == symbol,
+                OHLCs.source == source,
+            ).delete()
+            db_session.commit()
+
+    def test_backtest_metrics_all_fields(self, seed_and_teardown):
+        """
+        Full integration test: seeds DB, runs backtest, asserts every
+        BacktestMetrics field is correct.
+
+        Trade sequence:
+          Candle 0 (close=100): SimpleStrategy buys 1 unit notional=100 @ 100
+          Candle 1 (close=110): SimpleStrategy sells 1 unit @ 110
+          PnL = 110 - 100 = 10.0
+          starting_balance = 10_000
+          end_balance      = 10_010
+          realised_pnl     = 10.0
+          unrealised_pnl   = 0.0  (position closed)
+          total_return_pct = (10 / 10_000) * 100 = 0.1
+          total_orders     = 2 (1 buy, 1 sell)
+          profit_factor    = inf (gross_profit=10, gross_loss=0)
+        """
+        starting_balance = 10_000.0
+        symbol = "AAPL"
+
+        config = BacktestConfig(
+            timeframe=Timeframe.m1,
+            starting_balance=starting_balance,
+            symbol=symbol,
+            start_date=datetime(2024, 1, 2, tzinfo=UTC),
+            end_date=datetime(2024, 1, 2, tzinfo=UTC),
+            broker=BrokerType.ALPACA,
+        )
+
+        broker = BacktestBroker(starting_balance=starting_balance)
+        strategy = SimpleStrategy("SimpleStrategy", broker)
+        engine = BacktestEngine(strategy, broker, config)
+
+        metrics = engine.run()
+
+        # --- config ---
+        assert metrics.config.symbol == symbol
+        assert metrics.config.timeframe == Timeframe.m1
+        assert metrics.config.broker == BrokerType.ALPACA
+        assert metrics.config.starting_balance == starting_balance
+
+        # --- financial metrics ---
+        assert metrics.realised_pnl == 10.0
+        assert metrics.unrealised_pnl == 0.0
+        assert metrics.total_return_pct == 0.1  # 10/10000 * 100, rounded to 2dp
+
+        # --- orders ---
+        assert metrics.total_orders == 2
+        assert len(metrics.orders) == 2
+
+        filled_orders = [o for o in metrics.orders if o.status == OrderStatus.FILLED]
+        assert len(filled_orders) == 2
+
+        buy_order = next(o for o in filled_orders if o.side == OrderSide.BUY)
+        sell_order = next(o for o in filled_orders if o.side == OrderSide.SELL)
+
+        assert buy_order.symbol == symbol
+        assert buy_order.filled_avg_price == 100.0
+        assert buy_order.executed_quantity == 1.0
+
+        assert sell_order.symbol == symbol
+        assert sell_order.filled_avg_price == 110.0
+        assert sell_order.executed_quantity == 1.0
+
+        # --- profit factor ---
+        assert metrics.profit_factor == float("inf")
+
+        # --- equity curve ---
+        # Initial point + one point per candle = 3 total
+        assert len(metrics.equity_curve) == 3
+        assert metrics.equity_curve[0].value == starting_balance
+        assert metrics.equity_curve[-1].value == starting_balance + 10.0

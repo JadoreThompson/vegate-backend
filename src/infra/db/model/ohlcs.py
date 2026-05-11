@@ -9,7 +9,7 @@ from .base import Base, datetime_tz, uuid_pk
 
 
 class OHLCs(Base):
-    __tablename__ = "ohlc_levels"
+    __tablename__ = "ohlcs"
     __table_args__ = (Index("idx_ohlc_levels_source_symbol", "source", "symbol"),)
 
     ohlc_id: Mapped[uuid.UUID] = uuid_pk()

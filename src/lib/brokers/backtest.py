@@ -1,6 +1,6 @@
 import logging
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
@@ -46,7 +46,6 @@ class BacktestBroker(BaseBroker):
         Returns:
             Order object
         """
-        self._logger.info(f"Balance before order: {self.balance:.2f}, Equity: {self.get_equity():.2f}  ")
         if order_request.order_type == OrderType.LIMIT:
             return self._handle_limit_order(order_request)
         elif order_request.order_type == OrderType.STOP:
@@ -180,7 +179,7 @@ class BacktestBroker(BaseBroker):
         """
         if self._cur_candle is None:
             raise ValueError("Cannot place market order without current market price")
-        
+
         order_id = str(uuid.uuid4())
         price = self._cur_candle.close
 
@@ -218,10 +217,10 @@ class BacktestBroker(BaseBroker):
             quantity = order_request.notional / self._cur_candle.close
         else:
             quantity = order_request.quantity
-        
+
         if order_request.quantity is not None:
             notional = order_request.quantity * self._cur_candle.close
-        else:            
+        else:
             notional = order_request.notional
 
         order = Order(
@@ -412,6 +411,9 @@ class BacktestBroker(BaseBroker):
         return list(self._order_map.values())
 
     def stream_candles(self, symbol, timeframe, source, start_date, end_date):
+        """Stream candles from the database for the given symbol, timeframe, and date range.
+        End date is inclusive."""
+        end_date += timedelta(days=1)
 
         with get_db_sess_sync() as db_sess:
             results = db_sess.scalars(
