@@ -6,7 +6,6 @@ from urllib.parse import quote
 import stripe
 from dotenv import load_dotenv
 
-
 # Paths
 BASE_PATH = os.path.dirname(__file__)
 PROJECT_PATH = os.path.dirname(BASE_PATH)
@@ -61,6 +60,9 @@ REDIS_DB = int(os.getenv("REDIS_DB", "0"))
 # Keys
 REDIS_EMAIL_VERIFICATION_KEY_PREFIX = os.getenv("REDIS_EMAIL_VERIFICATION_KEY_PREFIX")
 REDIS_EMAIL_VERIFCATION_EXPIRY_SECS = 900
+REDIS_PASSWORD_RESET_TOKEN_KEY_PREFIX = "password_reset:token:"
+REDIS_PASSWORD_RESET_USER_KEY_PREFIX = "password_reset:user:"
+REDIS_PASSWORD_RESET_EXPIRY_SECS = 900
 REDIS_ALPACA_OAUTH_PREFIX = os.getenv("REDIS_ALPACA_OAUTH_PREFIX")
 REDIS_ALPACA_OAUTH_TTL_SECS = int(os.getenv("REDIS_ALPACA_OAUTH_TTL_SECS"))
 REDIS_DEPLOYMENT_EVENTS_KEY = os.getenv("REDIS_DEPLOYMENT_EVENTS_KEY")

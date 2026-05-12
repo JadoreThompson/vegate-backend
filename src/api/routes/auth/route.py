@@ -10,9 +10,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.dependencies import depends_db_sess, depends_jwt
 from api.types import JWTPayload
 from config import (
+    FRONTEND_DOMAIN,
+    FRONTEND_SUB_DOMAIN,
     PW_HASH_SALT,
     REDIS_EMAIL_VERIFICATION_KEY_PREFIX,
     REDIS_EMAIL_VERIFCATION_EXPIRY_SECS,
+    REDIS_PASSWORD_RESET_TOKEN_KEY_PREFIX,
+    REDIS_PASSWORD_RESET_EXPIRY_SECS,
+    REDIS_PASSWORD_RESET_USER_KEY_PREFIX,
+    SCHEME,
 )
 from infra.db.model import User
 from service.email import BrevoEmailService
@@ -21,6 +27,10 @@ from service.jwt import JWTService
 from utils import get_datetime
 from .controller import gen_verification_code
 from .models import (
+    ConfirmResetPassword,
+    ResetPassword,
+    ResetPasswordResponse,
+    ResetPassword,
     UpdateEmail,
     UpdatePassword,
     UpdateUsername,
@@ -50,7 +60,7 @@ async def register(
         )
     )
     if res is not None:
-        raise HTTPException(status_code=400, detail="Username or email already exists.")
+        raise HTTPException(status_code=409, detail="Username or email already exists.")
 
     body.password = pw_hasher.hash(body.password, salt=PW_HASH_SALT.encode())
 
@@ -380,3 +390,68 @@ async def verify_action(
         raise HTTPException(status_code=400, detail="Unknown action specified.")
 
     return {"message": message}
+
+
+@router.post("/reset-password", status_code=202, response_model=ResetPasswordResponse)
+async def reset_password(
+    body: ResetPassword,
+    bg_tasks: BackgroundTasks,
+    db_sess: AsyncSession = Depends(depends_db_sess),
+):
+    global em_service
+
+    user = await db_sess.scalar(select(User).where(User.email == body.email))
+    if user is None:
+        return ResetPasswordResponse()
+
+    code = gen_verification_code()
+    key = f"{REDIS_PASSWORD_RESET_USER_KEY_PREFIX}{str(user.user_id)}"
+
+    data = await REDIS_CLIENT.get(key)
+    if data is None:
+        data = {"user_id": str(user.user_id)}
+    else:
+        await REDIS_CLIENT.delete(key)
+
+    key = f"{REDIS_PASSWORD_RESET_TOKEN_KEY_PREFIX}{code}"
+    await REDIS_CLIENT.set(key, json.dumps(data), ex=REDIS_PASSWORD_RESET_EXPIRY_SECS)
+
+    bg_tasks.add_task(
+        em_service.send_email,
+        body.email,
+        "Reset Your Password",
+        f"Follow this link: {SCHEME}://{FRONTEND_SUB_DOMAIN}{FRONTEND_DOMAIN}/reset-password/?code={code}",
+    )
+
+    return ResetPasswordResponse()
+
+
+@router.patch("/reset-password", status_code=200)
+async def confirm_reset_password(
+    body: ConfirmResetPassword,
+    db_sess: AsyncSession = Depends(depends_db_sess),
+):
+    token_key = f"{REDIS_PASSWORD_RESET_TOKEN_KEY_PREFIX}{body.code}"
+
+    data = await REDIS_CLIENT.get(token_key)
+    if data is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired reset code",
+        )
+
+    data = json.loads(data)
+    user_id = data["user_id"]
+
+    user = await db_sess.scalar(select(User).where(User.user_id == user_id))
+
+    if user is None:
+        await REDIS_CLIENT.delete(token_key)
+        raise HTTPException(status_code=400, detail="Invalid reset code")
+
+    user.password = pw_hasher.hash(body.password, salt=PW_HASH_SALT.encode())
+    await db_sess.commit()
+    
+    await REDIS_CLIENT.delete(token_key)
+    user_key = f"{REDIS_PASSWORD_RESET_USER_KEY_PREFIX}" f"{str(user.user_id)}"
+    await REDIS_CLIENT.delete(user_key)

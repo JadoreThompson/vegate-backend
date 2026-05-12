@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from api.exc import CustomValidationError
 from enums import PricingTierType
@@ -12,28 +12,24 @@ class PasswordField(BaseModel):
 
     @field_validator("password", mode="before")
     def password_validator(cls, value: str) -> str:
-        # min_length = 8
-        # min_special_chars = 2
-        # min_uppercase = 2
-        min_length = 0
-        min_special_chars = 0
-        min_uppercase = 0
-        status = 400
+        min_length = 8
+        min_special_chars = 2
+        min_uppercase = 2
 
         if len(value) < min_length:
             raise CustomValidationError(
-                status, f"Password must be at least {min_length} characters long."
+                400, f"Password must be at least {min_length} characters long."
             )
 
         if sum(1 for c in value if c.isupper()) < min_uppercase:
             raise CustomValidationError(
-                status,
+                400,
                 f"Password must contain at least {min_uppercase} uppercase letters.",
             )
 
         if sum(1 for c in value if not c.isalnum()) < min_special_chars:
             raise CustomValidationError(
-                status,
+                400,
                 f"Password must contain at least {min_special_chars} special characters.",
             )
 
@@ -74,3 +70,15 @@ class VerifyCode(BaseModel):
 
 class VerifyAction(VerifyCode):
     action: Literal["change_username", "change_password", "change_email"]
+
+
+class ResetPassword(BaseModel):
+    email: str
+
+
+class ResetPasswordResponse(BaseModel):
+    message: str = "A verification email has been sent to your email"
+
+
+class ConfirmResetPassword(PasswordField):
+    code: str = Field(min_length=1)
