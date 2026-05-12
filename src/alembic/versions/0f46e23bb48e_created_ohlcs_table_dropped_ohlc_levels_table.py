@@ -1,4 +1,4 @@
-"""xCreate ohlcs table, drop ohlc_levels table
+"""Create ohlcs table, drop ohlc_levels table
 
 Revision ID: 0f46e23bb48e
 Revises: 4761f7065f42
@@ -34,7 +34,7 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.PrimaryKeyConstraint('ohlc_id')
     )
-    op.create_index('idx_ohlc_levels_source_symbol', 'ohlcs', ['source', 'symbol'], unique=False)
+    op.create_index('idx_ohlc_source_symbol', 'ohlcs', ['source', 'symbol'], unique=False)
     op.drop_index(op.f('idx_ohlc_levels_source_symbol'), table_name='ohlc_levels')
     op.drop_table('ohlc_levels')
     # ### end Alembic commands ###

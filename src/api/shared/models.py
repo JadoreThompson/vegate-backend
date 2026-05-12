@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 from models import CustomBaseModel, EquityCurvePoint
 
 
+
 class OrderResponse(CustomBaseModel):
     order_id: UUID
     symbol: str
@@ -42,3 +43,4 @@ class PerformanceMetrics(BaseModel):
     )
     def round_values(cls, v):
         return round(v, 2)
+

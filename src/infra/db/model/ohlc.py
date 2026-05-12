@@ -10,7 +10,7 @@ from .base import Base, datetime_tz, uuid_pk
 
 class OHLC(Base):
     __tablename__ = "ohlcs"
-    __table_args__ = (Index("idx_ohlc_levels_source_symbol", "source", "symbol"),)
+    __table_args__ = (Index("idx_ohlc_source_symbol", "source", "symbol"),)
 
     ohlc_id: Mapped[uuid.UUID] = uuid_pk()
     source: Mapped[BrokerType] = mapped_column(String, nullable=False)

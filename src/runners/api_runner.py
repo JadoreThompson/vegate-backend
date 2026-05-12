@@ -8,9 +8,8 @@ from .base import BaseRunner
 class APIRunner(BaseRunner):
     """Runs the FastAPI server using uvicorn."""
 
-    def __init__(self, backtest_queue: QueueT | None = None, **uvicorn_kwargs):
-        self._backtest_queue = backtest_queue
-        self._kw = uvicorn_kwargs
+    def __init__(self, uvicorn_kw):
+        self._uvicorn_kw = uvicorn_kw
 
     def run(self) -> None:
-        uvicorn.run("api.app:app", **self._kw)
+        uvicorn.run("api.app:app", **self._uvicorn_kw)
