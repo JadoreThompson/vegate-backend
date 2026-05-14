@@ -1,21 +1,53 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import RedirectResponse
+from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import depends_db_sess, depends_jwt
 from api.types import JWTPayload
+from config import FRONTEND_DOMAIN, FRONTEND_SUB_DOMAIN, SCHEME
+from enums import BrokerType
+from infra.db.model.broker_connections import BrokerConnections
+from service.alpaca.service import AlpacaService
 from .controller import (
     delete_broker_connection,
     get_broker_connection,
     list_broker_connections,
 )
-from .models import BrokerConnectionResponse
+from .models import (
+    BrokerConnectionResponse,
+    CreateBrokerConnectionRequest,
+    GetOauthUrlResponse,
+)
 
-router = APIRouter(prefix="/brokers", tags=["Brokers"])
+router = APIRouter(prefix="/broker-connections", tags=["Broker Connections"])
+alpaca_api = AlpacaService()
 
 
-@router.get("/connections", response_model=list[BrokerConnectionResponse])
+@router.post("")
+async def create_broker_connection(
+    body: CreateBrokerConnectionRequest,
+    jwt: JWTPayload = Depends(depends_jwt()),
+    db_sess: AsyncSession = Depends(depends_db_sess),
+):
+    res = await db_sess.execute(
+        insert(BrokerConnections)
+        .values(
+            user_id=jwt.sub,
+            broker=body.broker,
+            api_key=body.api_key,
+            secret_key=body.secret_key,
+            broker_account_id="<placeholder>",
+        )
+        .returning(BrokerConnections.connection_id)
+    )
+    connection_id = res.scalar()
+    return {"broker_connection_id": connection_id}
+
+
+@router.get("", response_model=list[BrokerConnectionResponse])
 async def list_broker_connections_endpoint(
     jwt: JWTPayload = Depends(depends_jwt()),
     db_sess: AsyncSession = Depends(depends_db_sess),
@@ -37,7 +69,7 @@ async def list_broker_connections_endpoint(
     ]
 
 
-@router.get("/connections/{connection_id}", response_model=BrokerConnectionResponse)
+@router.get("/{connection_id}", response_model=BrokerConnectionResponse)
 async def get_broker_connection_endpoint(
     connection_id: UUID,
     jwt: JWTPayload = Depends(depends_jwt()),
@@ -64,7 +96,7 @@ async def get_broker_connection_endpoint(
     )
 
 
-@router.delete("/connections/{connection_id}", status_code=204)
+@router.delete("/{connection_id}", status_code=204)
 async def delete_broker_connection_endpoint(
     connection_id: UUID,
     jwt: JWTPayload = Depends(depends_jwt()),
@@ -81,3 +113,30 @@ async def delete_broker_connection_endpoint(
         raise HTTPException(status_code=404, detail="Broker connection not found")
 
     await db_sess.commit()
+
+
+@router.get("/alpaca/oauth", response_model=GetOauthUrlResponse)
+async def get_oauth_url(jwt: JWTPayload = Depends(depends_jwt())):
+    url = await alpaca_api.get_oauth_url_v2(jwt.sub, "paper")
+    return GetOauthUrlResponse(url=url)
+
+
+@router.get("/alpaca/oauth/callback")
+async def oauth_callback(
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    jwt: JWTPayload = Depends(depends_jwt()),
+    db_sess: AsyncSession = Depends(depends_db_sess),
+):
+    params = [("broker", BrokerType.ALPACA.value)]
+    if code is not None:
+        await alpaca_api.handle_oauth_callback(code, state, jwt.sub, db_sess)
+    else:
+        params.append(("error", error))
+
+    query_params = "&".join(f"{k}={v}" for k, v in params)
+
+    return RedirectResponse(
+        f"{SCHEME}://{FRONTEND_SUB_DOMAIN}{FRONTEND_DOMAIN}/brokers/oauth?{query_params}"
+    )

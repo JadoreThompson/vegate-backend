@@ -34,7 +34,6 @@ class StrategyDeployments(Base):
     symbol: Mapped[str] = mapped_column(String, nullable=False)
     timeframe: Mapped[Timeframe] = mapped_column(String, nullable=False)
     market_type: Mapped[MarketType] = mapped_column(String, nullable=False)
-    starting_balance: Mapped[float] = mapped_column(Float, nullable=True)
     status: Mapped[DeploymentStatus] = mapped_column(
         String, nullable=False, default=DeploymentStatus.PENDING.value
     )

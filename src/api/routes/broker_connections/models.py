@@ -10,6 +10,12 @@ class GetOauthUrlResponse(BaseModel):
     url: str
 
 
+class CreateBrokerConnectionRequest(CustomBaseModel):
+    broker: BrokerType
+    api_key: str
+    secret_key: str
+
+
 class BrokerConnectionResponse(CustomBaseModel):
     """Response model for broker connection details."""
 
