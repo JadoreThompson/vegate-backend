@@ -3,11 +3,12 @@ from uuid import UUID
 import requests
 
 from models import Order
+from service.oms.broker_client.base import BrokerClient
 from service.oms.broker_client.model import OrderRequest
 from service.oms.server.model import PlaceOrderRequest
 
 
-class OMSClient:
+class OMSClient(BrokerClient):
 
     def __init__(self, base_url: str):
         self._base_url = base_url.rstrip("/")
@@ -101,6 +102,9 @@ class OMSClient:
 
     def close(self) -> None:
         self._client.close()
+
+    def disconnect(self):
+        return self.close()
 
     def _auth_header(self) -> dict[str, str]:
         if self._token is None:

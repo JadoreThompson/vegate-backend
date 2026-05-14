@@ -6,26 +6,27 @@ from config import KAFKA_BOOTSTRAP_SERVERS
 
 class KafkaProducer(kafka.KafkaProducer):
     def __init__(self, **configs):
-        super().__init__(
-            bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
-            **configs,
-        )
+        if "bootstrap_servers" in configs:
+            configs["bootstrap_servers"] = KAFKA_BOOTSTRAP_SERVERS
+        super().__init__(**configs)
 
 
 class KafkaConsumer(kafka.KafkaConsumer):
     def __init__(self, *topics, **configs):
-        super().__init__(
-            *topics,
-            bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
-            **configs,
-        )
+        if "bootstrap_servers" in configs:
+            configs["bootstrap_servers"] = KAFKA_BOOTSTRAP_SERVERS
+        super().__init__(*topics, **configs)
 
 
 class AsyncKafkaProducer(aiokafka.AIOKafkaProducer):
     def __init__(self, *args, **kw):
-        super().__init__(*args, bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS, **kw)
+        if "bootstrap_servers" in kw:
+            kw["bootstrap_servers"] = KAFKA_BOOTSTRAP_SERVERS
+        super().__init__(*args, **kw)
 
 
 class AsyncKafkaConsumer(aiokafka.AIOKafkaConsumer):
     def __init__(self, *args, **kw):
-        super().__init__(*args, bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS, **kw)
+        if "bootstrap_servers" in kw:
+            kw["bootstrap_servers"] = KAFKA_BOOTSTRAP_SERVERS
+        super().__init__(*args, **kw)

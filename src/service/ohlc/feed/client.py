@@ -12,11 +12,11 @@ from models import OHLC as OHLCModel
 logger = logging.getLogger(__name__)
 
 
-class MarketSocketError(Exception):
+class OHLCFeedSocketError(Exception):
     """Raised when the server sends an error frame."""
 
 
-class MarketFeedClient:
+class OHLCFeedClient:
 
     def __init__(
         self,
@@ -43,7 +43,7 @@ class MarketFeedClient:
         self._subscribe_payload: dict | None = None
         self._in_replay: bool = False
 
-    async def __aenter__(self) -> MarketFeedClient:
+    async def __aenter__(self) -> OHLCFeedClient:
         await self.connect()
         return self
 
@@ -195,7 +195,7 @@ class MarketFeedClient:
             except (ConnectionResetError, BrokenPipeError, EOFError) as exc:
                 self._logger.warning("Connection lost: %s", exc)
 
-            except MarketSocketError:
+            except OHLCFeedSocketError:
                 raise
 
             except Exception as exc:
@@ -258,12 +258,7 @@ class MarketFeedClient:
 
             # Error frame from server
             if isinstance(frame, dict) and frame.get("type") == "error":
-                raise MarketSocketError(
-                    frame.get(
-                        "message",
-                        "unknown server error",
-                    )
-                )
+                raise OHLCFeedSocketError(frame.get("message", "unknown server error"))
 
             # Candle frame - the server sends a JSON array with one object
             candles = frame if isinstance(frame, list) else [frame]

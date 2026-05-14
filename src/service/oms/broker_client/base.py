@@ -6,10 +6,8 @@ from service.oms.broker_client.model import Order, OrderRequest
 class BrokerClient(ABC):
     """Abstract base class for broker implementations."""
 
-    supports_async: bool = False
-
     def __init__(self):
-        self.broker = None
+        pass
 
     def connect(self) -> None:
         """
