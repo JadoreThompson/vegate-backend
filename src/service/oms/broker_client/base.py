@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from models import Order, OrderRequest
 
 
-class Broker(ABC):
+class BrokerClient(ABC):
     """Abstract base class for broker implementations."""
 
     supports_async: bool = False

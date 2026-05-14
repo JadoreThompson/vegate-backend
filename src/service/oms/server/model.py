@@ -14,7 +14,7 @@ class CreateSessionResponse(BaseModel):
     token: str
 
 
-class PlaceOrderRequest(CustomBaseModel):
+class OrderRequest(CustomBaseModel):
     symbol: str
     quantity: float | None = None
     notional: float | None = None
@@ -22,6 +22,11 @@ class PlaceOrderRequest(CustomBaseModel):
     side: OrderSide
     limit_price: float | None = None
     stop_price: float | None = None
+
+
+class PlaceOrderRequest(CustomBaseModel):
+    order: OrderRequest
+    candle_ts: int
 
 
 class ModifyOrderRequest(BaseModel):

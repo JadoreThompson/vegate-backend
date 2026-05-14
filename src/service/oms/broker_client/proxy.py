@@ -9,16 +9,16 @@ from events.order import OrderCancelledEvent, OrderModifiedEvent, OrderPlacedEve
 from events.snapshot import SnapshotCreated
 from infra.redis.client import REDIS_CLIENT_SYNC
 from models import OHLC, Order, OrderRequest
-from .base import Broker
+from .base import BrokerClient
 
 
-class ProxyBroker(Broker):
+class ProxyBrokerClient(BrokerClient):
     """Proxy broker that wraps another broker and emits events for order operations."""
 
     def __init__(
         self,
         deployment_id: UUID,
-        broker: Broker,
+        broker: BrokerClient,
         redis_client: Redis = REDIS_CLIENT_SYNC,
     ):
         """Initialize the proxy broker.

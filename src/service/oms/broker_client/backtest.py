@@ -8,10 +8,10 @@ from enums import OrderSide, OrderStatus, OrderType, Timeframe
 from infra.db import get_db_sess_sync
 from infra.db.model import OHLC
 from models import Order, OrderRequest, OHLC as OHLCModel
-from .base import Broker
+from .base import BrokerClient
 
 
-class BacktestBroker(Broker):
+class BacktestBroker(BrokerClient):
     """Broker implementation for backtesting."""
 
     supports_async = False

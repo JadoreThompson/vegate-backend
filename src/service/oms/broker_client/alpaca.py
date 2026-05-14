@@ -18,11 +18,11 @@ from alpaca.trading.requests import (
 
 from enums import OrderSide, OrderType, OrderStatus
 from models import Order, OrderRequest, OHLC
-from .base import Broker
+from .base import BrokerClient
 
 
 # TODO: Implement async API
-class AlpacaBroker(Broker):
+class AlpacaBrokerClient(BrokerClient):
     """Alpaca broker implementation using alpaca-py library."""
 
     supports_async: bool = True

@@ -75,11 +75,11 @@ class OMSServer:
                 raise HTTPException(status_code=400, detail=str(e))
 
         @_app.post("/orders")
-        def place_order(
+        async def place_order(
             body: PlaceOrderRequest, token: str = Depends(get_bearer_token)
         ):
             try:
-                return self._oms_service.place_order(token, body)
+                return await self._oms_service.place_order(token, body)
             except Exception as e:
                 raise HTTPException(status_code=400, detail=str(e))
 
