@@ -18,7 +18,7 @@ def strategy():
 
 @strategy.command(name="run")
 @click.option(
-    "--deployment_id",
+    "--deployment-id",
     type=UUID,
     required=True,
     help="UUID of the strategy deployment to run",

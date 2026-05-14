@@ -142,7 +142,7 @@ class AlpacaOHLCFeed(OHLCFeed):
             except asyncio.CancelledError:
                 pass
 
-    async def _persist_candle(self, candle: OHLC) -> None:
+    async def _persist_candle(self, candle: OHLCModel) -> None:
         async with get_db_session() as db_sess:
             await db_sess.execute(
                 insert(OHLC).values(
@@ -155,7 +155,7 @@ class AlpacaOHLCFeed(OHLCFeed):
                     close=candle.close,
                     volume=candle.volume,
                     timeframe=candle.timeframe,
-                    timestamp=candle.timestamp,
+                    timestamp=int(candle.timestamp.timestamp()),
                 )
             )
             await db_sess.commit()

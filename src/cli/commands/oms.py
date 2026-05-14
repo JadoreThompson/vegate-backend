@@ -18,7 +18,7 @@ def oms():
 
 @oms.command(name="run")
 @click.option("--host", default="0.0.0.0", help="Bind socket to this host")
-@click.option("--port", default=8001, type=int, help="Bind socket to this port")
+@click.option("--port", default=8002, type=int, help="Bind socket to this port")
 @click.option("--reload", is_flag=True, default=False, help="Enable auto-reload")
 @click.option("--workers", default=1, type=int, help="Number of worker processes")
 @click.option("--verbose", is_flag=True, help="Enable verbose output")

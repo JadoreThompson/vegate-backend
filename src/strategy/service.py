@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import select
 
 from config import SRC_PATH
+from enums import MarketType, Timeframe
 from infra.db.model import StrategyDeployments, Strategy as StrategyEntity
 from infra.kafka.client import KafkaProducer
 from infra.db import get_db_sess_sync
@@ -54,16 +55,18 @@ class StrategyDeploymentService:
 
         strategy_config = StrategyConfig(
             symbol=deployment.symbol,
-            market_type=deployment.market_type,
-            timeframe=deployment.timeframe,
+            market_type=MarketType(deployment.market_type),
+            timeframe=Timeframe(deployment.timeframe),
         )
+        self._write_code(strategy.code)
         self._strategy = self._load_strategy(strategy_config)
 
     def run(self) -> None:
         try:
             self._ohlc_feed_client.connect()
+            self._oms_client.create_session(self._deployment_id)
             self._oms_client.connect()
-            
+
             self._strategy.startup()
             self._strategy.run()
         finally:
@@ -80,9 +83,9 @@ class StrategyDeploymentService:
         if not os.path.exists(self._fpath):
             raise FileNotFoundError(f"File not found at '{self._fpath}'")
 
-        from user_strategy import Strategy
+        from user_strategy import UserStrategy
 
-        strategy = Strategy(
+        strategy = UserStrategy(
             config=config,
             ohlc_feed_client=self._ohlc_feed_client,
             oms_client=self._oms_client,

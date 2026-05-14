@@ -1,4 +1,5 @@
 import json
+import logging
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, insert, select, update
@@ -35,6 +36,7 @@ class OMSService:
 
     def __init__(self):
         self._broker_clients: dict[str, Session] = {}
+        self._logger = logging.getLogger(self.__class__.__name__)
 
     async def create_session(self, deployment_id: UUID) -> str:
         """
@@ -57,6 +59,7 @@ class OMSService:
 
         broker_client = self._build_broker_client(broker_conn, user_id)
         broker_client.connect()
+        # broker_client = None
 
         session = Session(deployment_id=deployment_id, broker_client=broker_client)
 
@@ -133,6 +136,22 @@ class OMSService:
 
         order.id = order_id
         return order
+
+        # self._logger.info(f"Received order request: {request}")
+        # from utils import get_datetime
+        # return Order(
+        #     id=str(uuid4()),
+        #     symbol=request.order.symbol,
+        #     quantity=request.order.quantity,
+        #     filled_quantity=0.0,
+        #     notional=request.order.notional,
+        #     order_type=request.order.order_type,
+        #     side=request.order.side,
+        #     limit_price=request.order.limit_price,
+        #     stop_price=request.order.stop_price,
+        #     submitted_at=get_datetime(),
+        #     status=OrderStatus.PENDING,
+        # )
 
     async def modify_order(
         self,
@@ -244,18 +263,22 @@ class OMSService:
         self, broker_conn: BrokerConnections, user_id: UUID
     ) -> BrokerClient:
         if broker_conn.broker == BrokerType.ALPACA:
-            oauth_payload = AlpacaOAuthPayload.model_validate(
-                json.loads(
-                    EncryptionService.decrypt(
-                        broker_conn.oauth_payload, aad=str(user_id)
+            if broker_conn.oauth_payload is not None:
+                oauth_payload = AlpacaOAuthPayload.model_validate(
+                    json.loads(
+                        EncryptionService.decrypt(
+                            broker_conn.oauth_payload, expected_aad=str(user_id)
+                        )
                     )
                 )
-            )
+                oauth_token = oauth_payload.access_token
+            else:
+                oauth_token = None
 
             return AlpacaBrokerClient(
                 api_key=broker_conn.api_key,
                 secret_key=broker_conn.secret_key,
-                oauth_token=oauth_payload.access_token,
+                oauth_token=oauth_token,
             )
 
         raise ValueError(f"Unsupported broker '{broker_conn.broker}'")

@@ -3,7 +3,6 @@ import logging
 
 import click
 
-from runners import BacktestRunner
 from runners.market_feed_runner import MarketFeedRunner 
 from runners.runner_config import RunnerConfig
 from runners.utils import run_runner

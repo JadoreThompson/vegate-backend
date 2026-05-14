@@ -91,9 +91,7 @@ def loader_run(
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    broker_enum = broker
-
-    if broker_enum == BrokerType.ALPACA:
+    if broker == BrokerType.ALPACA:
         if not api_key or not secret_key:
             click.echo(
                 "Error: --api-key and --secret-key are required for Alpaca broker",
@@ -104,7 +102,7 @@ def loader_run(
         loader_cls = AlpacaOHLCLoader
         loader_kwargs = {"api_key": api_key, "secret_key": secret_key}
     else:
-        click.echo(f"Error: Unsupported broker: {broker_enum}", err=True)
+        click.echo(f"Error: Unsupported broker: {broker}", err=True)
         sys.exit(1)
 
     create_loader = lambda: loader_cls(**loader_kwargs)

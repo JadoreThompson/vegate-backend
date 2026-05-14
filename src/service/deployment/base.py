@@ -19,7 +19,7 @@ class DeploymentService:
         pass
 
     @abstractmethod
-    async def deploy_strategy(self, deployment_id: UUID) -> dict:
+    async def run_strategy(self, deployment_id: UUID) -> dict:
         pass
 
     @abstractmethod

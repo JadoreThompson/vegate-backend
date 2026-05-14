@@ -43,7 +43,7 @@ class ProcessDeploymentService(DeploymentService):
         self._backtests[backtest_id].join(timeout=5)
         return {"status": "stopped"}
 
-    async def deploy_strategy(self, deployment_id: UUID) -> dict:
+    async def run_strategy(self, deployment_id: UUID) -> dict:
         if (
             deployment_id in self._deployments
             and self._deployments[deployment_id].is_alive()
@@ -65,7 +65,7 @@ class ProcessDeploymentService(DeploymentService):
         self._deployments[deployment_id].terminate()
         self._deployments[deployment_id].join(timeout=5)
         return {"status": "stopped"}
-    
+
     async def stop_all(self) -> dict:
         for backtest_id, process in self._backtests.items():
             if process.is_alive():

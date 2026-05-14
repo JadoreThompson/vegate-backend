@@ -1,7 +1,8 @@
 import uvicorn
-from fastapi import FastAPI, HTTPException, Depends
-from uuid import UUID
+from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi.responses import JSONResponse
 
+from service.oms.broker_client.exception import BrokerClientException
 from service.oms.server.model import (
     BalanceResponse,
     CreateSessionRequest,
@@ -17,18 +18,19 @@ from service.oms.service import OMSService
 _app = FastAPI()
 
 
-def get_bearer_token(authorization: str = None) -> str:
+def get_bearer_token(request: Request) -> str:
     """
     Extracts Bearer token from Authorization header.
     """
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Missing Authorization header")
+    val = request.headers.get("Authorization", "")
+    if not val:
+        raise HTTPException(status_code=401, detail="Authorization header missing")
 
-    parts = authorization.split(" ")
-    if len(parts) != 2 or parts[0].lower() != "bearer":
+    bearer = val.lower().replace("bearer ", "").strip()
+    if not bearer:
         raise HTTPException(status_code=401, detail="Invalid Authorization format")
 
-    return parts[1]
+    return bearer
 
 
 class OMSServer:
@@ -37,6 +39,7 @@ class OMSServer:
         self._oms_service = oms_service
         self._uvicorn_kw = uvicorn_kw
         self._register_routes()
+        self._register_exception_handlers()
 
     def run(self):
         uvicorn.run(_app, **self._uvicorn_kw)
@@ -45,43 +48,27 @@ class OMSServer:
 
         @_app.post("/session", response_model=CreateSessionResponse)
         async def create_session(body: CreateSessionRequest):
-            try:
-                deployment_id = UUID(body.deployment_id)
-                token = await self._oms_service.create_session(deployment_id)
-                return {"token": token}
-            except Exception as e:
-                raise HTTPException(status_code=400, detail=str(e))
+            token = await self._oms_service.create_session(body.deployment_id)
+            return {"token": token}
 
         @_app.delete("/session")
         def close_session(token: str = Depends(get_bearer_token)):
-            try:
-                self._oms_service.close_session(token)
-                return {"status": "closed"}
-            except Exception as e:
-                raise HTTPException(status_code=400, detail=str(e))
+            self._oms_service.close_session(token)
+            return {"status": "closed"}
 
         @_app.get("/balance", response_model=BalanceResponse)
         def get_balance(token: str = Depends(get_bearer_token)):
-            try:
-                return {"balance": self._oms_service.get_balance(token)}
-            except Exception as e:
-                raise HTTPException(status_code=400, detail=str(e))
+            return {"balance": self._oms_service.get_balance(token)}
 
         @_app.get("/equity", response_model=EquityResponse)
         def get_equity(token: str = Depends(get_bearer_token)):
-            try:
-                return {"equity": self._oms_service.get_equity(token)}
-            except Exception as e:
-                raise HTTPException(status_code=400, detail=str(e))
+            return {"equity": self._oms_service.get_equity(token)}
 
         @_app.post("/orders")
         async def place_order(
             body: PlaceOrderRequest, token: str = Depends(get_bearer_token)
         ):
-            try:
-                return await self._oms_service.place_order(token, body)
-            except Exception as e:
-                raise HTTPException(status_code=400, detail=str(e))
+            return await self._oms_service.place_order(token, body)
 
         @_app.patch("/orders/{order_id}")
         def modify_order(
@@ -89,40 +76,39 @@ class OMSServer:
             body: ModifyOrderRequest,
             token: str = Depends(get_bearer_token),
         ):
-            try:
-                return self._oms_service.modify_order(
-                    token,
-                    order_id,
-                    limit_price=body.limit_price,
-                    stop_price=body.stop_price,
-                )
-            except Exception as e:
-                raise HTTPException(status_code=400, detail=str(e))
+            return self._oms_service.modify_order(
+                token,
+                order_id,
+                limit_price=body.limit_price,
+                stop_price=body.stop_price,
+            )
 
         @_app.delete("/orders/{order_id}", response_model=SuccessResponse)
         def cancel_order(order_id: str, token: str = Depends(get_bearer_token)):
-            try:
-                return {"success": self._oms_service.cancel_order(token, order_id)}
-            except Exception as e:
-                raise HTTPException(status_code=400, detail=str(e))
+            return {"success": self._oms_service.cancel_order(token, order_id)}
 
         @_app.delete("/orders", response_model=SuccessResponse)
         def cancel_all_orders(token: str = Depends(get_bearer_token)):
-            try:
-                return {"success": self._oms_service.cancel_all_orders(token)}
-            except Exception as e:
-                raise HTTPException(status_code=400, detail=str(e))
+            return {"success": self._oms_service.cancel_all_orders(token)}
 
         @_app.get("/orders/{order_id}", response_model=OrderResponse)
         def get_order(order_id: str, token: str = Depends(get_bearer_token)):
-            try:
-                return self._oms_service.get_order(token, order_id)
-            except Exception as e:
-                raise HTTPException(status_code=400, detail=str(e))
+            return self._oms_service.get_order(token, order_id)
 
         @_app.get("/orders", response_model=list[OrderResponse])
         def get_orders(token: str = Depends(get_bearer_token)):
-            try:
-                return self._oms_service.get_orders(token)
-            except Exception as e:
-                raise HTTPException(status_code=400, detail=str(e))
+            return self._oms_service.get_orders(token)            
+
+    def _register_exception_handlers(self):
+
+        @_app.exception_handler(HTTPException)
+        async def handle_broker_client_exception(req: Request, exc: HTTPException):
+            return JSONResponse(
+                status_code=exc.status_code, content={"error": exc.detail}
+            )
+
+        @_app.exception_handler(BrokerClientException)
+        async def handle_broker_client_exception(
+            req: Request, exc: BrokerClientException
+        ):
+            return JSONResponse(status_code=400, content={"error": str(exc)})

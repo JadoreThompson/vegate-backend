@@ -1,6 +1,7 @@
 import asyncio
 import logging
 
+from alpaca.common.exceptions import APIError
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import (
     OrderSide as AlpacaOrderSide,
@@ -18,6 +19,7 @@ from alpaca.trading.requests import (
 
 from enums import OrderSide, OrderType, OrderStatus
 from models import OHLC
+from service.oms.broker_client.exception import BrokerClientException
 from service.oms.broker_client.model import Order, OrderRequest
 from .base import BrokerClient
 
@@ -132,7 +134,9 @@ class AlpacaBrokerClient(BrokerClient):
                     time_in_force=AlpacaTimeInForce.GTC,
                 )
             else:
-                raise ValueError(f"Unsupported order type: {alpaca_order_type}")
+                raise BrokerClientException(
+                    f"Unsupported order type: {alpaca_order_type}"
+                )
 
             # Submit the order to Alpaca
             alpaca_order = self.client.submit_order(alpaca_request)
@@ -144,8 +148,12 @@ class AlpacaBrokerClient(BrokerClient):
             self._logger.info(f"Order placed: {order.id}")
             return order
 
+        except APIError as e:
+            raise BrokerClientException(str(e))
+        except BrokerClientException:
+            raise
         except Exception as e:
-            self._logger.error(f"Failed to place order: {e}")
+            self._logger.error(f"Failed to place order: type: {type(e)} - {e}")
             raise
 
     def modify_order(
@@ -182,7 +190,10 @@ class AlpacaBrokerClient(BrokerClient):
 
             self._logger.info(f"Order modified: {order_id}")
             return order
-
+        except APIError as e:
+            raise BrokerClientException(str(e))
+        except BrokerClientException:
+            raise
         except Exception as e:
             self._logger.error(f"Failed to modify order {order_id}: {e}")
             raise
@@ -205,6 +216,10 @@ class AlpacaBrokerClient(BrokerClient):
 
             self._logger.info(f"Order cancelled: {order_id}")
             return True
+        except APIError as e:
+            raise BrokerClientException(str(e))
+        except BrokerClientException:
+            raise
         except Exception as e:
             self._logger.error(f"Failed to cancel order {order_id}: {e}")
             return False
@@ -231,6 +246,10 @@ class AlpacaBrokerClient(BrokerClient):
                 self._logger.warning("Some orders failed to cancel")
 
             return all_cancelled
+        except APIError as e:
+            raise BrokerClientException(str(e))
+        except BrokerClientException:
+            raise
         except Exception as e:
             self._logger.error(f"Failed to cancel all orders: {e}")
             return False
@@ -249,6 +268,10 @@ class AlpacaBrokerClient(BrokerClient):
             order = self._convert_alpaca_order(alpaca_order)
             self._orders[order.id] = order
             return order
+        except APIError as e:
+            raise BrokerClientException(str(e))
+        except BrokerClientException:
+            raise
         except Exception as e:
             self._logger.error(f"Failed to get order {order_id}: {e}")
             return None
@@ -265,6 +288,10 @@ class AlpacaBrokerClient(BrokerClient):
             for order in orders:
                 self._orders[order.id] = order
             return orders
+        except APIError as e:
+            raise BrokerClientException(str(e))
+        except BrokerClientException:
+            raise
         except Exception as e:
             self._logger.error(f"Failed to get orders: {e}")
             return []

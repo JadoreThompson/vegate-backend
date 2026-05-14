@@ -4,7 +4,6 @@ services:
     restart: unless-stopped
     networks:
       - vegate_network
-
     environment:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}

@@ -1,3 +1,4 @@
+import json
 from uuid import UUID
 
 import requests
@@ -5,6 +6,7 @@ import requests
 from models import Order
 from service.oms.broker_client.base import BrokerClient
 from service.oms.broker_client.model import OrderRequest
+from service.oms.client.exception import OMSClientException
 from service.oms.server.model import PlaceOrderRequest
 
 
@@ -17,30 +19,30 @@ class OMSClient(BrokerClient):
 
     def create_session(self, deployment_id: UUID) -> None:
         response = self._client.post(
-            f"{self._base_url}/session", json={"deployment_id": str(deployment_id)}
+            f"{self._base_url}/session", headers={"Content-Type": "application/json"}, json={"deployment_id": str(deployment_id)}
         )
-        response.raise_for_status()
+        self._raise_for_status(response)
         self._token = response.json()["token"]
 
     def close_session(self) -> None:
         response = self._client.delete(
             f"{self._base_url}/session", headers=self._auth_header()
         )
-        response.raise_for_status()
+        self._raise_for_status(response)
         self._token = None
 
     def get_balance(self) -> float:
         response = self._client.get(
             f"{self._base_url}/balance", headers=self._auth_header()
         )
-        response.raise_for_status()
+        self._raise_for_status(response)
         return response.json()["balance"]
 
     def get_equity(self) -> float:
         response = self._client.get(
             f"{self._base_url}/equity", headers=self._auth_header()
         )
-        response.raise_for_status()
+        self._raise_for_status(response)
         return response.json()["equity"]
 
     def place_order(self, order: OrderRequest, candle_ts: int) -> Order:
@@ -52,7 +54,7 @@ class OMSClient(BrokerClient):
             ).model_dump(mode="json"),
             headers=self._auth_header(),
         )
-        response.raise_for_status()
+        self._raise_for_status(response)
         return Order.model_validate(response.json())
 
     def modify_order(
@@ -69,35 +71,35 @@ class OMSClient(BrokerClient):
             },
             headers=self._auth_header(),
         )
-        response.raise_for_status()
+        self._raise_for_status(response)
         return Order.model_validate(response.json())
 
     def cancel_order(self, order_id: UUID) -> bool:
         response = self._client.delete(
             f"{self._base_url}/orders/{order_id}", headers=self._auth_header()
         )
-        response.raise_for_status()
+        self._raise_for_status(response)
         return response.json()["success"]
 
     def cancel_all_orders(self) -> bool:
         response = self._client.delete(
             f"{self._base_url}/orders", headers=self._auth_header()
         )
-        response.raise_for_status()
+        self._raise_for_status(response)
         return response.json()["success"]
 
     def get_order(self, order_id: UUID) -> Order:
         response = self._client.get(
             f"{self._base_url}/orders/{order_id}", headers=self._auth_header()
         )
-        response.raise_for_status()
+        self._raise_for_status(response)
         return Order.model_validate(response.json())
 
     def get_orders(self) -> list[Order]:
         response = self._client.get(
             f"{self._base_url}/orders", headers=self._auth_header()
         )
-        response.raise_for_status()
+        self._raise_for_status(response)
         return [Order.model_validate(o) for o in response.json()]
 
     def close(self) -> None:
@@ -108,8 +110,17 @@ class OMSClient(BrokerClient):
 
     def _auth_header(self) -> dict[str, str]:
         if self._token is None:
-            raise RuntimeError("No active session — call create_session() first")
+            raise RuntimeError("No active session - call create_session() first")
 
         return {
             "Authorization": f"Bearer {self._token}",
         }
+    
+    def _raise_for_status(self, response: requests.Response):
+        if not response.ok:
+            data = None
+            try:
+                data = response.json()
+            except json.JSONDecodeError:
+                pass
+            raise OMSClientException(f"{response.status_code} client error - {data}")
