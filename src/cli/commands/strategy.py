@@ -1,0 +1,43 @@
+import logging
+from uuid import UUID
+
+import click
+
+from service.ohlc.feed.client import OHLCFeedClient
+from service.oms.client import OMSClient
+from strategy.service import StrategyDeploymentService
+
+logger = logging.getLogger("commands.deployment")
+
+
+@click.group()
+def strategy():
+    """Manage live strategy deployments."""
+    pass
+
+
+@strategy.command(name="run")
+@click.option(
+    "--deployment_id",
+    type=UUID,
+    required=True,
+    help="UUID of the strategy deployment to run",
+)
+@click.option("--ohlc-feed-host", type=str, required=True)
+@click.option("--ohlc-feed-port", type=int, required=True)
+@click.option("--oms-base-url", type=str, required=True)
+@click.option("--verbose", is_flag=True, help="Enable verbose output")
+def run(deployment_id, ohlc_feed_host, ohlc_feed_port, oms_base_url, verbose):
+    if verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    ohlc_feed_client = OHLCFeedClient(host=ohlc_feed_host, port=ohlc_feed_port)
+    oms_client = OMSClient(base_url=oms_base_url)
+
+    sds = StrategyDeploymentService(
+        deployment_id=deployment_id,
+        ohlc_feed_client=ohlc_feed_client,
+        oms_client=oms_client,
+    )
+    sds.setup()
+    sds.run()

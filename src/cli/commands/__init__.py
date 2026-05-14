@@ -1,6 +1,6 @@
 from .backend import backend
 from .backtest import backtest
-from .deployment import deployment
+from .strategy import strategy
 from .db import db
 from .events import events
 from .http import http
@@ -11,7 +11,7 @@ from .oms import oms
 __all__ = [
     "backend",
     "backtest",
-    "deployment",
+    "strategy",
     "db",
     "events",
     "http",

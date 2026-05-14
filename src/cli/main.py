@@ -4,7 +4,7 @@ import click
 from cli.commands import (
     backend,
     backtest,
-    deployment,
+    strategy,
     db,
     events,
     feed,
@@ -31,7 +31,7 @@ def cli(ctx, version):
 
 cli.add_command(backend)
 cli.add_command(backtest)
-cli.add_command(deployment)
+cli.add_command(strategy)
 cli.add_command(db)
 cli.add_command(events)
 cli.add_command(http)
