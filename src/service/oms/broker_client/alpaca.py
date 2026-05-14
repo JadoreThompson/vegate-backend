@@ -17,7 +17,8 @@ from alpaca.trading.requests import (
 )
 
 from enums import OrderSide, OrderType, OrderStatus
-from models import Order, OrderRequest, OHLC
+from models import OHLC
+from service.oms.broker_client.model import Order, OrderRequest
 from .base import BrokerClient
 
 
@@ -138,9 +139,9 @@ class AlpacaBrokerClient(BrokerClient):
 
             # Convert Alpaca order to our Order model
             order = self._convert_alpaca_order(alpaca_order)
-            self._orders[order.order_id] = order
+            self._orders[order.id] = order
 
-            self._logger.info(f"Order placed: {order.order_id}")
+            self._logger.info(f"Order placed: {order.id}")
             return order
 
         except Exception as e:
@@ -177,7 +178,7 @@ class AlpacaBrokerClient(BrokerClient):
             )
 
             order = self._convert_alpaca_order(modified_alpaca_order)
-            self._orders[order.order_id] = order
+            self._orders[order.id] = order
 
             self._logger.info(f"Order modified: {order_id}")
             return order
@@ -221,7 +222,7 @@ class AlpacaBrokerClient(BrokerClient):
             # Cancel each order individually
             all_cancelled = True
             for order in orders:
-                if not self.cancel_order(order.order_id):
+                if not self.cancel_order(order.id):
                     all_cancelled = False
 
             if all_cancelled:
@@ -246,7 +247,7 @@ class AlpacaBrokerClient(BrokerClient):
         try:
             alpaca_order = self.client.get_order_by_id(order_id)
             order = self._convert_alpaca_order(alpaca_order)
-            self._orders[order.order_id] = order
+            self._orders[order.id] = order
             return order
         except Exception as e:
             self._logger.error(f"Failed to get order {order_id}: {e}")
@@ -262,7 +263,7 @@ class AlpacaBrokerClient(BrokerClient):
             alpaca_orders = self.client.get_orders()
             orders = [self._convert_alpaca_order(ao) for ao in alpaca_orders]
             for order in orders:
-                self._orders[order.order_id] = order
+                self._orders[order.id] = order
             return orders
         except Exception as e:
             self._logger.error(f"Failed to get orders: {e}")
@@ -295,10 +296,10 @@ class AlpacaBrokerClient(BrokerClient):
             Our Order model
         """
         return Order(
-            order_id=str(alpaca_order.id),
+            id=str(alpaca_order.id),
             symbol=alpaca_order.symbol,
             quantity=float(alpaca_order.qty) if alpaca_order.qty else None,
-            executed_quantity=float(alpaca_order.filled_qty),
+            filled_quantity=float(alpaca_order.filled_qty),
             notional=float(alpaca_order.notional) if alpaca_order.notional else 0.0,
             order_type=self._map_alpaca_order_type(alpaca_order.type),
             side=(

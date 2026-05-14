@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from models import Order, OrderRequest
+from service.oms.broker_client.model import Order, OrderRequest
 
 
 class BrokerClient(ABC):
@@ -62,7 +62,7 @@ class BrokerClient(ABC):
         """Cancel an order.
 
         Args:
-            order_id: ID of order to cancel
+            order_id: Id of order to cancel
 
         Returns:
             True if cancelled successfully, False otherwise

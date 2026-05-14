@@ -38,7 +38,6 @@ class StrategyDeploymentOrders(Base):
     # Debug/audit payloads
     broker_order_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     request_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    response_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     created_at: Mapped[datetime] = datetime_tz()
     updated_at: Mapped[datetime] = datetime_tz(onupdate=get_datetime)

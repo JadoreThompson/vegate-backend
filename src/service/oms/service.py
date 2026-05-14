@@ -1,32 +1,36 @@
 import json
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, insert, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from enums import BrokerType
+from enums import BrokerType, OrderStatus
 from infra.db.model.broker_connections import BrokerConnections
 from infra.db.model.strategy import Strategy
 from infra.db.model.strategy_deployment_orders import StrategyDeploymentOrders
 from infra.db.model.strategy_deployments import StrategyDeployments
 from infra.db.model.user import User
 from infra.db.utils import get_db_session
-from models import OrderRequest, Order
 from service.alpaca.models import AlpacaOAuthPayload
 from service.encryption.service import EncryptionService
 from service.oms.broker_client.alpaca import AlpacaBrokerClient
 from service.oms.broker_client.base import BrokerClient
-from service.oms.exception import BrokerConnectionDoesNotExistException
+from service.oms.exception import (
+    BrokerConnectionDoesNotExistException,
+    DuplicateOrderException,
+    OrderNotFoundException,
+)
+from service.oms.broker_client.model import Order
 from service.oms.server.model import PlaceOrderRequest
 
 
 class Session:
 
-    def __init__(self, depoyment_id: UUID, broker_client: BrokerClient):
-        self.deployment_id = depoyment_id
+    def __init__(self, deployment_id: UUID, broker_client: BrokerClient):
+        self.deployment_id = deployment_id
         self.broker_client = broker_client
 
 
-# TODO: Implement async API
 class OMSService:
 
     def __init__(self):
@@ -82,7 +86,7 @@ class OMSService:
             raise ValueError(f"Invalid or expired token '{token}'")
         return session.broker_client
 
-    def _get_session(self, token: str) -> BrokerClient:
+    def _get_session(self, token: str) -> Session:
         session = self._broker_clients.get(token)
         if not session:
             raise ValueError(f"Invalid or expired token '{token}'")
@@ -95,37 +99,152 @@ class OMSService:
         return self._get_broker(token).get_equity()
 
     async def place_order(self, token: str, request: PlaceOrderRequest) -> Order:
-        # return self._get_broker(token).place_order(request)
         session = self._get_session(token)
-        async with get_db_session() as db_sess:
-            await db_sess.execute(select(StrategyDeploymentOrders).where())
 
-    def modify_order(
+        async with get_db_session() as db_sess:
+            key = await self._generate_order_key(
+                session.deployment_id, request.candle_ts, db_sess
+            )
+            await self._ensure_unique_key(key, session.deployment_id, db_sess)
+
+        order = session.broker_client.place_order(request.order)
+
+        async with get_db_session() as db_sess:
+            res = await db_sess.execute(
+                insert(StrategyDeploymentOrders)
+                .values(
+                    deployment_id=session.deployment_id,
+                    symbol=order.symbol,
+                    quantity=order.quantity,
+                    notional=order.notional,
+                    side=order.side,
+                    limit_price=order.limit_price,
+                    stop_price=order.stop_price,
+                    candle_ts=request.candle_ts,
+                    status=order.status,
+                    key=key,
+                    request_payload=json.dumps(request.model_dump(mode="json")),
+                    broker_order_id=order.id,
+                )
+                .returning(StrategyDeploymentOrders.id)
+            )
+            order_id = res.scalar()
+            await db_sess.commit()
+
+        order.id = order_id
+        return order
+
+    async def modify_order(
         self,
         token: str,
-        order_id: str,
+        order_id: UUID,
         limit_price: float | None = None,
         stop_price: float | None = None,
     ) -> Order:
-        return self._get_broker(token).modify_order(order_id, limit_price, stop_price)
+        broker_order_id = await self._get_broker_order_id(order_id)
 
-    def cancel_order(self, token: str, order_id: str) -> bool:
-        return self._get_broker(token).cancel_order(order_id)
+        order = self._get_broker(token).modify_order(
+            broker_order_id, limit_price, stop_price
+        )
 
-    def cancel_all_orders(self, token: str) -> bool:
-        return self._get_broker(token).cancel_all_orders()
+        async with get_db_session() as db_sess:
+            await db_sess.execute(
+                update(StrategyDeploymentOrders)
+                .where(StrategyDeploymentOrders.id == order_id)
+                .values(
+                    limit_price=order.limit_price,
+                    stop_price=order.stop_price,
+                    status=order.status,
+                    broker_order_id=order.id,
+                )
+            )
+            await db_sess.commit()
 
-    def get_order(self, token: str, order_id: str) -> Order | None:
-        return self._get_broker(token).get_order(order_id)
+        order.id = order_id
+        return order
 
-    def get_orders(self, token: str) -> list[Order]:
-        return self._get_broker(token).get_orders()
+    async def cancel_order(self, token: str, order_id: UUID) -> bool:
+        broker_order_id = await self._get_broker_order_id(order_id)
+
+        success = self._get_broker(token).cancel_order(broker_order_id)
+
+        async with get_db_session() as db_sess:
+            await db_sess.execute(
+                update(StrategyDeploymentOrders)
+                .where(StrategyDeploymentOrders.id == order_id)
+                .values(status=OrderStatus.CANCELLED if success else OrderStatus.PLACED)
+            )
+            await db_sess.commit()
+
+        return success
+
+    async def get_order(self, token: str, order_id: UUID) -> Order:
+        broker_order_id = await self._get_broker_order_id(order_id)
+
+        order = self._get_broker(token).get_order(broker_order_id)
+        if order is None:
+            raise OrderNotFoundException(order_id)
+
+        order.id = order_id
+        return order
+
+    async def cancel_all_orders(self, token: str) -> bool:
+        session = self._get_session(token)
+
+        async with get_db_session() as db_sess:
+            res = await db_sess.execute(
+                select(StrategyDeploymentOrders.id).where(
+                    StrategyDeploymentOrders.deployment_id == session.deployment_id,
+                    StrategyDeploymentOrders.status == OrderStatus.PLACED,
+                )
+            )
+            order_ids = res.scalars().all()
+
+        if not order_ids:
+            return True
+
+        success = self._get_broker(token).cancel_all_orders()
+        if success:
+            async with get_db_session() as db_sess:
+                await db_sess.execute(
+                    update(StrategyDeploymentOrders)
+                    .where(StrategyDeploymentOrders.id.in_(order_ids))
+                    .values(status=OrderStatus.CANCELLED)
+                )
+                await db_sess.commit()
+
+        return success
+
+    async def get_orders(self, token: str, deployment_id: UUID) -> list[Order]:
+        async with get_db_session() as db_sess:
+            res = await db_sess.execute(
+                select(
+                    StrategyDeploymentOrders.id,
+                    StrategyDeploymentOrders.broker_order_id,
+                ).where(StrategyDeploymentOrders.deployment_id == deployment_id)
+            )
+            rows = res.all()
+
+        broker_id_to_internal: dict[str, UUID] = {
+            str(broker_order_id): internal_id for internal_id, broker_order_id in rows
+        }
+
+        orders = self._get_broker(token).get_orders()
+
+        result = []
+        for order in orders:
+            internal_id = broker_id_to_internal.get(order.id)
+            if internal_id is not None:
+                order.id = internal_id
+                result.append(order)
+
+        return result
 
     def _build_broker_client(
         self, broker_conn: BrokerConnections, user_id: UUID
     ) -> BrokerClient:
         if broker_conn.broker == BrokerType.ALPACA:
-            oauth_payload = AlpacaOAuthPayload(
+            oauth_payload = AlpacaOAuthPayload.model_validate(
                 json.loads(
                     EncryptionService.decrypt(
                         broker_conn.oauth_payload, aad=str(user_id)
@@ -143,3 +262,46 @@ class OMSService:
 
     def _generate_token(self) -> str:
         return str(uuid4())
+
+    async def _generate_order_key(
+        self, deployment_id: UUID, candle_ts: int, db_sess: AsyncSession
+    ) -> str:
+        res = await db_sess.execute(
+            select(func.count(StrategyDeploymentOrders.id)).where(
+                StrategyDeploymentOrders.deployment_id == deployment_id
+            )
+        )
+        count = res.scalar()
+        return f"{candle_ts}-{count}"
+
+    async def _ensure_unique_key(
+        self, key: str, deployment_id: UUID, db_sess: AsyncSession
+    ) -> None:
+        res = await db_sess.execute(
+            select(StrategyDeploymentOrders).where(
+                StrategyDeploymentOrders.deployment_id == deployment_id,
+                StrategyDeploymentOrders.key == key,
+            )
+        )
+        if res.first():
+            raise DuplicateOrderException()
+
+    async def _get_broker_order_id(self, order_id: UUID) -> str:
+        """
+        Resolves an internal DB order UUID to the broker-native order ID.
+
+        Raises:
+            OrderNotFoundException: if no order row exists for the given order_id
+        """
+        async with get_db_session() as db_sess:
+            res = await db_sess.execute(
+                select(StrategyDeploymentOrders.broker_order_id).where(
+                    StrategyDeploymentOrders.id == order_id
+                )
+            )
+            broker_order_id = res.scalar()
+
+        if broker_order_id is None:
+            raise OrderNotFoundException(order_id)
+
+        return broker_order_id

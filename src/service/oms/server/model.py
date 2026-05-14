@@ -2,8 +2,8 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from enums import OrderType, OrderSide
 from models import CustomBaseModel, Order
+from service.oms.broker_client.model import OrderRequest
 
 
 class CreateSessionRequest(CustomBaseModel):
@@ -12,16 +12,6 @@ class CreateSessionRequest(CustomBaseModel):
 
 class CreateSessionResponse(BaseModel):
     token: str
-
-
-class OrderRequest(CustomBaseModel):
-    symbol: str
-    quantity: float | None = None
-    notional: float | None = None
-    order_type: OrderType
-    side: OrderSide
-    limit_price: float | None = None
-    stop_price: float | None = None
 
 
 class PlaceOrderRequest(CustomBaseModel):
