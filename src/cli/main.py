@@ -10,6 +10,7 @@ from cli.commands import (
     feed,
     ohlc_loader,
     http,
+    oms,
 )
 
 
@@ -36,6 +37,7 @@ cli.add_command(events)
 cli.add_command(http)
 cli.add_command(ohlc_loader)
 cli.add_command(feed)
+cli.add_command(oms)
 
 
 if __name__ == "__main__":

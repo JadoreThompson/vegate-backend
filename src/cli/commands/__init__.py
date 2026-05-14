@@ -6,6 +6,7 @@ from .events import events
 from .http import http
 from .ohlc_loader import ohlc_loader
 from .feed import feed
+from .oms import oms
 
 __all__ = [
     "backend",
@@ -16,4 +17,5 @@ __all__ = [
     "http",
     "ohlc_loader",
     "feed",
+    "oms",
 ]
