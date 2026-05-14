@@ -39,7 +39,11 @@ def get_db_sess_sync() -> Generator[Session, None, None]:
     global smaker_sync
 
     with smaker_sync.begin() as sess:
-        yield sess
+        try:
+            yield sess
+        except:
+            sess.rollback()
+            raise
 
 
 def write_db_url_alembic_ini():

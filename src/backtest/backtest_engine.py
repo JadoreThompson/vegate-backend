@@ -4,8 +4,9 @@ from datetime import timedelta
 import numpy as np
 
 from enums import OrderSide, OrderStatus, OrderType
-from models import BacktestMetrics, EquityCurvePoint, BacktestConfig, Order
+from models import OHLC, BacktestMetrics, EquityCurvePoint, BacktestConfig, Order
 from service.ohlc.feed.backtest.service import BacktestOHLCFeed
+from service.ohlc.feed.backtest.client import BacktestOHLCFeedClient
 from service.oms.broker_client.backtest import BacktestBrokerClient
 from strategy.strategy import Strategy
 
@@ -15,9 +16,7 @@ logger = logging.getLogger(__name__)
 class BacktestEngine:
     """Engine for running backtests on strategies."""
 
-    def __init__(
-        self, strategy: Strategy, broker: BacktestBrokerClient, config: BacktestConfig
-    ):
+    def __init__(self, strategy: Strategy, config: BacktestConfig):
         """Initialize the backtesting engine.
 
         Args:
@@ -26,7 +25,7 @@ class BacktestEngine:
             config: BacktestConfig object
         """
         self._strategy = strategy
-        self._broker = broker
+        self._broker: BacktestBrokerClient = self._strategy.oms_client
         self._config = config
         self._equity_curve: list[EquityCurvePoint] = []
         self._balance_curve: list[EquityCurvePoint] = []
@@ -65,18 +64,53 @@ class BacktestEngine:
             )
         )
 
-        feed = BacktestOHLCFeed(
-            market_type=self._config.market_type,
-            symbol=self._config.symbol,
-            timeframe=self._config.timeframe,
-            broker=self._config.broker,
-            start_date=self._config.start_date,
-            end_date=self._config.end_date,
-        )
-        for candle in feed:
+        ohlc_feed_client: BacktestOHLCFeedClient = self._strategy.ohlc_feed_client
+        self._broker.ohlc_feed_client = ohlc_feed_client
+        tf_seconds = ohlc_feed_client.timeframe.get_seconds()
+        start = ohlc_feed_client.start
+        open = None
+        high = None
+        low = None
+        close = None
+        volume = 0
+        for candle in ohlc_feed_client.candles():
             candle_count += 1
+            if candle_count == 0:
+                start = candle.timestamp
+            self._broker.execute_pending_orders(candle)
 
-            self._strategy.on_candle(candle)
+            # self._strategy.on_candle(candle)
+
+            if open is None:
+                open = candle.open
+
+            high = candle.high if high is None else max(high, candle.high)
+            low = candle.low if low is None else min(low, candle.low)
+            close = candle.close
+            volume += candle.volume
+
+            if candle.timestamp + tf_seconds == start + tf_seconds:
+                candle = OHLC(
+                    open=open,
+                    high=high,
+                    low=low,
+                    close=close,
+                    volume=volume,
+                    symbol=candle.symbol,
+                    broker=candle.broker,
+                    market_type=candle.market_type,
+                    timeframe=candle.timeframe,
+                    timestamp=start,
+                )
+
+                self._strategy.on_candle(candle)
+
+                open = None
+                high = None
+                low = None
+                close = None
+                volume = 0
+                start = start + tf_seconds
 
             self._equity_curve.append(
                 EquityCurvePoint(

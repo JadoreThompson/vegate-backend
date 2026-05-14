@@ -45,8 +45,8 @@ async def create_backtest_endpoint(
         created_at=backtest.created_at,
     )
 
-    deployment_data = await railway_service.deploy(backtest_id=backtest.id)
-    backtest.server_data = deployment_data
+    # deployment_data = await railway_service.deploy(backtest_id=backtest.id)
+    # backtest.server_data = deployment_data
     await db_sess.commit()
 
     return rsp_body

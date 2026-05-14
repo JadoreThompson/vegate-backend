@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from enums import BacktestStatus, BrokerType
+from enums import BacktestStatus, BrokerType, MarketType
 from models import CustomBaseModel
 from enums import Timeframe
 from models import EquityCurvePoint
@@ -13,6 +13,7 @@ class BacktestCreate(BaseModel):
     strategy_id: UUID
     symbol: str = Field(min_length=1, max_length=10)
     broker: BrokerType
+    market_type: MarketType
     starting_balance: int = Field(gt=0, le=100_000)
     start_date: date
     end_date: date

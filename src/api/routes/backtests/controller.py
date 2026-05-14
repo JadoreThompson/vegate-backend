@@ -1,11 +1,12 @@
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from enums import BacktestStatus
 from infra.db.model import Backtest, Orders, Strategy
+from infra.db.model.ohlc import OHLC
 from .models import BacktestCreate
 
 
@@ -22,6 +23,11 @@ async def create_backtest(
     )
     if not strategy:
         raise HTTPException(404, "Strategy not found")
+    
+    res = await db_sess.execute(select(exists()).where(OHLC.symbol == data.symbol, OHLC.market_type == data.market_type, OHLC.timeframe == data.timeframe))
+    exists = res.scalar()
+    if not exists:
+        raise HTTPException(404, f"Data for {data.symbol} on timeframe {data.timeframe} not available.")
 
     new_backtest = Backtest(
         strategy_id=data.strategy_id,
@@ -31,6 +37,7 @@ async def create_backtest(
         start_date=data.start_date,
         end_date=data.end_date,
         timeframe=data.timeframe,
+        market_type=data.market_type,
     )
     db_sess.add(new_backtest)
     await db_sess.flush()

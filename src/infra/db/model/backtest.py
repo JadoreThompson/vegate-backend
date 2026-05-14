@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Date, ForeignKey, Integer, String, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from enums import BacktestStatus, BrokerType, Timeframe
+from enums import BacktestStatus, BrokerType, MarketType, Timeframe
 from infra.db.model.backtest_order import BacktestOrder
 from infra.db.model.base import Base, datetime_tz, uuid_pk
 
@@ -31,6 +31,7 @@ class Backtest(Base):
     start_date: Mapped[date] = mapped_column(Date(), nullable=False)
     end_date: Mapped[date] = mapped_column(Date(), nullable=False)
     timeframe: Mapped[Timeframe] = mapped_column(String, nullable=False)
+    market_type: Mapped[MarketType] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(
         String, nullable=False, default=BacktestStatus.PENDING.value
     )

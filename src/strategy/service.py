@@ -7,9 +7,8 @@ from sqlalchemy import select
 from config import SRC_PATH
 from enums import MarketType, Timeframe
 from infra.db.model import StrategyDeployments, Strategy as StrategyEntity
-from infra.kafka.client import KafkaProducer
 from infra.db import get_db_sess_sync
-from service.event.publisher import EventPublisherService
+from service.event.publisher.sync import SyncEventPublisherService
 from service.ohlc.feed.client import OHLCFeedClient
 from service.oms.client import OMSClient
 from strategy.model import StrategyConfig
@@ -23,13 +22,13 @@ class StrategyDeploymentService:
         deployment_id: UUID,
         ohlc_feed_client: OHLCFeedClient,
         oms_client: OMSClient,
+        event_publisher: SyncEventPublisherService,
     ):
         self._deployment_id = deployment_id
         self._ohlc_feed_client = ohlc_feed_client
         self._oms_client = oms_client
         self._strategy_config: StrategyConfig | None = None
-
-        self._event_publisher = EventPublisherService(kakfa_producer=KafkaProducer())
+        self._event_publisher = event_publisher
         self._fpath = os.path.join(SRC_PATH, "user_strategy.py")
         self._logger = logging.getLogger(self.__class__.__name__)
 
@@ -68,7 +67,8 @@ class StrategyDeploymentService:
             self._oms_client.connect()
 
             self._strategy.startup()
-            self._strategy.run()
+            for candle in self._ohlc_feed_client.candles():
+                self._strategy.on_candle(candle)
         finally:
             self._strategy.shutdown()
             self._ohlc_feed_client.close()

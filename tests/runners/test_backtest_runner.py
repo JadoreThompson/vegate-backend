@@ -84,7 +84,7 @@ class TestBacktestRunnerUnitTest:
             MockBacktestBroker.return_value = mock_backtest_broker
 
             runner._write_strategy_code = MagicMock()
-            runner._load_strategy = MagicMock()
+            runner._load_user_strategy = MagicMock()
 
             runner.run()
 
@@ -278,7 +278,9 @@ class Strategy(BaseStrategy):
         """
         backtest_id, candles = seed_backtest
 
-        with patch("runners.backtest_runner.BacktestRunner._store_results") as mock_store_results:
+        with patch(
+            "runners.backtest_runner.BacktestRunner._store_results"
+        ) as mock_store_results:
             mock_store_results.side_effect = Exception("side effect")
             runner = BacktestRunner(backtest_id)
             runner.run()
@@ -295,14 +297,14 @@ class Strategy(BaseStrategy):
             db_metrics = res.scalar()
 
             res = db_sess.execute(
-                select(BacktestOrder).where(
-                    BacktestOrder.backtest_id == backtest_id
-                )
+                select(BacktestOrder).where(BacktestOrder.backtest_id == backtest_id)
             )
             db_orders: list[BacktestOrder] = res.scalars().all()
 
             res = db_sess.execute(
-                select(BacktestEquityCurve).where(BacktestEquityCurve.backtest_id == backtest_id)
+                select(BacktestEquityCurve).where(
+                    BacktestEquityCurve.backtest_id == backtest_id
+                )
             )
             db_equity_curve = res.scalars().all()
 

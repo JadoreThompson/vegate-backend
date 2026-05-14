@@ -56,7 +56,7 @@ class OHLC(CustomBaseModel):
     low: float
     close: float
     volume: float
-    timestamp: datetime
+    timestamp: int
     timeframe: Timeframe
     symbol: str
     broker: BrokerType

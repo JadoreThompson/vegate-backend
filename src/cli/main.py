@@ -2,7 +2,6 @@ import sys
 import click
 
 from cli.commands import (
-    backend,
     backtest,
     strategy,
     db,
@@ -29,7 +28,6 @@ def cli(ctx, version):
         click.echo(ctx.get_help())
 
 
-cli.add_command(backend)
 cli.add_command(backtest)
 cli.add_command(strategy)
 cli.add_command(db)

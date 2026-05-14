@@ -1,8 +1,11 @@
+from collections import defaultdict
 import logging
 import uuid
 
 from enums import OrderSide, OrderStatus, OrderType
 from models import Order, OrderRequest, OHLC as OHLCModel
+from service.ohlc.feed.backtest.client import BacktestOHLCFeedClient
+from service.oms.broker_client.exception import BrokerClientException
 from .base import BrokerClient
 
 
@@ -22,7 +25,8 @@ class BacktestBrokerClient(BrokerClient):
         self.balance = starting_balance
         self._order_map: dict[str, Order] = {}
         self._pending_orders: list[Order] = []
-        self._cur_candle: OHLCModel | None = None
+        self._asset_holdings: dict[str, float] = defaultdict(float)
+        self.ohlc_feed_client: BacktestOHLCFeedClient | None = None
         self._logger = logging.getLogger(self.__class__.__name__)
 
     def get_balance(self):
@@ -32,7 +36,7 @@ class BacktestBrokerClient(BrokerClient):
         self.equity = self._calculate_equity()
         return self.equity
 
-    def place_order(self, order_request: OrderRequest) -> Order:
+    def place_order(self, request: OrderRequest, candle_ts) -> Order:
         """Place an order.
 
         Args:
@@ -41,14 +45,15 @@ class BacktestBrokerClient(BrokerClient):
         Returns:
             Order object
         """
-        if order_request.order_type == OrderType.LIMIT:
-            return self._handle_limit_order(order_request)
-        elif order_request.order_type == OrderType.STOP:
-            return self._handle_stop_order(order_request)
-        elif order_request.order_type == OrderType.MARKET:  # MARKET
-            return self._handle_market_order(order_request)
-        else:
-            raise ValueError(f"Unsupported order type: {order_request.order_type}")
+        self._ensure_feed()
+
+        if request.order_type == OrderType.LIMIT:
+            return self._handle_limit_order(request)
+        if request.order_type == OrderType.STOP:
+            return self._handle_stop_order(request)
+        if request.order_type == OrderType.MARKET:
+            return self._handle_market_order(request)
+        raise ValueError(f"Unsupported order type: {request.order_type}")
 
     def _handle_limit_order(self, order_request: OrderRequest) -> Order:
         """Handle limit order with validation and add to pending orders.
@@ -66,10 +71,10 @@ class BacktestBrokerClient(BrokerClient):
             raise ValueError("Limit price must be set for limit orders")
         if order_request.limit_price <= 0.0:
             raise ValueError("Limit price must be greater than 0.0")
-        if self._cur_candle is None:
+        if self.ohlc_feed_client.cur_candle is None:
             raise ValueError("Cannot place limit order without current market price")
 
-        current_price = self._cur_candle.close
+        current_price = self.ohlc_feed_client.cur_candle.close
 
         # Validate limit price based on order side
         if order_request.side == OrderSide.BUY:
@@ -96,7 +101,7 @@ class BacktestBrokerClient(BrokerClient):
             stop_price=order_request.stop_price,
             filled_avg_price=None,
             executed_at=None,
-            submitted_at=self._cur_candle.timestamp,
+            submitted_at=self.ohlc_feed_client.cur_candle.timestamp,
             order_id=order_id,
             status=OrderStatus.PLACED,
         )
@@ -122,10 +127,10 @@ class BacktestBrokerClient(BrokerClient):
             raise ValueError("Stop price must be set for stop orders")
         if order_request.stop_price <= 0.0:
             raise ValueError("Stop price must be greater than 0.0")
-        if self._cur_candle is None:
+        if self.ohlc_feed_client.cur_candle is None:
             raise ValueError("Cannot place stop order without current market price")
 
-        current_price = self._cur_candle.close
+        current_price = self.ohlc_feed_client.cur_candle.close
 
         # Validate stop price based on order side (opposite of limit orders)
         if order_request.side == OrderSide.BUY:
@@ -148,12 +153,11 @@ class BacktestBrokerClient(BrokerClient):
             notional=order_request.notional,
             order_type=order_request.order_type,
             side=order_request.side,
-            # price=order_request.price,
             limit_price=order_request.limit_price,
             stop_price=order_request.stop_price,
             filled_avg_price=None,
             executed_at=None,
-            submitted_at=self._cur_candle.timestamp,
+            submitted_at=self.ohlc_feed_client.cur_candle.timestamp,
             order_id=order_id,
             status=OrderStatus.PLACED,
         )
@@ -163,7 +167,7 @@ class BacktestBrokerClient(BrokerClient):
 
         return order
 
-    def _handle_market_order(self, order_request: OrderRequest) -> Order:
+    def _handle_market_order(self, request: OrderRequest) -> Order:
         """Handle market order with balance validation.
 
         Args:
@@ -172,64 +176,67 @@ class BacktestBrokerClient(BrokerClient):
         Returns:
             Order object with FILLED or REJECTED status
         """
-        if self._cur_candle is None:
-            raise ValueError("Cannot place market order without current market price")
-
+        self._ensure_feed()
+        self._logger.info(f"Balance {self.balance}")
         order_id = str(uuid.uuid4())
-        price = self._cur_candle.close
+        price = self.ohlc_feed_client.cur_candle.close
+        current_ts = self.ohlc_feed_client.cur_candle.timestamp
 
         # Calculate order cost
-        if order_request.notional is not None and order_request.notional > 0:
-            order_cost = order_request.notional
+        if request.notional is not None and request.notional > 0:
+            order_cost = request.notional
         else:
-            order_cost = order_request.quantity * price
+            order_cost = request.quantity * price
 
         # Check balance for buy orders
-        if order_request.side == OrderSide.BUY:
+        if request.side == OrderSide.BUY:
             if self.balance < order_cost:
                 # Insufficient balance - reject order
                 order = Order(
-                    symbol=order_request.symbol,
-                    quantity=order_request.quantity,
+                    symbol=request.symbol,
+                    quantity=request.quantity,
                     executed_quantity=0.0,
-                    notional=order_request.notional,
-                    order_type=order_request.order_type,
-                    side=order_request.side,
+                    notional=request.notional,
+                    order_type=request.order_type,
+                    side=request.side,
                     # price=order_request.price,
-                    limit_price=order_request.limit_price,
-                    stop_price=order_request.stop_price,
+                    limit_price=request.limit_price,
+                    stop_price=request.stop_price,
                     filled_avg_price=None,
                     executed_at=None,
-                    submitted_at=self._cur_candle.timestamp,
+                    submitted_at=current_ts,
                     order_id=order_id,
                     status=OrderStatus.REJECTED,
                 )
                 self._order_map[order_id] = order
-                return order
+                raise BrokerClientException("Insufficient balance")
+            
+        elif self._asset_holdings[request.symbol] < request.quantity:
+            raise BrokerClientException("Insufficient asset holdings")
 
         # Sufficient balance - fill order
-        if order_request.notional is not None:
-            quantity = order_request.notional / self._cur_candle.close
+        if request.notional is not None:
+            quantity = request.notional / self.ohlc_feed_client.cur_candle.close
         else:
-            quantity = order_request.quantity
+            quantity = request.quantity
 
-        if order_request.quantity is not None:
-            notional = order_request.quantity * self._cur_candle.close
+        if request.quantity is not None:
+            notional = request.quantity * self.ohlc_feed_client.cur_candle.close
         else:
-            notional = order_request.notional
+            notional = request.notional
 
         order = Order(
-            symbol=order_request.symbol,
+            symbol=request.symbol,
             quantity=round(quantity, 2),
             executed_quantity=round(quantity, 2),
             notional=round(notional, 2),
-            order_type=order_request.order_type,
-            side=order_request.side,
-            limit_price=order_request.limit_price,
-            stop_price=order_request.stop_price,
+            order_type=request.order_type,
+            side=request.side,
+            limit_price=request.limit_price,
+            stop_price=request.stop_price,
             filled_avg_price=price,
-            executed_at=self._cur_candle.timestamp,
-            submitted_at=self._cur_candle.timestamp,
+            executed_at=current_ts,
+            submitted_at=current_ts,
             order_id=order_id,
             status=OrderStatus.FILLED,
         )
@@ -239,23 +246,24 @@ class BacktestBrokerClient(BrokerClient):
         # Update balance using order_cost (which accounts for notional)
         if order.side == OrderSide.BUY:
             self.balance -= order_cost
+            self._asset_holdings[order.symbol] += order.executed_quantity
         else:
             self.balance += order_cost
+            self._asset_holdings[order.symbol] -= order.executed_quantity
 
         return order
 
-    def _execute_pending_orders(self):
+    def execute_pending_orders(self, candle: OHLCModel):
         """Execute pending limit and stop orders based on current candle.
 
         Checks each pending order to see if it should be triggered based on
         current price, validates balance, and either fills or rejects the order.
         """
-        if self._cur_candle is None:
-            return
+        self._ensure_feed()
 
-        current_ts = self._cur_candle.timestamp
-        current_high = self._cur_candle.high
-        current_low = self._cur_candle.low
+        current_ts = candle.timestamp
+        current_high = candle.high
+        current_low = candle.low
 
         orders_to_remove = []
 
@@ -301,7 +309,7 @@ class BacktestBrokerClient(BrokerClient):
                     if self.balance < order_cost:
                         # Insufficient balance - reject order
                         order.status = OrderStatus.REJECTED
-                        order.executed_at = self._cur_candle.timestamp
+                        order.executed_at = current_ts
                         orders_to_remove.append(order)
                         continue
 
@@ -314,8 +322,10 @@ class BacktestBrokerClient(BrokerClient):
                 # Update balance
                 if order.side == OrderSide.BUY:
                     self.balance -= order_cost
+                    self._asset_holdings[order.symbol] += order.executed_quantity
                 else:
                     self.balance += order_cost
+                    self._asset_holdings[order.symbol] -= order.executed_quantity
 
                 orders_to_remove.append(order)
 
@@ -339,6 +349,7 @@ class BacktestBrokerClient(BrokerClient):
         Returns:
             Modified Order object
         """
+        self._ensure_feed()
         order = self._order_map.get(order_id)
         if not order:
             raise ValueError(f"Order {order_id} not found")
@@ -412,10 +423,10 @@ class BacktestBrokerClient(BrokerClient):
 
         If no current candle is available, equity defaults to current balance.
         """
-        if self._cur_candle is None:
+        if self.ohlc_feed_client is None or self.ohlc_feed_client.cur_candle is None:
             return self.balance
 
-        cur_price = self._cur_candle.close
+        cur_price = self.ohlc_feed_client.cur_candle.close
         total_quantity = 0
 
         for order in list(self._order_map.values()):
@@ -427,3 +438,9 @@ class BacktestBrokerClient(BrokerClient):
 
         holdings_value = total_quantity * cur_price
         return self.balance + holdings_value
+
+    def _ensure_feed(self):
+        if self.ohlc_feed_client is None:
+            raise ValueError(
+                "OHLC feed is not set. OHLC feed is required to track current close price."
+            )

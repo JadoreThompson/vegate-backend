@@ -79,7 +79,7 @@ class AlpacaBrokerClient(BrokerClient):
     def get_equity(self):
         return float(self.client.get_account().equity)
 
-    def place_order(self, order_request: OrderRequest) -> Order:
+    def place_order(self, request: OrderRequest) -> Order:
         """Place an order on Alpaca.
 
         Args:
@@ -90,47 +90,47 @@ class AlpacaBrokerClient(BrokerClient):
         """
         try:
             # Map our OrderType to Alpaca OrderType
-            alpaca_order_type = self._map_order_type(order_request.order_type)
+            alpaca_order_type = self._map_order_type(request.order_type)
             side = (
                 AlpacaOrderSide.BUY
-                if order_request.side == OrderSide.BUY
+                if request.side == OrderSide.BUY
                 else AlpacaOrderSide.SELL
             )
             # Create the appropriate Alpaca order request
             if alpaca_order_type == AlpacaOrderType.MARKET:
                 alpaca_request = MarketOrderRequest(
-                    symbol=order_request.symbol,
-                    notional=order_request.notional,
-                    qty=order_request.quantity,
+                    symbol=request.symbol,
+                    notional=request.notional,
+                    qty=request.quantity,
                     side=side,
                     time_in_force=AlpacaTimeInForce.GTC,
                 )
             elif alpaca_order_type == AlpacaOrderType.LIMIT:
                 alpaca_request = LimitOrderRequest(
-                    symbol=order_request.symbol,
-                    notional=order_request.notional,
-                    qty=order_request.quantity,
+                    symbol=request.symbol,
+                    notional=request.notional,
+                    qty=request.quantity,
                     side=side,
-                    limit_price=order_request.limit_price,
+                    limit_price=request.limit_price,
                     time_in_force=AlpacaTimeInForce.GTC,
                 )
             elif alpaca_order_type == AlpacaOrderType.STOP:
                 alpaca_request = StopOrderRequest(
-                    symbol=order_request.symbol,
-                    notional=order_request.notional,
-                    qty=order_request.quantity,
+                    symbol=request.symbol,
+                    notional=request.notional,
+                    qty=request.quantity,
                     side=side,
-                    stop_price=order_request.stop_price,
+                    stop_price=request.stop_price,
                     time_in_force=AlpacaTimeInForce.GTC,
                 )
             elif alpaca_order_type == AlpacaOrderType.STOP_LIMIT:
                 alpaca_request = StopLimitOrderRequest(
-                    symbol=order_request.symbol,
-                    qty=order_request.quantity,
-                    notional=order_request.notional,
+                    symbol=request.symbol,
+                    qty=request.quantity,
+                    notional=request.notional,
                     side=side,
-                    limit_price=order_request.limit_price,
-                    stop_price=order_request.stop_price,
+                    limit_price=request.limit_price,
+                    stop_price=request.stop_price,
                     time_in_force=AlpacaTimeInForce.GTC,
                 )
             else:

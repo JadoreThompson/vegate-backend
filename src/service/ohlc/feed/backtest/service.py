@@ -75,6 +75,7 @@ class BacktestOHLCFeed(OHLCFeed):
                     close=float(row.close),
                     volume=float(row.volume),
                     symbol=row.symbol,
+                    broker=row.source,
                     market_type=row.market_type,
                     timeframe=row.timeframe,
                     timestamp=row.timestamp,
