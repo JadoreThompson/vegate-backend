@@ -1,11 +1,12 @@
 import asyncio
 
-from service.ohlc.loader.loader_config import LoaderConfig
+from service.ohlc.loader.loader_config import OHLCLoaderConfig
 from .base import BaseRunner
 
 
 class LoaderRunner(BaseRunner):
-    def __init__(self, configs: list[LoaderConfig]):
+    
+    def __init__(self, configs: list[OHLCLoaderConfig]):
         self._loader_configs = tuple(configs)
 
     def run(self):

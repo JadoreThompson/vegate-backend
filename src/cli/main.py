@@ -1,7 +1,16 @@
 import sys
 import click
 
-from .commands import backend, backtest, deployment, db, events, loader, http
+from cli.commands import (
+    backend,
+    backtest,
+    deployment,
+    db,
+    events,
+    feed,
+    ohlc_loader,
+    http,
+)
 
 
 @click.group(invoke_without_command=True)
@@ -25,7 +34,8 @@ cli.add_command(deployment)
 cli.add_command(db)
 cli.add_command(events)
 cli.add_command(http)
-cli.add_command(loader)
+cli.add_command(ohlc_loader)
+cli.add_command(feed)
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, field_validator
 
-from enums import OrderSide, OrderType, OrderStatus, BrokerType, Timeframe
+from enums import MarketType, OrderSide, OrderType, OrderStatus, BrokerType, Timeframe
 
 
 class CustomBaseModel(BaseModel):
@@ -48,7 +48,7 @@ class Order(BaseModel):
     details: dict[str, object] | None = None
 
 
-class OHLC(BaseModel):
+class OHLC(CustomBaseModel):
     """Represents an OHLC candle."""
 
     open: float
@@ -59,6 +59,8 @@ class OHLC(BaseModel):
     timestamp: datetime
     timeframe: Timeframe
     symbol: str
+    broker: BrokerType
+    market_type: MarketType
 
 
 class Tick(BaseModel):

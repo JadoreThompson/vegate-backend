@@ -6,7 +6,7 @@ from uuid import UUID
 
 from sqlalchemy import update
 
-from config import BASE_PATH, REDIS_DEPLOYMENT_EVENTS_KEY
+from config import SRC_PATH, REDIS_DEPLOYMENT_EVENTS_KEY
 from enums import BrokerType, DeploymentStatus
 from infra.db.model import BrokerConnections, StrategyDeployments, Strategy
 from lib.brokers import AlpacaBroker, ProxyBroker
@@ -165,7 +165,7 @@ class DeploymentRunner(BaseRunner):
         Args:
             code: Strategy code to write
         """
-        temp_strategy_path = os.path.join(BASE_PATH, "user_strategy.py")
+        temp_strategy_path = os.path.join(SRC_PATH, "user_strategy.py")
         with open(temp_strategy_path, "w") as f:
             f.write(code)
         self._logger.info(f"Strategy code written to {temp_strategy_path}")

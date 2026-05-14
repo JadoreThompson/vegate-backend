@@ -413,6 +413,7 @@ class BacktestBroker(BaseBroker):
     def stream_candles(self, symbol, timeframe, source, start_date, end_date):
         """Stream candles from the database for the given symbol, timeframe, and date range.
         End date is inclusive."""
+        # TODO: Add market type
         # end_date += timedelta(days=1)
 
         with get_db_sess_sync() as db_sess:

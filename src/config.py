@@ -1,20 +1,27 @@
+from collections import defaultdict
 import logging
 import os
 import sys
+import yaml
 from urllib.parse import quote
 
 import stripe
 from dotenv import load_dotenv
 
+from enums import BrokerType, MarketType, Timeframe
+
 # Paths
-BASE_PATH = os.path.dirname(__file__)
-PROJECT_PATH = os.path.dirname(BASE_PATH)
+SRC_PATH = os.path.dirname(__file__)
+PROJECT_PATH = os.path.dirname(SRC_PATH)
 
 PYTEST_RUNNING = bool(os.getenv("PYTEST_VERSION"))
 
 load_dotenv(os.path.join(PROJECT_PATH, ".env.test" if PYTEST_RUNNING else ".env"))
 
 IS_PRODUCTION = bool(int(os.getenv("IS_PRODUCTION", "0")))
+
+with open(os.path.join(PROJECT_PATH, "config.yaml"), "r") as f:
+    CONFIG_YAML = yaml.load(f, Loader=yaml.SafeLoader)
 
 # Auth
 COOKIE_ALIAS = "vegate-cookie"
@@ -102,6 +109,36 @@ RAILWAY_ENVIRONMENT_ID = os.getenv("RAILWAY_ENVIRONMENT_ID")
 
 # OHLC Loaders
 OHLC_LOG_FOLDER = os.getenv("OHLC_LOG_FOLDER", "ohlc_loader_logs")
+
+
+class OHLCFeedConfig:
+
+    def __init__(self, data: dict):
+        self._data = data
+
+    def get_symbols(self) -> set[str]:
+        return set(self._data.keys())
+
+    def get_market_types(self, symbol: str):
+        return set(self._data.get(symbol, {}).keys())
+
+    def get_brokers(self, symbol: str, market_type: MarketType):
+        return set(self._data.get(symbol, {}).get(market_type, {}).keys())
+
+    def get_timeframes(self, symbol: str, market_type: MarketType, broker: BrokerType):
+        return set(self._data.get(symbol, {}).get(market_type, {}).get(broker, []))
+
+
+data = defaultdict(lambda: defaultdict(dict))
+
+for item in CONFIG_YAML["ohlc_feed"]:
+    symb = item["symbol"]
+
+    data[symb][MarketType(item["market_type"])][BrokerType(item["broker"])] = [
+        Timeframe(tf) for tf in item["timeframes"]
+    ]
+
+OHLC_FEED_CONFIG = OHLCFeedConfig(data)
 
 # Logging
 logging.basicConfig(

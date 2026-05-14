@@ -4,7 +4,7 @@ from uuid import UUID
 
 from sqlalchemy import insert, update
 
-from config import BASE_PATH
+from config import SRC_PATH
 from enums import BacktestStatus, BrokerType, Timeframe
 from infra.db import get_db_sess_sync
 from infra.db.model import (
@@ -18,7 +18,11 @@ from infra.db.model import (
 from lib.backtest_engine import BacktestEngine
 from lib.brokers import BacktestBroker
 from lib.strategy import BaseStrategy
-from models import BacktestMetrics as BacktestMetricsModel, BacktestConfig, EquityCurvePoint
+from models import (
+    BacktestMetrics as BacktestMetricsModel,
+    BacktestConfig,
+    EquityCurvePoint,
+)
 from .base import BaseRunner
 
 
@@ -111,7 +115,7 @@ class BacktestRunner(BaseRunner):
         Args:
             code: Strategy code to write
         """
-        temp_strategy_path = os.path.join(BASE_PATH, "user_strategy.py")
+        temp_strategy_path = os.path.join(SRC_PATH, "user_strategy.py")
         with open(temp_strategy_path, "w") as f:
             f.write(code)
         self._logger.info(f"Strategy code written to {temp_strategy_path}")
@@ -158,9 +162,9 @@ class BacktestRunner(BaseRunner):
         for order in result.orders:
             o = order.model_dump(mode="json")
             o["backtest_id"] = self._backtest_id
-            o['filled_quantity'] = o['executed_quantity']
-            o['avg_fill_price'] = o['filled_avg_price']
-            o['filled_at'] = o['executed_at']
+            o["filled_quantity"] = o["executed_quantity"]
+            o["avg_fill_price"] = o["filled_avg_price"]
+            o["filled_at"] = o["executed_at"]
             records.append(o)
 
         # Downsample equity curve if too large
@@ -182,26 +186,25 @@ class BacktestRunner(BaseRunner):
             )
 
             db_sess.execute(
-                insert(BacktestMetrics)
-                .values(
+                insert(BacktestMetrics).values(
                     backtest_id=self._backtest_id,
                     realised_pnl=result.realised_pnl,
                     unrealised_pnl=result.unrealised_pnl,
                     total_return_pct=result.total_return_pct,
                     profit_factor=result.profit_factor,
-                    total_orders=result.total_orders
+                    total_orders=result.total_orders,
                 )
             )
 
             def parse_equity_curve_point(point: EquityCurvePoint) -> dict:
                 data = point.model_dump()
-                data['backtest_id'] = self._backtest_id
-                data['timestamp'] = data['timestamp'].timestamp()
+                data["backtest_id"] = self._backtest_id
+                data["timestamp"] = data["timestamp"].timestamp()
                 return data
 
             db_sess.execute(
                 insert(BacktestEquityCurve),
-                [parse_equity_curve_point(point) for point in result.equity_curve]
+                [parse_equity_curve_point(point) for point in result.equity_curve],
             )
 
             db_sess.commit()

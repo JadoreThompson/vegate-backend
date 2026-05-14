@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import Index, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from enums import BrokerType, Timeframe
+from enums import BrokerType, MarketType, Timeframe
 from .base import Base, datetime_tz, uuid_pk
 
 
@@ -15,6 +15,8 @@ class OHLC(Base):
     ohlc_id: Mapped[uuid.UUID] = uuid_pk()
     source: Mapped[BrokerType] = mapped_column(String, nullable=False)
     symbol: Mapped[str] = mapped_column(String, nullable=False)
+    market_type: Mapped[MarketType] = mapped_column(String, nullable=False)
+    volume: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False)
     open: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False)
     high: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False)
     low: Mapped[float] = mapped_column(Numeric(20, 8), nullable=False)

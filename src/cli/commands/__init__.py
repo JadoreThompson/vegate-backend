@@ -4,7 +4,16 @@ from .deployment import deployment
 from .db import db
 from .events import events
 from .http import http
-from .ohlc_loader import loader
+from .ohlc_loader import ohlc_loader
+from .feed import feed
 
-
-__all__ = ["backend", "backtest", "deployment", "db", "events", "http", "loader"]
+__all__ = [
+    "backend",
+    "backtest",
+    "deployment",
+    "db",
+    "events",
+    "http",
+    "ohlc_loader",
+    "feed",
+]

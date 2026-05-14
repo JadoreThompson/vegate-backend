@@ -1,24 +1,25 @@
 import sys
 import logging
+from datetime import timedelta
 
 import click
 
 from cli.param.enum import EnumParam
 from enums import BrokerType, MarketType, Timeframe
 from runners import LoaderRunner, RunnerConfig
-from service.ohlc.loader import LoaderConfig, AlpacaOHLCLoader
+from service.ohlc.loader import OHLCLoaderConfig, AlpacaOHLCLoader
 from utils import get_datetime
 
-logger = logging.getLogger("commands.loader")
+logger = logging.getLogger("commands.ohlc_loader")
 
 
-@click.group()
-def loader():
+@click.group(name="ohlc_loader")
+def ohlc_loader():
     """Manage historical data loading."""
     pass
 
 
-@loader.command(name="run")
+@ohlc_loader.command(name="run")
 @click.option(
     "--broker",
     type=EnumParam(BrokerType),
@@ -51,7 +52,7 @@ def loader():
 @click.option(
     "--end-date",
     type=click.DateTime(formats=["%Y-%m-%d"]),
-    default=get_datetime().date().strftime("%Y-%m-%d"),
+    default=(get_datetime().date() + timedelta(days=1)).strftime("%Y-%m-%d"),
     help="End date (YYYY-MM-DD)",
 )
 @click.option(
@@ -107,7 +108,7 @@ def loader_run(
         sys.exit(1)
 
     create_loader = lambda: loader_cls(**loader_kwargs)
-    loader_config = LoaderConfig(
+    loader_config = OHLCLoaderConfig(
         cls=create_loader,
         symbol=symbol,
         market_type=market_type,

@@ -1,0 +1,2 @@
+class AlpacaFeedException(Exception):
+    pass
