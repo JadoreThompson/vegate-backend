@@ -5,10 +5,13 @@ import logging
 from asyncio import iscoroutine
 from typing import Any, Callable
 
+from sqlalchemy import insert
 import websockets
 
 from enums import BrokerType, MarketType, Timeframe
-from models import OHLC
+from infra.db.model.ohlc import OHLC
+from infra.db.utils import get_db_session
+from models import OHLC as OHLCModel
 from service.ohlc.feed.alpaca.exception import AlpacaFeedException
 from service.ohlc.feed.base import OHLCFeed
 from service.ohlc.loader.alpaca import AlpacaOHLCLoader
@@ -74,7 +77,7 @@ class AlpacaOHLCFeed(OHLCFeed):
             market_type=self.market_type,
             timeframe=self._timeframe,
             start_date=self._start_date,
-            end_date=get_datetime().date() + timedelta(days=1)
+            end_date=get_datetime().date() + timedelta(days=1),
         )
 
         url = (
@@ -111,20 +114,20 @@ class AlpacaOHLCFeed(OHLCFeed):
                 data = json.loads(msg)
                 if self._on_candle is not None:
                     candle_data = data[0]
-                    res = self._on_candle(
-                        OHLC(
-                            open=candle_data["o"],
-                            high=candle_data["h"],
-                            low=candle_data["l"],
-                            close=candle_data["c"],
-                            symbol=self._fmt_symbol,
-                            volume=candle_data["v"],
-                            broker=BrokerType.ALPACA,
-                            market_type=self._market_type,
-                            timestamp=datetime.fromisoformat(candle_data["t"]),
-                            timeframe=self._timeframe,
-                        )
+                    candle = OHLCModel(
+                        open=candle_data["o"],
+                        high=candle_data["h"],
+                        low=candle_data["l"],
+                        close=candle_data["c"],
+                        symbol=self._fmt_symbol,
+                        volume=candle_data["v"],
+                        broker=BrokerType.ALPACA,
+                        market_type=self._market_type,
+                        timestamp=datetime.fromisoformat(candle_data["t"]),
+                        timeframe=self._timeframe,
                     )
+                    await self._persist_candle(candle)
+                    res = self._on_candle(candle)
                     if iscoroutine(res):
                         await res
 
@@ -138,6 +141,24 @@ class AlpacaOHLCFeed(OHLCFeed):
                 await self._task
             except asyncio.CancelledError:
                 pass
+
+    async def _persist_candle(self, candle: OHLC) -> None:
+        async with get_db_session() as db_sess:
+            await db_sess.execute(
+                insert(OHLC).values(
+                    source=BrokerType.ALPACA,
+                    symbol=candle.symbol,
+                    market_type=candle.market_type,
+                    open=candle.open,
+                    high=candle.high,
+                    low=candle.low,
+                    close=candle.close,
+                    volume=candle.volume,
+                    timeframe=candle.timeframe,
+                    timestamp=candle.timestamp,
+                )
+            )
+            await db_sess.commit()
 
     def _generate_subscription_message(self) -> dict[str, Any]:
         payload = {"action": "subscribe"}
