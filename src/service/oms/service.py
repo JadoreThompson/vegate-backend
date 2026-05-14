@@ -16,6 +16,7 @@ from service.oms.broker.alpaca import AlpacaBroker
 from service.oms.broker.base import Broker
 from service.oms.exception import BrokerConnectionDoesNotExistException
 
+
 # TODO: Implement async API
 class OMSService:
 

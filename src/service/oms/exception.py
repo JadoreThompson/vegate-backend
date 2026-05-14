@@ -2,7 +2,7 @@ from uuid import UUID
 
 
 class BrokerConnectionDoesNotExistException(Exception):
-    
+
     def __init__(self, deployment_id: UUID):
         super().__init__(
             f"Broker connection for deployment '{deployment_id}' not found"
