@@ -22,14 +22,12 @@ from api.shared.models import OrderResponse, PerformanceMetrics
 
 router = APIRouter(prefix="/deployments", tags=["Deployments"])
 
-
 @router.post(
-    "/strategies/{strategy_id}/deploy",
-    response_model=DeploymentResponse,
+    "/",
+    # response_model=DeploymentResponse,
     status_code=201,
 )
 async def deploy_strategy_endpoint(
-    strategy_id: UUID,
     body: DeployStrategyRequest,
     jwt: JWTPayload = Depends(depends_jwt()),
     db_sess: AsyncSession = Depends(depends_db_sess),
@@ -41,35 +39,26 @@ async def deploy_strategy_endpoint(
     Creates a new deployment that will run the specified strategy
     with the given configuration on the connected broker account.
     """
-    deployment = await create_deployment(jwt.sub, strategy_id, body, db_sess)
+    deployment = await create_deployment(jwt.sub, body, db_sess)
+    return {"deployment_id": deployment.deployment_id}
+    # await deployment_service.run_strategy(deployment.deployment_id)
 
-    # Push deployment job to the queue
-    # queue = get_backtest_queue()
-    # if queue is not None:
-    #     queue.put({"deployment_id": str(deployment.deployment_id)})
-    # else:
-    #     raise HTTPException(
-    #         status_code=503,
-    #         detail="Deployment queue is not available. Backend service may not be running.",
-    #     )
-    await deployment_service.deploy_strategy(deployment.deployment_id)
+    # rsp_body = DeploymentResponse(
+    #     deployment_id=deployment.deployment_id,
+    #     strategy_id=deployment.strategy_id,
+    #     broker_connection_id=deployment.broker_connection_id,
+    #     symbol=deployment.symbol,
+    #     timeframe=deployment.timeframe,
+    #     status=deployment.status,
+    #     error_message=deployment.error_message,
+    #     created_at=deployment.created_at,
+    #     updated_at=deployment.updated_at,
+    #     stopped_at=deployment.stopped_at,
+    # )
 
-    rsp_body = DeploymentResponse(
-        deployment_id=deployment.deployment_id,
-        strategy_id=deployment.strategy_id,
-        broker_connection_id=deployment.broker_connection_id,
-        symbol=deployment.symbol,
-        timeframe=deployment.timeframe,
-        status=deployment.status,
-        error_message=deployment.error_message,
-        created_at=deployment.created_at,
-        updated_at=deployment.updated_at,
-        stopped_at=deployment.stopped_at,
-    )
+    # await db_sess.commit()
 
-    await db_sess.commit()
-
-    return rsp_body
+    # return rsp_body
 
 
 @router.get(

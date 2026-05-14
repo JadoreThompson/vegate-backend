@@ -179,7 +179,6 @@ def calculate_max_drawdown(
 
 async def create_deployment(
     user_id: UUID,
-    strategy_id: UUID,
     data: DeployStrategyRequest,
     db_sess: AsyncSession,
 ) -> StrategyDeployments:
@@ -192,7 +191,7 @@ async def create_deployment(
     # Verify the strategy exists and belongs to the user
     strategy = await db_sess.scalar(
         select(Strategy).where(
-            Strategy.strategy_id == strategy_id,
+            Strategy.strategy_id == data.strategy_id,
             Strategy.user_id == user_id,
         )
     )
@@ -211,10 +210,11 @@ async def create_deployment(
 
     # Create the deployment
     new_deployment = StrategyDeployments(
-        strategy_id=strategy_id,
+        strategy_id=data.strategy_id,
         broker_connection_id=data.broker_connection_id,
         symbol=data.symbol,
         timeframe=data.timeframe,
+        market_type=data.market_type,
         status=DeploymentStatus.PENDING,
     )
 

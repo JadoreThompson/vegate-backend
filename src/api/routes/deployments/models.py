@@ -5,16 +5,19 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from api.shared.models import PerformanceMetrics
-from enums import DeploymentStatus, Timeframe
+from enums import BrokerType, DeploymentStatus, MarketType, Timeframe
 from models import CustomBaseModel
 
 
 class DeployStrategyRequest(BaseModel):
     """Request model for deploying a strategy."""
 
+    strategy_id: UUID
     broker_connection_id: UUID
     symbol: str = Field(min_length=1, max_length=10)
     timeframe: Timeframe
+    market_type: MarketType
+    broker_type: BrokerType
 
 
 class DeploymentResponse(CustomBaseModel):

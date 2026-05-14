@@ -4,11 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.dependencies import depends_db_sess, depends_jwt
+from api.dependencies import depends_db_sess, depends_deployment_service, depends_jwt
+from api.routes.deployments.controller import create_deployment
+from api.routes.deployments.models import DeployStrategyRequest, DeploymentResponse
 from api.shared.models import PerformanceMetrics
 from api.types import JWTPayload
 from infra.db.model import Strategy
 from models import EquityCurvePoint
+from service.deployment.base import DeploymentService
 from .controller import (
     create_strategy,
     get_strategy,
