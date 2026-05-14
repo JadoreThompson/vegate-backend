@@ -21,6 +21,7 @@ from models import Order, OrderRequest, OHLC
 from .base import Broker
 
 
+# TODO: Implement async API
 class AlpacaBroker(Broker):
     """Alpaca broker implementation using alpaca-py library."""
 
