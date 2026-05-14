@@ -1,17 +1,12 @@
 import logging
 import uuid
-from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
-
-from enums import OrderSide, OrderStatus, OrderType, Timeframe
-from infra.db import get_db_sess_sync
-from infra.db.model import OHLC
+from enums import OrderSide, OrderStatus, OrderType
 from models import Order, OrderRequest, OHLC as OHLCModel
 from .base import BrokerClient
 
 
-class BacktestBroker(BrokerClient):
+class BacktestBrokerClient(BrokerClient):
     """Broker implementation for backtesting."""
 
     supports_async = False
@@ -409,43 +404,6 @@ class BacktestBroker(BrokerClient):
             List of Order objects
         """
         return list(self._order_map.values())
-
-    def stream_candles(self, symbol, timeframe, source, start_date, end_date):
-        """Stream candles from the database for the given symbol, timeframe, and date range.
-        End date is inclusive."""
-        # TODO: Add market type
-        # end_date += timedelta(days=1)
-
-        with get_db_sess_sync() as db_sess:
-            results = db_sess.scalars(
-                select(OHLC)
-                .where(
-                    OHLC.source == source,
-                    OHLC.symbol == symbol,
-                    OHLC.timeframe == timeframe,
-                    OHLC.timestamp >= int(start_date.timestamp()),
-                    OHLC.timestamp <= int(end_date.timestamp()),
-                )
-                .order_by(OHLC.timestamp.asc())
-            )
-
-            for res in results.yield_per(1000):
-                candle = OHLCModel(
-                    open=res.open,
-                    high=res.high,
-                    low=res.low,
-                    close=res.close,
-                    volume=0.0,
-                    timestamp=res.timestamp,
-                    timeframe=res.timeframe,
-                    symbol=res.symbol,
-                )
-                self._cur_candle = candle
-                self._execute_pending_orders()
-                yield candle
-
-    async def stream_candles_async(self, symbol: str, timeframe: Timeframe):
-        raise NotImplementedError()
 
     def _calculate_equity(self):
         """Calculate current equity based on balance and holdings.

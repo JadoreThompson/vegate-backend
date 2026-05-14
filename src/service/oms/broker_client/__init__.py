@@ -1,11 +1,11 @@
 from .alpaca import AlpacaBrokerClient
-from .backtest import BacktestBroker
+from .backtest import BacktestBrokerClient
 from .base import BrokerClient
 from .proxy import ProxyBrokerClient
 
 __all__ = [
     "AlpacaBrokerClient",
     "BrokerClient",
-    "BacktestBroker",
+    "BacktestBrokerClient",
     "ProxyBrokerClient",
 ]

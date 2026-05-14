@@ -7,6 +7,7 @@ from enums import OrderSide, OrderStatus, OrderType
 from lib.brokers import BacktestBroker
 from lib.strategy import BaseStrategy
 from models import BacktestMetrics, EquityCurvePoint, BacktestConfig, Order
+from service.ohlc.feed.backtest.service import BacktestOHLCFeed
 
 logger = logging.getLogger(__name__)
 
@@ -56,38 +57,33 @@ class BacktestEngine:
         last_log_count = 0
         log_interval = 100  # Log every 100 candles
 
-        # self._balance_curve.append(
-        #     EquityCurvePoint(timestamp=0, value=self._broker.get_balance())
-        # )
-        # self._equity_curve.append(
-        #     EquityCurvePoint(timestamp=0, value=self._broker.get_equity())
-        # )
         self._equity_curve.append(
-            EquityCurvePoint(timestamp=0, equity=self._broker.get_equity(), balance=self._broker.get_balance())
+            EquityCurvePoint(
+                timestamp=0,
+                equity=self._broker.get_equity(),
+                balance=self._broker.get_balance(),
+            )
         )
 
-        for candle in self._broker.stream_candles(
-            self._config.symbol,
-            self._config.timeframe,
-            self._config.broker,
-            self._config.start_date,
-            self._config.end_date,
-        ):
+        feed = BacktestOHLCFeed(
+            market_type=self._config.market_type,
+            symbol=self._config.symbol,
+            timeframe=self._config.timeframe,
+            broker=self._config.broker,
+            start_date=self._config.start_date,
+            end_date=self._config.end_date,
+        )
+        for candle in feed:
             candle_count += 1
 
             self._strategy.on_candle(candle)
-            # self._balance_curve.append(
-            #     EquityCurvePoint(
-            #         timestamp=candle.timestamp, value=self._broker.get_balance()
-            #     )
-            # )
-            # self._equity_curve.append(
-            #     EquityCurvePoint(
-            #         timestamp=candle.timestamp, value=self._broker.get_equity()
-            #     )
-            # )
+
             self._equity_curve.append(
-                EquityCurvePoint(timestamp=candle.timestamp, equity=self._broker.get_equity(), balance=self._broker.get_balance())
+                EquityCurvePoint(
+                    timestamp=candle.timestamp,
+                    equity=self._broker.get_equity(),
+                    balance=self._broker.get_balance(),
+                )
             )
 
             if candle_count - last_log_count >= log_interval:
@@ -113,8 +109,6 @@ class BacktestEngine:
         """
         orders = self._broker.get_orders()
 
-        # realised_pnl = self._calculate_pnl()
-        # end_balance = self._config.starting_balance + realised_pnl
         end_balance = self._broker.get_balance()
         realised_pnl = end_balance - self._config.starting_balance
         end_equity = self._broker.get_equity()
@@ -304,7 +298,7 @@ class BacktestEngine:
         return self._calculate_sharpe_from_equity_curve(
             resampled_points, periods_per_year
         )
-    
+
     def _calculate_profit_factor(self, orders: list[Order]) -> float:
         """Calculate profit factor from list of orders.
 
@@ -340,7 +334,9 @@ class BacktestEngine:
                 price = order.stop_price
 
             if price is None:
-                logger.warning(f"Order {order.order_id} has no resolvable price, skipping")
+                logger.warning(
+                    f"Order {order.order_id} has no resolvable price, skipping"
+                )
                 continue
 
             qty = order.executed_quantity

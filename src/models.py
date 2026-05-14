@@ -77,6 +77,7 @@ class BacktestConfig(CustomBaseModel):
     timeframe: Timeframe
     starting_balance: float
     symbol: str
+    market_type: MarketType
     start_date: datetime
     end_date: datetime
     broker: BrokerType
