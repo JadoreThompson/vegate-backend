@@ -2,24 +2,36 @@ from enum import Enum
 from typing import Literal
 from uuid import UUID
 
+from enums import StrategyDeploymentStatus
 from events.base import BaseEvent
 
 
 class DeploymentEventType(str, Enum):
     """Strategy event type enumeration."""
 
-    ERROR = "strategy_error"
-    STOP = "stop"
+    DEPLOYMENT_ERROR = "deployment.error"
+    DEPLOYMENT_STATUS = "deployment.status"
 
 
-class DeploymentErrorEvent(BaseEvent):
+class _DeploymentEvent(BaseEvent):
+    type: DeploymentEventType
+    deployment_id: UUID
+
+
+class DeploymentStatusChangedEvent(_DeploymentEvent):
+    type: Literal[DeploymentEventType.DEPLOYMENT_STATUS] = (
+        DeploymentEventType.DEPLOYMENT_STATUS
+    )
+    status: StrategyDeploymentStatus
+
+
+class DeploymentErrorEvent(_DeploymentEvent):
     """Event for when a strategy encounters an error."""
 
-    type: Literal[DeploymentEventType.ERROR] = DeploymentEventType.ERROR
-    deployment_id: UUID
+    type: Literal[DeploymentEventType.DEPLOYMENT_ERROR] = (
+        DeploymentEventType.DEPLOYMENT_ERROR
+    )
     error_msg: str
 
 
-class DeploymentStopEvent(BaseEvent):
-    type: Literal[DeploymentEventType.STOP] = DeploymentEventType.STOP
-    deployment_id: UUID
+class DeploymentStopRequestedEvent(_DeploymentEvent): ...

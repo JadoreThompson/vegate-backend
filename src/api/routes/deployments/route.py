@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import depends_db_sess, depends_deployment_service, depends_jwt
 from api.types import JWTPayload
-from enums import DeploymentStatus
+from enums import StrategyDeploymentStatus
 from infra.db.model import Strategy
 from service.deployment.base import DeploymentService
 from .controller import (
@@ -21,6 +21,7 @@ from .models import DeployStrategyRequest, DeploymentResponse, DeploymentDetailR
 from api.shared.models import OrderResponse, PerformanceMetrics
 
 router = APIRouter(prefix="/deployments", tags=["Deployments"])
+
 
 @router.post(
     "/",
@@ -216,7 +217,7 @@ async def stop_deployment_endpoint(
 async def list_all_deployments_endpoint(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
-    status: DeploymentStatus | None = Query(None),
+    status: StrategyDeploymentStatus | None = Query(None),
     jwt: JWTPayload = Depends(depends_jwt()),
     db_sess: AsyncSession = Depends(depends_db_sess),
 ):

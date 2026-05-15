@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.shared.models import PerformanceMetrics
 from config import REDIS_DEPLOYMENT_EVENTS_KEY
-from enums import BrokerType, Timeframe, DeploymentStatus
-from events.deployment import DeploymentStopEvent
+from enums import BrokerType, Timeframe, StrategyDeploymentStatus
+from events.deployment import DeploymentStatusChangedEvent, DeploymentStopRequestedEvent
 from infra.db.model import (
     AccountSnapshots,
     BrokerConnections,
@@ -215,7 +215,7 @@ async def create_deployment(
         symbol=data.symbol,
         timeframe=data.timeframe,
         market_type=data.market_type,
-        status=DeploymentStatus.PENDING,
+        status=StrategyDeploymentStatus.PENDING,
     )
 
     db_sess.add(new_deployment)
@@ -274,7 +274,7 @@ async def list_all_deployments(
     db_sess: AsyncSession,
     offset: int = 0,
     limit: int = 100,
-    status: DeploymentStatus | None = None,
+    status: StrategyDeploymentStatus | None = None,
 ) -> list[StrategyDeployments]:
     """
     List all deployments for a user with optional status filter and pagination.
@@ -321,21 +321,21 @@ async def stop_deployment(
     if not strategy or strategy.user_id != user_id:
         raise HTTPException(404, "Deployment not found")
 
-    if deployment.status == DeploymentStatus.STOP_REQUESTED:
+    if deployment.status == StrategyDeploymentStatus.STOP_REQUESTED:
         raise HTTPException(400, "Deployment has already been requested to stop")
 
-    if deployment.status == DeploymentStatus.STOPPED:
+    if deployment.status == StrategyDeploymentStatus.STOPPED:
         raise HTTPException(400, "Deployment is already stopped")
 
-    if deployment.status == DeploymentStatus.ERROR:
+    if deployment.status == StrategyDeploymentStatus.ERROR:
         raise HTTPException(400, "Cannot stop a deployment in ERROR state")
 
-    deployment.status = DeploymentStatus.STOP_REQUESTED
+    deployment.status = StrategyDeploymentStatus.STOP_REQUESTED
 
     await db_sess.flush()
     await db_sess.refresh(deployment)
 
-    event = DeploymentStopEvent(deployment_id=deployment_id)
+    event = DeploymentStopRequestedEvent(deployment_id=deployment_id)
     await REDIS_CLIENT.publish(REDIS_DEPLOYMENT_EVENTS_KEY, event.model_dump_json())
 
     return deployment

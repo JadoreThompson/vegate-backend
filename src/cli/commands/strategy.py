@@ -4,7 +4,7 @@ from uuid import UUID
 import click
 
 from infra.kafka.client import KafkaProducer
-from service.event.publisher.kafka import KafkaSyncEventPublisherService
+from service.event.publisher import EventPublisher, SyncEventPublisher
 from service.ohlc.feed.client import OHLCFeedClient
 from service.oms.client import OMSClient
 from strategy.service import StrategyDeploymentService
@@ -35,7 +35,7 @@ def run(deployment_id, ohlc_feed_host, ohlc_feed_port, oms_base_url, verbose):
 
     ohlc_feed_client = OHLCFeedClient(host=ohlc_feed_host, port=ohlc_feed_port)
     oms_client = OMSClient(base_url=oms_base_url)
-    event_pubisher = KafkaSyncEventPublisherService(KafkaProducer())
+    event_pubisher = SyncEventPublisher(KafkaProducer())
 
     sds = StrategyDeploymentService(
         deployment_id=deployment_id,

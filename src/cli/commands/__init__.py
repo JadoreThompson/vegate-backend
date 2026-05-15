@@ -6,6 +6,7 @@ from .http import http
 from .ohlc_loader import ohlc_loader
 from .feed import feed
 from .oms import oms
+from .monitor import monitor
 
 __all__ = [
     "backtest",
@@ -16,4 +17,5 @@ __all__ = [
     "ohlc_loader",
     "feed",
     "oms",
+    "monitor"
 ]

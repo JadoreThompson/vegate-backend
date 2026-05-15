@@ -48,7 +48,7 @@ class BacktestStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
-class DeploymentStatus(str, Enum):
+class StrategyDeploymentStatus(str, Enum):
     """Deployment status for a strategy."""
 
     PENDING = "pending"
@@ -56,6 +56,7 @@ class DeploymentStatus(str, Enum):
     STOPPED = "stopped"
     ERROR = "error"
     STOP_REQUESTED = "stop_requested"
+    SUSPICIOUS = "suspicious"
 
 
 class DeploymentEventType(str, Enum):
@@ -122,3 +123,8 @@ class MarketType(str, Enum):
     STOCKS = "stocks"
     FOREX = "forex"
     CRYPTO = "crypto"
+
+class EventStatus(str, Enum):
+    PENDING = "pending"
+    FAILED = "failed"
+    COMPLETED = "completed"

@@ -22,7 +22,7 @@ from models import (
     BacktestConfig,
     EquityCurvePoint,
 )
-from service.event.publisher.backtest import BacktestEventPublisherService
+from service.event.publisher import BacktestEventPublisher
 from service.ohlc.feed.backtest.service import BacktestOHLCFeed
 from service.ohlc.feed.backtest.client import BacktestOHLCFeedClient
 from service.oms.broker_client.backtest import BacktestBrokerClient
@@ -144,7 +144,7 @@ class BacktestRunner(BaseRunner):
             end=int(config.end_date.timestamp()),
         )
         backtest_broker = BacktestBrokerClient(starting_balance=config.starting_balance)
-        event_publisher = BacktestEventPublisherService()
+        event_publisher = BacktestEventPublisher()
 
         return UserStrategy(
             config=config,

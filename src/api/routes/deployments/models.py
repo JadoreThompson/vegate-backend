@@ -5,7 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from api.shared.models import PerformanceMetrics
-from enums import BrokerType, DeploymentStatus, MarketType, Timeframe
+from enums import BrokerType, StrategyDeploymentStatus, MarketType, Timeframe
 from models import CustomBaseModel
 
 
@@ -29,7 +29,7 @@ class DeploymentResponse(CustomBaseModel):
     symbol: str
     timeframe: Timeframe
     starting_balance: float | None = None
-    status: DeploymentStatus
+    status: StrategyDeploymentStatus
     error_message: str | None
     created_at: datetime
     updated_at: datetime

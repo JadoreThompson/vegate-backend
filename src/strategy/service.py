@@ -1,14 +1,17 @@
 import logging
 import os
+import time
+from threading import Thread
 from uuid import UUID
 
+from redis import Redis
 from sqlalchemy import select
 
-from config import SRC_PATH
+from config import REDIS_STRATEGY_HEARTBEAT_KEY_PREFIX, SRC_PATH
 from enums import MarketType, Timeframe
 from infra.db.model import StrategyDeployments, Strategy as StrategyEntity
 from infra.db import get_db_sess_sync
-from service.event.publisher.sync import SyncEventPublisherService
+from service.event.publisher import SyncEventPublisher
 from service.ohlc.feed.client import OHLCFeedClient
 from service.oms.client import OMSClient
 from strategy.model import StrategyConfig
@@ -22,13 +25,22 @@ class StrategyDeploymentService:
         deployment_id: UUID,
         ohlc_feed_client: OHLCFeedClient,
         oms_client: OMSClient,
-        event_publisher: SyncEventPublisherService,
+        event_publisher: SyncEventPublisher,
+        redis_client: Redis,
+        heartbeat_interval: int = 5,
+        heartbeat_key_prefix: str = REDIS_STRATEGY_HEARTBEAT_KEY_PREFIX,
     ):
         self._deployment_id = deployment_id
         self._ohlc_feed_client = ohlc_feed_client
         self._oms_client = oms_client
         self._strategy_config: StrategyConfig | None = None
         self._event_publisher = event_publisher
+        self._redis_client = redis_client
+        self._heartbeat_interval = heartbeat_interval
+        self._heartbeat_key_prefix = heartbeat_key_prefix
+
+        self._alive = False
+        self._heartbeat_th: Thread | None = None
         self._fpath = os.path.join(SRC_PATH, "user_strategy.py")
         self._logger = logging.getLogger(self.__class__.__name__)
 
@@ -62,6 +74,10 @@ class StrategyDeploymentService:
 
     def run(self) -> None:
         try:
+            self._alive = True
+            self._heartbeat_th = Thread(target=self._heartbeat_loop, name="HeartbeatLoop")
+            self._heartbeat_th.start()
+
             self._ohlc_feed_client.connect()
             self._oms_client.create_session(self._deployment_id)
             self._oms_client.connect()
@@ -70,6 +86,13 @@ class StrategyDeploymentService:
             for candle in self._ohlc_feed_client.candles():
                 self._strategy.on_candle(candle)
         finally:
+            self._alive = False
+            if self._heartbeat_th is not None and self._heartbeat_th.is_alive():
+                try:
+                    self._heartbeat_th.join(timeout=self._heartbeat_interval + 1)
+                except TimeoutError:
+                    self._logger.info("Heartbeat thread failed to stop")
+                
             self._strategy.shutdown()
             self._ohlc_feed_client.close()
             self._oms_client.disconnect()
@@ -93,3 +116,13 @@ class StrategyDeploymentService:
         )
 
         return strategy
+
+    def _heartbeat_loop(self):
+        while self._alive:
+            time.sleep(self._heartbeat_interval)
+            if not self._alive:
+                break
+            
+            self._redis_client.set(
+                f"{self._heartbeat_key_prefix}{self._deployment_id}", True, ex=15
+            )

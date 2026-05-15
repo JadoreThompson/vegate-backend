@@ -12,6 +12,7 @@ from infra.db.model.orders import Orders
 from infra.db.model.ticks import Ticks
 from infra.db.model.ohlc import OHLC
 from infra.db.model.account_snapshots import AccountSnapshots
+from infra.db.model.event_outbox import EventOutbox
 
 __all__ = [
     "Base",
@@ -29,4 +30,5 @@ __all__ = [
     "Ticks",
     "OHLC",
     "AccountSnapshots",
+    "EventOutbox"
 ]

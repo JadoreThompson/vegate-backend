@@ -2,7 +2,7 @@ import logging
 from abc import ABC, abstractmethod
 
 from models import OHLC
-from service.event.publisher.sync import SyncEventPublisherService
+from service.event.publisher import SyncEventPublisher
 from service.ohlc.feed.client import OHLCFeedClient
 from service.oms.client import OMSClient
 from strategy.model import StrategyConfig
@@ -15,7 +15,7 @@ class Strategy(ABC):
         config: StrategyConfig,
         ohlc_feed_client: OHLCFeedClient,
         oms_client: OMSClient,
-        event_publisher: SyncEventPublisherService,
+        event_publisher: SyncEventPublisher,
     ):
         self.config = config
         self.ohlc_feed_client = ohlc_feed_client
