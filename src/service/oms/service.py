@@ -16,6 +16,7 @@ from service.alpaca.models import AlpacaOAuthPayload
 from service.encryption.service import EncryptionService
 from service.oms.broker_client.alpaca import AlpacaBrokerClient
 from service.oms.broker_client.base import BrokerClient
+from service.oms.broker_client.exception import BrokerClientException
 from service.oms.exception import (
     BrokerConnectionDoesNotExistException,
     DuplicateOrderException,
@@ -59,7 +60,6 @@ class OMSService:
 
         broker_client = self._build_broker_client(broker_conn, user_id)
         broker_client.connect()
-        # broker_client = None
 
         session = Session(deployment_id=deployment_id, broker_client=broker_client)
 
@@ -110,48 +110,45 @@ class OMSService:
             )
             await self._ensure_unique_key(key, session.deployment_id, db_sess)
 
-        order = session.broker_client.place_order(request.order)
+        stmt = insert(StrategyDeploymentOrders).returning(StrategyDeploymentOrders.id)
+        try:
+            order = session.broker_client.place_order(request.order)
+            stmt = stmt.values(
+                deployment_id=session.deployment_id,
+                symbol=order.symbol,
+                quantity=order.quantity,
+                notional=order.notional,
+                side=order.side,
+                limit_price=order.limit_price,
+                stop_price=order.stop_price,
+                candle_ts=request.candle_ts,
+                status=order.status,
+                key=key,
+                request_payload=json.dumps(request.model_dump(mode="json")),
+                broker_order_id=order.id,
+            )
+        except BrokerClientException:
+            stmt = stmt.values(
+                deployment_id=session.deployment_id,
+                symbol=request.order.symbol,
+                quantity=request.order.quantity,
+                notional=request.order.notional,
+                side=request.order.side,
+                limit_price=request.order.limit_price,
+                stop_price=request.order.stop_price,
+                candle_ts=request.candle_ts,
+                status=OrderStatus.REJECTED,
+                key=key,
+                request_payload=json.dumps(request.model_dump(mode="json")),
+            )
 
         async with get_db_session() as db_sess:
-            res = await db_sess.execute(
-                insert(StrategyDeploymentOrders)
-                .values(
-                    deployment_id=session.deployment_id,
-                    symbol=order.symbol,
-                    quantity=order.quantity,
-                    notional=order.notional,
-                    side=order.side,
-                    limit_price=order.limit_price,
-                    stop_price=order.stop_price,
-                    candle_ts=request.candle_ts,
-                    status=order.status,
-                    key=key,
-                    request_payload=json.dumps(request.model_dump(mode="json")),
-                    broker_order_id=order.id,
-                )
-                .returning(StrategyDeploymentOrders.id)
-            )
+            res = await db_sess.execute(stmt)
             order_id = res.scalar()
             await db_sess.commit()
 
         order.id = order_id
         return order
-
-        # self._logger.info(f"Received order request: {request}")
-        # from utils import get_datetime
-        # return Order(
-        #     id=str(uuid4()),
-        #     symbol=request.order.symbol,
-        #     quantity=request.order.quantity,
-        #     filled_quantity=0.0,
-        #     notional=request.order.notional,
-        #     order_type=request.order.order_type,
-        #     side=request.order.side,
-        #     limit_price=request.order.limit_price,
-        #     stop_price=request.order.stop_price,
-        #     submitted_at=get_datetime(),
-        #     status=OrderStatus.PENDING,
-        # )
 
     async def modify_order(
         self,
