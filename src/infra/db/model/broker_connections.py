@@ -26,6 +26,7 @@ class BrokerConnections(Base):
     secret_key: Mapped[str | None] = mapped_column(String, nullable=True)
     oauth_payload: Mapped[str | None] = mapped_column(String, nullable=True)
     broker_account_id: Mapped[str] = mapped_column(String, nullable=False)
+    broker_account_number: Mapped[str] = mapped_column(String, nullable=False)
 
     created_at: Mapped[datetime] = datetime_tz()
     updated_at: Mapped[datetime] = datetime_tz(onupdate=get_datetime)

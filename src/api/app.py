@@ -11,6 +11,8 @@ from api.routes.auth.exception import (
 )
 from api.routes.auth.route import router as auth_router
 from api.routes.backtests.route import router as backtests_router
+from api.routes.broker_connections.exception import BrokerAccountFetchException, UnsupportedBrokerException
+from api.routes.broker_connections.route import  router as broker_connections_router
 from api.routes.deployments.route import router as deployment_router
 from api.routes.public.route import router as public_router
 from api.routes.strategies.route import router as strategies_router
@@ -33,6 +35,7 @@ app.add_middleware(RateLimitMiddleware)
 
 app.include_router(auth_router)
 app.include_router(backtests_router)
+app.include_router(broker_connections_router)
 app.include_router(deployment_router)
 app.include_router(public_router)
 app.include_router(strategies_router)
@@ -92,3 +95,15 @@ async def handle_user_already_exists_exception(
     req: Request, exc: UserDoesNotExistException
 ):
     return _error_response(404, str(exc))
+
+@app.exception_handler(BrokerAccountFetchException)
+async def handle_broker_account_fetch_exception(
+        req: Request, exc: BrokerAccountFetchException
+):
+    return _error_response(400, str(exc))
+
+@app.exception_handler(UnsupportedBrokerException)
+async def handle_broker_connection_exception(
+        req: Request, exc: UnsupportedBrokerException
+):
+    return _error_response(400, str(exc))

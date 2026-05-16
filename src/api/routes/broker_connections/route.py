@@ -1,54 +1,52 @@
+import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
-from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import depends_db_sess, depends_jwt
+from api.models import PaginatedResponse
+from api.routes.broker_connections.service import BrokerConnectionsService
 from api.types import JWTPayload
 from config import FRONTEND_DOMAIN, FRONTEND_SUB_DOMAIN, SCHEME
 from enums import BrokerType
-from infra.db.model.broker_connections import BrokerConnections
-from service.alpaca.service import AlpacaService
-from .controller import (
-    delete_broker_connection,
-    get_broker_connection,
-    list_broker_connections,
-)
-from .models import (
+from service.oauth.alpaca import AlpacaService
+from .model import (
     BrokerConnectionResponse,
     CreateBrokerConnectionRequest,
-    GetOauthUrlResponse,
+    GetOauthUrlResponse
 )
 
 router = APIRouter(prefix="/broker-connections", tags=["Broker Connections"])
-alpaca_api = AlpacaService()
+alpaca_oauth_service = AlpacaService()
+broker_connections_service = BrokerConnectionsService()
+logger = logging.getLogger(__name__)
 
 
-@router.post("")
+@router.post("", response_model=BrokerConnectionResponse)
 async def create_broker_connection(
     body: CreateBrokerConnectionRequest,
     jwt: JWTPayload = Depends(depends_jwt()),
     db_sess: AsyncSession = Depends(depends_db_sess),
 ):
-    res = await db_sess.execute(
-        insert(BrokerConnections)
-        .values(
-            user_id=jwt.sub,
-            broker=body.broker,
-            api_key=body.api_key,
-            secret_key=body.secret_key,
-            broker_account_id="<placeholder>",
-        )
-        .returning(BrokerConnections.connection_id)
+    broker_connection = await broker_connections_service.create_broker_connection(
+        request=body, user_id=jwt.sub, db_sess=db_sess
     )
-    connection_id = res.scalar()
-    return {"broker_connection_id": connection_id}
+    await db_sess.commit()
+
+    return BrokerConnectionResponse(
+        id=broker_connection.connection_id,
+        broker=broker_connection.broker,
+        account_id=broker_connection.broker_account_id,
+        account_number=broker_connection.broker_account_number
+    )
 
 
-@router.get("", response_model=list[BrokerConnectionResponse])
+@router.get("", response_model=PaginatedResponse[BrokerConnectionResponse])
 async def list_broker_connections_endpoint(
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(20, ge=1, le=100, ),
     jwt: JWTPayload = Depends(depends_jwt()),
     db_sess: AsyncSession = Depends(depends_db_sess),
 ):
@@ -58,15 +56,9 @@ async def list_broker_connections_endpoint(
     Returns a list of all broker connections the user has set up,
     including connection IDs, broker types, and account IDs.
     """
-    connections = await list_broker_connections(jwt.sub, db_sess)
-    return [
-        BrokerConnectionResponse(
-            connection_id=c.connection_id,
-            broker=c.broker,
-            broker_account_id=c.broker_account_id,
-        )
-        for c in connections
-    ]
+    return await broker_connections_service.get_broker_connections(
+        user_id=jwt.sub, db_sess=db_sess, page=page, limit=limit
+    )
 
 
 @router.get("/{connection_id}", response_model=BrokerConnectionResponse)
@@ -80,19 +72,14 @@ async def get_broker_connection_endpoint(
 
     Returns the connection details if it exists and belongs to the user.
     """
-    connection = await get_broker_connection(connection_id, db_sess)
-    if not connection:
-        raise HTTPException(status_code=404, detail="Broker connection not found")
-
-    # Verify ownership
-    if connection.user_id != jwt.sub:
-        raise HTTPException(status_code=404, detail="Broker connection not found")
-
+    broker_conn = await broker_connections_service.get_broker_connection(
+        id=connection_id, user_id=jwt.sub, db_sess=db_sess
+    )
     return BrokerConnectionResponse(
-        connection_id=connection.connection_id,
-        broker=connection.broker,
-        broker_account_id=connection.broker_account_id,
-        created_at=None,
+        id=connection_id,
+        broker=broker_conn.broker,
+        account_id=broker_conn.broker_account_id,
+        account_number=broker_conn.broker_account_number,
     )
 
 
@@ -108,16 +95,15 @@ async def delete_broker_connection_endpoint(
     Removes the broker connection if it exists and belongs to the user.
     Cannot delete connections that have active deployments.
     """
-    deleted = await delete_broker_connection(jwt.sub, connection_id, db_sess)
-    if not deleted:
+    success = await broker_connections_service.delete_broker_connection(connection_id, jwt.sub, db_sess)
+    if not success:
         raise HTTPException(status_code=404, detail="Broker connection not found")
-
     await db_sess.commit()
 
 
 @router.get("/alpaca/oauth", response_model=GetOauthUrlResponse)
 async def get_oauth_url(jwt: JWTPayload = Depends(depends_jwt())):
-    url = await alpaca_api.get_oauth_url_v2(jwt.sub, "paper")
+    url = await alpaca_oauth_service.get_oauth_url_v2(jwt.sub, "paper")
     return GetOauthUrlResponse(url=url)
 
 
@@ -131,7 +117,7 @@ async def oauth_callback(
 ):
     params = [("broker", BrokerType.ALPACA.value)]
     if code is not None:
-        await alpaca_api.handle_oauth_callback(code, state, jwt.sub, db_sess)
+        await alpaca_oauth_service.handle_oauth_callback(code, state, jwt.sub, db_sess)
     else:
         params.append(("error", error))
 
