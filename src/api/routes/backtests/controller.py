@@ -7,11 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from enums import BacktestStatus
 from infra.db.model import Backtest, Orders, Strategy
 from infra.db.model.ohlc import OHLC
-from .models import BacktestCreate
+from .model import CreateBacktestRequest
 
 
 async def create_backtest(
-    user_id: UUID, data: BacktestCreate, db_sess: AsyncSession
+    user_id: UUID, data: CreateBacktestRequest, db_sess: AsyncSession
 ) -> Backtest:
     """Create a new backtest."""
     # Verify the strategy exists and belongs to the user

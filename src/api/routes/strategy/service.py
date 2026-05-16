@@ -88,7 +88,7 @@ class StrategyService:
         )
 
     async def update_strategy(self, request: UpdateStrategyRequest, id: UUID, user_id: UUID, db_sess: AsyncSession) -> Strategy:
-        strategy = await self._get_user_strategy(id, user_id, db_sess)
+        strategy = await self.get_user_strategy(id, user_id, db_sess)
 
         if request.name is not None:
             strategy.name = request.name
@@ -99,10 +99,10 @@ class StrategyService:
         return strategy
 
     async def delete_strategy(self, id: UUID, user_id: UUID, db_sess: AsyncSession) -> None:
-        strategy = await self._get_user_strategy(id, user_id, db_sess)
+        strategy = await self.get_user_strategy(id, user_id, db_sess)
         await db_sess.delete(strategy)
 
-    async def _get_user_strategy(self, id: UUID, user_id: UUID, db_sess: AsyncSession) -> Strategy:
+    async def get_user_strategy(self, id: UUID, user_id: UUID, db_sess: AsyncSession) -> Strategy:
         strategy = await db_sess.scalar(
             select(Strategy).where(and_(Strategy.strategy_id == id, Strategy.user_id == user_id)))
         if strategy is None:
