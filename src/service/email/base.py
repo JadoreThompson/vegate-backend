@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 
 import aiohttp
 
-from .exceptions import ClosedEmailServiceException
+from .exception import ClosedEmailServiceException
 
 
 class EmailService(ABC):
