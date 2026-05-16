@@ -14,6 +14,7 @@ from .models import JWTPayload
 
 
 class JWTService:
+
     @classmethod
     def _generate_expiry(cls) -> datetime:
         """Private method to generate JWT expiry datetime"""
@@ -39,34 +40,13 @@ class JWTService:
         except jwt.InvalidTokenError as e:
             raise JWTError("Invalid token")
 
-    @classmethod
-    def set_cookie(cls, user: User, rsp: Response | None = None) -> Response:
-        token = cls.generate_jwt(
-            sub=user.user_id,
-            em=user.email,
-            pricing_tier=user.pricing_tier,
-            authenticated=user.authenticated_at is not None,
-        )
-        if rsp is None:
-            rsp = Response()
-
-        rsp.set_cookie(
-            COOKIE_ALIAS,
-            token,
-            httponly=True,
-            secure=IS_PRODUCTION,
-            expires=cls._generate_expiry(),
-        )
-        return rsp
-
-    @classmethod
-    async def set_user_cookie(
-        cls,
+    async def set_cookie(
+        self,
         user: User,
         db_sess: AsyncSession | None = None,
         rsp: Response | None = None,
     ) -> Response:
-        token = cls.generate_jwt(
+        token = self.generate_jwt(
             sub=user.user_id,
             em=user.email,
             pricing_tier=user.pricing_tier,
@@ -84,7 +64,7 @@ class JWTService:
             token,
             httponly=True,
             secure=IS_PRODUCTION,
-            expires=cls._generate_expiry(),
+            expires=self._generate_expiry(),
         )
         return rsp
 

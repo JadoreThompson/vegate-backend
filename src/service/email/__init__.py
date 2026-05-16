@@ -1,4 +1,4 @@
-from .base import BaseEmailService
+from .base import EmailService
 from .brevo import BrevoEmailService
 
-__all__ = ["BaseEmailService", "BrevoEmailService"]
+__all__ = ["EmailService", "BrevoEmailService"]

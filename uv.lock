@@ -1694,7 +1694,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.119.0" },
     { name = "kafka-python", specifier = ">=2.2.15" },
     { name = "psycopg2-binary", specifier = ">=2.9.11" },
-    { name = "pydantic", extras = ["email"], specifier = ">=2.12.0" },
+    { name = "pydantic", extras = ["email", "email-validator"], specifier = ">=2.12.0" },
     { name = "pydantic-ai-slim", extras = ["mistral"], specifier = ">=1.27.0" },
     { name = "pyjwt", specifier = ">=2.10.1" },
     { name = "pytest", specifier = ">=9.0.1" },

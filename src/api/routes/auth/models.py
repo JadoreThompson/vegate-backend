@@ -1,10 +1,4 @@
-from typing import Literal
-
-from pydantic import BaseModel, Field, field_validator
-
-from api.exc import CustomValidationError
-from enums import PricingTierType
-from models import CustomBaseModel
+from pydantic import BaseModel, field_validator, EmailStr
 
 
 class PasswordField(BaseModel):
@@ -17,68 +11,56 @@ class PasswordField(BaseModel):
         min_uppercase = 2
 
         if len(value) < min_length:
-            raise CustomValidationError(
-                400, f"Password must be at least {min_length} characters long."
-            )
+            raise ValueError(f"Password must be at least {min_length} characters long.")
 
         if sum(1 for c in value if c.isupper()) < min_uppercase:
-            raise CustomValidationError(
-                400,
+            raise ValueError(
                 f"Password must contain at least {min_uppercase} uppercase letters.",
             )
 
         if sum(1 for c in value if not c.isalnum()) < min_special_chars:
-            raise CustomValidationError(
-                400,
-                f"Password must contain at least {min_special_chars} special characters.",
+            raise ValueError(
+                f"Password must contain at least {min_special_chars} special characters."
             )
 
         return value
 
 
-class UserCreate(PasswordField):
+class RegisterUserRequest(PasswordField):
     username: str
     email: str
 
 
-class UserLogin(CustomBaseModel):
+class LoginUserRequest(BaseModel):
     username: str | None = None
-    email: str | None = None
+    email: EmailStr | None = None
     password: str
 
 
-class UserMe(CustomBaseModel):
-    username: str
-    pricing_tier: PricingTierType
-
-
-class UpdateUsername(BaseModel):
-    username: str
-
-
-class UpdateEmail(BaseModel):
-    email: str
-
-
-class UpdatePassword(PasswordField):
-    pass
-
-
-class VerifyCode(BaseModel):
+class VerificationCode(BaseModel):
     code: str
 
 
-class VerifyAction(VerifyCode):
-    action: Literal["change_username", "change_password", "change_email"]
-
-
-class ResetPassword(BaseModel):
+class ResetPasswordRequest(BaseModel):
     email: str
+
+
+class ResetPasswordVerificationRequest(PasswordField):
+    code: str
+    password: str
 
 
 class ResetPasswordResponse(BaseModel):
     message: str = "A verification email has been sent to your email"
 
 
-class ConfirmResetPassword(PasswordField):
-    code: str = Field(min_length=1)
+class ChangeEmailRequest(BaseModel):
+    email: str
+
+
+class ChangeUsernameRequest(BaseModel):
+    username: str
+
+
+class ChangePasswordRequest(PasswordField):
+    pass

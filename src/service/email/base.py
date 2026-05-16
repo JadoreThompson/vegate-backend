@@ -6,8 +6,8 @@ import aiohttp
 from .exceptions import ClosedEmailServiceException
 
 
-class BaseEmailService(ABC):
-    _instances: dict[tuple[str, str], "BaseEmailService"] = {}
+class EmailService(ABC):
+    _instances: dict[tuple[str, str], "EmailService"] = {}
 
     def __new__(cls, sender_name: str, sender_email: str, *args, **kw):
         key = (sender_name, sender_email)

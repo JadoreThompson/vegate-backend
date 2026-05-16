@@ -1,9 +1,9 @@
 from config import BREVO_API_KEY
-from .base import BaseEmailService
+from .base import EmailService
 from .exceptions import EmailServiceException
 
 
-class BrevoEmailService(BaseEmailService):
+class BrevoEmailService(EmailService):
     def __init__(self, sender_name, sender_email, *, api_key: str = BREVO_API_KEY):
         super().__init__(sender_name, sender_email)
         self._url = "https://api.brevo.com/v3/smtp/email"

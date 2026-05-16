@@ -2,10 +2,7 @@ from typing import Any, Callable, Type, TypeVar
 
 from fastapi import Depends, Request
 
-# from api.exc import JWTError
 from api.types import JWTPayload
-
-# from api.services import JWTService
 from config import COOKIE_ALIAS
 from infra.db import smaker
 from service.deployment.base import DeploymentService
@@ -41,6 +38,7 @@ def depends_jwt(is_authenticated: bool = True):
             JWTPayload: The decoded JWT payload if valid.
         """
         token = req.cookies.get(COOKIE_ALIAS)
+
         if not token:
             raise JWTError("Authentication token is missing")
 

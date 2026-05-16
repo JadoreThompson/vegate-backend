@@ -150,8 +150,3 @@ class RailwayService:
         result = await self._execute_query(query, variables)
 
         return result
-
-    def __del__(self):
-        if not IS_PRODUCTION and self._process is not None and self._process.is_alive():
-            self._process.kill()
-            self._process.join(timeout=3)

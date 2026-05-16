@@ -1,4 +1,5 @@
 import pytest
+import pytest_asyncio
 
 from infra.db.client import DB_ENGINE_SYNC
 from infra.db.model.base import Base
