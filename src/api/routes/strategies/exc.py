@@ -1,2 +1,0 @@
-class StrategyCreationError(Exception):
-    pass

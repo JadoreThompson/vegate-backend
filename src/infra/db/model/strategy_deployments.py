@@ -23,7 +23,7 @@ class StrategyDeployments(Base):
     deployment_id: Mapped[UUID] = uuid_pk()
     strategy_id: Mapped[UUID] = mapped_column(
         SaUUID(as_uuid=True),
-        ForeignKey("strategies.strategy_id", ondelete="CASCADE"),
+        ForeignKey("strategy.strategy_id", ondelete="CASCADE"),
         nullable=False,
     )
     broker_connection_id: Mapped[UUID] = mapped_column(

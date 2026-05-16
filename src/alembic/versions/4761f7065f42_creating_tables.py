@@ -75,7 +75,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['user_id'], ['users.user_id'], ),
     sa.PrimaryKeyConstraint('connection_id')
     )
-    op.create_table('strategies',
+    op.create_table('strategy',
     sa.Column('strategy_id', sa.UUID(), nullable=False),
     sa.Column('user_id', sa.UUID(), nullable=False),
     sa.Column('name', sa.String(), nullable=False),
@@ -100,7 +100,7 @@ def upgrade() -> None:
     sa.Column('timeframe', sa.String(), nullable=False),
     sa.Column('status', sa.String(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['strategy_id'], ['strategies.strategy_id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['strategy_id'], ['strategy.strategy_id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('strategy_deployments',
@@ -118,7 +118,7 @@ def upgrade() -> None:
     sa.Column('server_data', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('service_id', sa.String(), nullable=True),
     sa.ForeignKeyConstraint(['broker_connection_id'], ['broker_connections.connection_id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['strategy_id'], ['strategies.strategy_id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['strategy_id'], ['strategy.strategy_id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('deployment_id')
     )
     op.create_table('account_snapshots',
@@ -196,7 +196,7 @@ def downgrade() -> None:
     op.drop_table('account_snapshots')
     op.drop_table('strategy_deployments')
     op.drop_table('backtests')
-    op.drop_table('strategies')
+    op.drop_table('strategy')
     op.drop_table('broker_connections')
     op.drop_table('users')
     op.drop_index('idx_ticks_source_timestamp', table_name='ticks')

@@ -102,10 +102,10 @@ class BacktestRunner(BaseRunner):
 
             self._logger.info("Backtest object found")
 
-            db_strategy = db_sess.get(StrategyEntity, db_backtest.strategy_id)
+            db_strategy = db_sess.get(StrategyEntity, db_backtest.id)
             if db_strategy is None:
                 self._logger.error(
-                    f"Strategy for backtest {self._backtest_id} not found with ID: {db_backtest.strategy_id}"
+                    f"Strategy for backtest {self._backtest_id} not found with ID: {db_backtest.id}"
                 )
                 db_backtest.status = BacktestStatus.FAILED.value
                 db_sess.commit()

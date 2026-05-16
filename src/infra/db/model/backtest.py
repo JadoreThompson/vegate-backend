@@ -21,7 +21,7 @@ class Backtest(Base):
     id: Mapped[uuid.UUID] = uuid_pk()
     strategy_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("strategies.strategy_id", ondelete="CASCADE"),
+        ForeignKey("strategy.strategy_id", ondelete="CASCADE"),
         nullable=False,
     )
     symbol: Mapped[str] = mapped_column(String, nullable=False)

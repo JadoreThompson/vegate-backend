@@ -63,7 +63,7 @@ async def deploy_strategy_endpoint(
 
 
 @router.get(
-    "/strategies/{strategy_id}/deployments",
+    "/strategy/{strategy_id}/deployments",
     response_model=list[DeploymentResponse],
 )
 async def list_strategy_deployments_endpoint(

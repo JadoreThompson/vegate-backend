@@ -15,7 +15,7 @@ from api.routes.broker_connections.exception import BrokerAccountFetchException,
 from api.routes.broker_connections.route import  router as broker_connections_router
 from api.routes.deployments.route import router as deployment_router
 from api.routes.public.route import router as public_router
-from api.routes.strategies.route import router as strategies_router
+from api.routes.strategy.route import router as strategies_router
 from config import FRONTEND_DOMAIN, SCHEME, FRONTEND_SUB_DOMAIN
 from service.jwt import JWTError
 

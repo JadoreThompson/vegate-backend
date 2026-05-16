@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 class Strategy(Base):
-    __tablename__ = "strategies"
+    __tablename__ = "strategy"
     __table_args__ = (UniqueConstraint("user_id", "name"),)
 
     strategy_id: Mapped[UUID] = uuid_pk()
@@ -41,5 +41,6 @@ class Strategy(Base):
         back_populates="strategy", cascade="all, delete-orphan", passive_deletes=True
     )
     user: Mapped["User"] = relationship(
-        back_populates="strategies", passive_deletes=True
+        back_populates="strategy", passive_deletes=True
     )
+    user: Mapped["User"] = relationship(back_populates="strategies", passive_deletes=True)

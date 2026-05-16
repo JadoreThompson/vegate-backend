@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class BacktestEngine:
-    """Engine for running backtests on strategies."""
+    """Engine for running backtests on strategy."""
 
     def __init__(self, strategy: Strategy, config: BacktestConfig):
         """Initialize the backtesting engine.
