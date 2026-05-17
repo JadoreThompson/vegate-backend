@@ -90,7 +90,6 @@ KAFKA_BOOTSTRAP_SERVERS = f"{KAFKA_HOST}:{KAFKA_PORT}"
 
 STRATEGY_DEPLOYMENT_EVENTS_KEY = os.getenv("STRATEGY_DEPLOYMENT_EVENTS_KEY", "strategy_deployment_events")
 
-
 # LLM
 LLM_API_KEY = os.getenv("LLM_API_KEY")
 
@@ -141,6 +140,7 @@ class OHLCFeedConfig:
 
 data = defaultdict(lambda: defaultdict(dict))
 
+# OHLC Feed Config
 for item in CONFIG_YAML["ohlc_feed"]:
     symb = item["symbol"]
 
@@ -149,6 +149,12 @@ for item in CONFIG_YAML["ohlc_feed"]:
     ]
 
 OHLC_FEED_CONFIG = OHLCFeedConfig(data)
+
+OHLC_FEED_HOST = os.getenv("OHLC_FEED_HOST", "localhost")
+OHLC_FEED_PORT = int(os.getenv("OHLC_FEED_PORT", "8001"))
+
+# OMS
+OMS_BASE_URL = os.getenv("OMS_BASE_URL", "http://localhost:8082")
 
 # Logging
 logging.basicConfig(

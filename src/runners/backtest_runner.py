@@ -5,7 +5,8 @@ from uuid import UUID
 
 from sqlalchemy import insert, update
 
-from backtest.backtest_engine import BacktestEngine
+from backtest.config import BacktestConfig
+from backtest.engine import BacktestEngine
 from config import SRC_PATH
 from enums import BacktestStatus, BrokerType, Timeframe
 from infra.db import get_db_sess_sync
@@ -19,10 +20,8 @@ from infra.db.model import (
 )
 from models import (
     BacktestMetrics as BacktestMetricsModel,
-    BacktestConfig,
-    EquityCurvePoint,
-)
-from service.event.publisher import BacktestEventPublisher
+    EquityCurvePoint)
+from service.event.publisher import BacktestEventPublisher, SyncEventPublisher
 from service.ohlc.feed.backtest.service import BacktestOHLCFeed
 from service.ohlc.feed.backtest.client import BacktestOHLCFeedClient
 from service.oms.broker_client.backtest import BacktestBrokerClient
@@ -43,7 +42,6 @@ class BacktestRunner(BaseRunner):
         """The main entry point for the backtest process."""
         self._logger.info(f"Starting BacktestRunner for ID '{self._backtest_id}'")
 
-        complete = False
         try:
             # Fetch backtest and strategy from database
             db_backtest, db_strategy = self._fetch_backtest_and_strategy()
@@ -85,7 +83,7 @@ class BacktestRunner(BaseRunner):
             self._update_backtest_status(BacktestStatus.FAILED)
 
     def _fetch_backtest_and_strategy(
-        self,
+            self,
     ) -> tuple[Backtest | None, StrategyEntity | None]:
         """Fetch backtest and strategy from database.
 
@@ -144,7 +142,7 @@ class BacktestRunner(BaseRunner):
             end=int(config.end_date.timestamp()),
         )
         backtest_broker = BacktestBrokerClient(starting_balance=config.starting_balance)
-        event_publisher = BacktestEventPublisher()
+        event_publisher = SyncEventPublisher()
 
         return UserStrategy(
             config=config,
@@ -220,7 +218,7 @@ class BacktestRunner(BaseRunner):
             )
 
             def parse_equity_curve_point(
-                point: EquityCurvePoint, created_at: datetime
+                    point: EquityCurvePoint, created_at: datetime
             ) -> dict:
                 data = point.model_dump()
                 data["backtest_id"] = self._backtest_id

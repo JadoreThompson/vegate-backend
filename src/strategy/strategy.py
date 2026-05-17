@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from models import OHLC
 from service.event.publisher import SyncEventPublisher
 from service.ohlc.feed.client import OHLCFeedClient
+from service.oms.broker_client import BrokerClient
 from service.oms.client import OMSClient
 from strategy.model import StrategyConfig
 
@@ -11,11 +12,11 @@ from strategy.model import StrategyConfig
 class Strategy(ABC):
 
     def __init__(
-        self,
-        config: StrategyConfig,
-        ohlc_feed_client: OHLCFeedClient,
-        oms_client: OMSClient,
-        event_publisher: SyncEventPublisher,
+            self,
+            config: StrategyConfig,
+            ohlc_feed_client: OHLCFeedClient,
+            oms_client: BrokerClient,
+            event_publisher: SyncEventPublisher,
     ):
         self.config = config
         self.ohlc_feed_client = ohlc_feed_client

@@ -3,7 +3,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from enums import BrokerType
-from model import CustomBaseModel
+from models import CustomBaseModel
 
 
 class GetOauthUrlResponse(BaseModel):

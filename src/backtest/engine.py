@@ -3,9 +3,9 @@ from datetime import timedelta
 
 import numpy as np
 
+from backtest.config import BacktestConfig
 from enums import OrderSide, OrderStatus, OrderType
-from models import OHLC, BacktestMetrics, EquityCurvePoint, BacktestConfig, Order
-from service.ohlc.feed.backtest.service import BacktestOHLCFeed
+from models import OHLC, BacktestMetrics, EquityCurvePoint, Order
 from service.ohlc.feed.backtest.client import BacktestOHLCFeedClient
 from service.oms.broker_client.backtest import BacktestBrokerClient
 from strategy.strategy import Strategy
@@ -25,7 +25,7 @@ class BacktestEngine:
             config: BacktestConfig object
         """
         self._strategy = strategy
-        self._broker: BacktestBrokerClient = self._strategy.oms_client
+        self._broker: BacktestBrokerClient = self._strategy.oms_client  # type: ignore
         self._config = config
         self._equity_curve: list[EquityCurvePoint] = []
         self._balance_curve: list[EquityCurvePoint] = []
@@ -147,8 +147,8 @@ class BacktestEngine:
         realised_pnl = end_balance - self._config.starting_balance
         end_equity = self._broker.get_equity()
         total_return_pct = (
-            end_balance - self._config.starting_balance
-        ) / self._config.starting_balance
+                                   end_balance - self._config.starting_balance
+                           ) / self._config.starting_balance
 
         return BacktestMetrics(
             realised_pnl=realised_pnl,
@@ -232,7 +232,7 @@ class BacktestEngine:
             )
 
     def _calculate_sharpe_from_equity_curve(
-        self, equity_curve: list[EquityCurvePoint], periods_per_year: float
+            self, equity_curve: list[EquityCurvePoint], periods_per_year: float
     ) -> float:
         """Calculate Sharpe ratio from equity curve points.
 
@@ -276,10 +276,10 @@ class BacktestEngine:
         return float(sharpe_ratio)
 
     def _calculate_sharpe_with_resampling(
-        self,
-        equity_curve: list[EquityCurvePoint],
-        period: timedelta,
-        periods_per_year: float,
+            self,
+            equity_curve: list[EquityCurvePoint],
+            period: timedelta,
+            periods_per_year: float,
     ) -> float:
         """Calculate Sharpe ratio with resampling to specific period.
 
@@ -319,8 +319,8 @@ class BacktestEngine:
                 # Move to next period
                 # Calculate how many periods we've crossed
                 periods_crossed = (
-                    point_timestamp - current_period_start
-                ) // period_seconds
+                                          point_timestamp - current_period_start
+                                  ) // period_seconds
                 current_period_start += periods_crossed * period_seconds
 
             last_added_point = point

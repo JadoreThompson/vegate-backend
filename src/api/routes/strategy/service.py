@@ -21,7 +21,7 @@ class StrategyService:
         pass
 
     async def create(self, request: CreateStrategyRequest, user_id: UUID, db_sess: AsyncSession) -> Strategy:
-        strategy_details = await self._generate_strategy(request.description)
+        strategy_details = await self._generate_strategy_code(request.description)
         await self._validate_strategy_code(strategy_details.code)
 
         new_strategy = Strategy(
@@ -36,7 +36,7 @@ class StrategyService:
         await db_sess.refresh(new_strategy)
         return new_strategy
 
-    async def _generate_strategy(self, description: str) -> StrategyGenOutput:
+    async def _generate_strategy_code(self, description: str) -> StrategyGenOutput:
         result = await strategy_gen_agent.run(description)
         output: StrategyGenOutput = result.output
 
@@ -55,7 +55,8 @@ class StrategyService:
         return True
 
     async def get_strategy(self, id: UUID, user_id: UUID, db_sess: AsyncSession) -> Strategy | None:
-        return await db_sess.scalar(select(Strategy).where(and_(Strategy.strategy_id == id, Strategy.user_id == user_id)))
+        return await db_sess.scalar(
+            select(Strategy).where(and_(Strategy.strategy_id == id, Strategy.user_id == user_id)))
 
     async def get_strategies(
             self, user_id: UUID, db_sess: AsyncSession, *, page: int, limit: int
@@ -87,7 +88,8 @@ class StrategyService:
             data=strategies[:limit],
         )
 
-    async def update_strategy(self, request: UpdateStrategyRequest, id: UUID, user_id: UUID, db_sess: AsyncSession) -> Strategy:
+    async def update_strategy(self, request: UpdateStrategyRequest, id: UUID, user_id: UUID,
+                              db_sess: AsyncSession) -> Strategy:
         strategy = await self.get_user_strategy(id, user_id, db_sess)
 
         if request.name is not None:

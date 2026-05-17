@@ -15,7 +15,7 @@ async def client():
 
 
 @pytest_asyncio.fixture(loop_scope="session")
-async def authenticated_client(client):
+async def authenticated_client(client, faker):
     from api.routes.auth.route import auth_service
 
     auth_service._email_service = AsyncMock()
@@ -23,9 +23,10 @@ async def authenticated_client(client):
     code = "TOKEN"
     auth_service.gen_verification_code = MagicMock(return_value=code)
 
+    username = faker.user_name()
     register_payload = {
-        "username": "broker-user",
-        "email": "broker@email.com",
+        "username": username,
+        "email": f"{username}@email.com",
         "password": "PAssword1@@1",
     }
     rsp = await client.post("/auth/register", json=register_payload)

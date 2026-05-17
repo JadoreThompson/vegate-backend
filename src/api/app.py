@@ -10,11 +10,14 @@ from api.routes.auth.exception import (
     UserDoesNotExistException,
 )
 from api.routes.auth.route import router as auth_router
+from api.routes.backtests.exception import SymbolNotFoundException, InvalidDateRange, BacktestNotFoundException, \
+    BacktestInProgressError
 from api.routes.backtests.route import router as backtests_router
 from api.routes.broker_connections.exception import BrokerAccountFetchException, UnsupportedBrokerException
-from api.routes.broker_connections.route import  router as broker_connections_router
+from api.routes.broker_connections.route import router as broker_connections_router
 from api.routes.deployments.route import router as deployment_router
 from api.routes.public.route import router as public_router
+from api.routes.strategy.exception import StrategyNotFoundException
 from api.routes.strategy.route import router as strategies_router
 from config import FRONTEND_DOMAIN, SCHEME, FRONTEND_SUB_DOMAIN
 from service.jwt import JWTError
@@ -85,16 +88,17 @@ async def handle_request_validation_error(req: Request, exc: RequestValidationEr
 
 @app.exception_handler(UserAlreadyExistsException)
 async def handle_user_already_exists_exception(
-    req: Request, exc: UserAlreadyExistsException
+        req: Request, exc: UserAlreadyExistsException
 ):
     return _error_response(400, str(exc))
 
 
 @app.exception_handler(UserDoesNotExistException)
 async def handle_user_already_exists_exception(
-    req: Request, exc: UserDoesNotExistException
+        req: Request, exc: UserDoesNotExistException
 ):
     return _error_response(404, str(exc))
+
 
 @app.exception_handler(BrokerAccountFetchException)
 async def handle_broker_account_fetch_exception(
@@ -102,8 +106,44 @@ async def handle_broker_account_fetch_exception(
 ):
     return _error_response(400, str(exc))
 
+
 @app.exception_handler(UnsupportedBrokerException)
 async def handle_broker_connection_exception(
         req: Request, exc: UnsupportedBrokerException
+):
+    return _error_response(400, str(exc))
+
+
+@app.exception_handler(StrategyNotFoundException)
+async def handle_strategy_not_found_exception(
+        req: Request, exc: StrategyNotFoundException
+):
+    return _error_response(404, str(exc))
+
+
+@app.exception_handler(SymbolNotFoundException)
+async def handle_symbol_not_found_exception(
+        req: Request, exc: SymbolNotFoundException
+):
+    return _error_response(404, str(exc))
+
+
+@app.exception_handler(InvalidDateRange)
+async def handle_invalid_date_range_exception(
+        req: Request, exc: InvalidDateRange
+):
+    return _error_response(400, str(exc))
+
+
+@app.exception_handler(BacktestNotFoundException)
+async def handle_backtest_not_found_exception(
+        req: Request, exc: BacktestNotFoundException
+):
+    return _error_response(404, str(exc))
+
+
+@app.exception_handler(BacktestInProgressError)
+async def handle_backtest_in_progress_exception(
+        req: Request, exc: BacktestInProgressError
 ):
     return _error_response(400, str(exc))

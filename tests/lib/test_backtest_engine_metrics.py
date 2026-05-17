@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from backtest.config import BacktestConfig
 from enums import BrokerType, OrderSide, OrderStatus, OrderType, Timeframe
 from infra.db.model.ohlc import OHLC
 from infra.db.utils import get_db_sess_sync
@@ -11,14 +12,13 @@ from lib.brokers.backtest import BacktestBroker
 from lib.strategy import BaseStrategy
 from models import (
     OHLC as OHLCModel,
-    BacktestConfig,
     Order,
     OrderRequest,
 )
 
 
 def create_candle(
-    timestamp: int, open: float, high: float, low: float, close: float
+        timestamp: int, open: float, high: float, low: float, close: float
 ) -> MagicMock:
     candle = MagicMock()
     candle.timestamp = timestamp
@@ -336,7 +336,7 @@ class TestBacktestMetricsCalculation:
             metrics = engine.run()
 
         assert (
-            metrics.profit_factor == 2.0
+                metrics.profit_factor == 2.0
         ), f"Expected profit factor of 2.0 for 2 profit and 1 loss, got {metrics.profit_factor}"
 
     def test_profit_factor_with_losing_trade(self):
@@ -380,7 +380,7 @@ class TestBacktestMetricsCalculation:
             metrics = engine.run()
 
         assert (
-            metrics.profit_factor == 0.0
+                metrics.profit_factor == 0.0
         ), f"Expected profit factor of 0.0 for only losing trades, got {metrics.profit_factor}"
 
     def test_profit_factor_zero_with_no_trades(self):
@@ -432,7 +432,7 @@ class TestBacktestMetricsCalculation:
             metrics = engine.run()
 
         assert (
-            metrics.profit_factor == 0.0
+                metrics.profit_factor == 0.0
         ), f"Expected profit factor 0.0 with no trades, got {metrics.profit_factor}"
 
     def test_profit_factor_with_partially_filled_orders(self):

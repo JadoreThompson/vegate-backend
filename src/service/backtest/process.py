@@ -23,15 +23,16 @@ class ProcessBacktestService(BacktestService):
     @property
     def backtests(self) -> list[UUID]:
         return list(self._backtests.keys())
-    
+
     @property
     def max_concurrent_backtests(self) -> int:
         return self._max_concurrent_backtests
-    
+
     async def init(self, max_concurrent_backtests: int):
         self._max_concurrent_backtests = max_concurrent_backtests
 
-    async def run_backtest(self, backtest_id: UUID) -> dict:
+    async def run(self, backtest_id: UUID) -> dict:
+        print("Hello world")
         if backtest_id in self._backtests and self._backtests[backtest_id].is_alive():
             return {"status": "already running"}
 
@@ -40,10 +41,10 @@ class ProcessBacktestService(BacktestService):
         self._backtests[backtest_id] = p
         return {"status": "deployed"}
 
-    async def stop_backtest(self, backtest_id: UUID) -> dict:
+    async def stop(self, backtest_id: UUID) -> dict:
         if (
-            backtest_id not in self._backtests
-            or not self._backtests[backtest_id].is_alive()
+                backtest_id not in self._backtests
+                or not self._backtests[backtest_id].is_alive()
         ):
             return {"status": "not running"}
         self._backtests[backtest_id].terminate()

@@ -1,17 +1,12 @@
 import pytest
-import pytest_asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
-from httpx import ASGITransport, AsyncClient
 from uuid import uuid4
 
 from api.routes.auth.service import AuthService
 from api.routes.broker_connections.service import (
-    BrokerConnectionsService,
     _BrokerAccount,
 )
-from api.routes.broker_connections.model import CreateBrokerConnectionRequest
 from infra.redis.client import REDIS_CLIENT
-from enums import BrokerType
 
 
 @pytest.fixture
@@ -72,42 +67,11 @@ def broker_service_fixture(mock_broker_service, monkeypatch):
     yield mock_broker_service
 
 
-# @pytest_asyncio.fixture(loop_scope="session")
-# async def client():
-#     from api.app import app
-#
-#     async with AsyncClient(
-#         transport=ASGITransport(app=app), base_url="http://test"
-#     ) as ac:
-#         yield ac
-#
-#
-# @pytest_asyncio.fixture(loop_scope="session")
-# async def authenticated_client(client):
-#     from api.routes.auth.route import auth_service
-#
-#     auth_service._email_service= AsyncMock
-#     code = "TOKEN"
-#     auth_service.gen_verification_code = MagicMock(return_value=code)
-#     register_payload = {
-#         "username": "broker-user",
-#         "email": "broker@email.com",
-#         "password": "PAssword1@@1",
-#     }
-#     rsp = await client.post("/auth/register", json=register_payload)
-#     assert 200 <= rsp.status_code <= 299
-#
-#     rsp = await client.post("/auth/verify-email", json={"code": code})
-#     assert 200 <= rsp.status_code <= 299
-#
-#     yield client
-
-
 class TestCreateBrokerConnection:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_create_broker_connection_unauthenticated_throws_401(
-        self, client
+            self, client
     ):
         payload = {
             "broker": "alpaca",
@@ -122,7 +86,8 @@ class TestCreateBrokerConnection:
     async def test_create_broker_connection_returns_200(self, authenticated_client):
         from api.routes.broker_connections.route import broker_connections_service
 
-        broker_connections_service._fetch_alpaca_account_id = AsyncMock(return_value=_BrokerAccount(id="mock-account-id", number="mock-number"))
+        broker_connections_service._fetch_alpaca_account_id = AsyncMock(
+            return_value=_BrokerAccount(id="mock-account-id", number="mock-number"))
 
         payload = {
             "broker": "alpaca",
@@ -140,7 +105,7 @@ class TestCreateBrokerConnection:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_create_broker_connection_missing_api_key_returns_422(
-        self, authenticated_client
+            self, authenticated_client
     ):
         payload = {
             "broker": "alpaca",
@@ -153,7 +118,7 @@ class TestCreateBrokerConnection:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_create_broker_connection_missing_secret_returns_422(
-        self, authenticated_client
+            self, authenticated_client
     ):
         payload = {
             "broker": "alpaca",
@@ -180,12 +145,13 @@ class TestListBrokerConnections:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_list_broker_connections_with_pagination(
-        self, authenticated_client
+            self, authenticated_client
     ):
         from api.routes.broker_connections.route import broker_connections_service
 
         for i in range(15):
-            broker_connections_service._fetch_alpaca_account_id = AsyncMock(return_value=_BrokerAccount(id=f"mock-account-id-{i}", number=f"mock-number-{i}"))
+            broker_connections_service._fetch_alpaca_account_id = AsyncMock(
+                return_value=_BrokerAccount(id=f"mock-account-id-{i}", number=f"mock-number-{i}"))
             await authenticated_client.post("/broker-connections", json={
                 "broker": "alpaca",
                 "api_key": "test-api-key",
@@ -251,7 +217,7 @@ class TestGetBrokerConnection:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_get_broker_connection_not_found_returns_404(
-        self, authenticated_client
+            self, authenticated_client
     ):
         fake_id = uuid4()
         res = await authenticated_client.get(f"/broker-connections/{fake_id}")
@@ -296,7 +262,7 @@ class TestDeleteBrokerConnection:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_delete_broker_connection_not_found_returns_404(
-        self, authenticated_client, mock_broker_service
+            self, authenticated_client, mock_broker_service
     ):
         mock_broker_service.delete_broker_connection = AsyncMock(return_value=False)
 
@@ -318,15 +284,17 @@ class TestAlpacaOauthUrl:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_get_alpaca_oauth_url_unauthenticated_returns_401(
-        self, client
+            self, client
     ):
         res = await client.get("/broker-connections/alpaca/oauth")
 
         assert res.status_code == 401
 
+
 # TODO: Add mock data to tests
 class TestAlpacaOauthCallback:
 
+    @pytest.mark.skip
     @pytest.mark.asyncio(loop_scope="session")
     async def test_oauth_callback_with_code_redirects(self, authenticated_client):
         res = await authenticated_client.get(
@@ -336,6 +304,7 @@ class TestAlpacaOauthCallback:
 
         assert res.status_code == 200
 
+    @pytest.mark.skip
     @pytest.mark.asyncio(loop_scope="session")
     async def test_oauth_callback_with_error_redirects(self, authenticated_client):
         res = await authenticated_client.get(

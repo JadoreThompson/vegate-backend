@@ -13,13 +13,15 @@ from service.oms.server.model import PlaceOrderRequest
 class OMSClient(BrokerClient):
 
     def __init__(self, base_url: str):
+        super().__init__()
         self._base_url = base_url.rstrip("/")
         self._token: str | None = None
         self._client = requests.Session()
 
     def create_session(self, deployment_id: UUID) -> None:
         response = self._client.post(
-            f"{self._base_url}/session", headers={"Content-Type": "application/json"}, json={"deployment_id": str(deployment_id)}
+            f"{self._base_url}/session", headers={"Content-Type": "application/json"},
+            json={"deployment_id": str(deployment_id)}
         )
         self._raise_for_status(response)
         self._token = response.json()["token"]
@@ -58,10 +60,10 @@ class OMSClient(BrokerClient):
         return Order.model_validate(response.json())
 
     def modify_order(
-        self,
-        order_id: UUID,
-        limit_price: float | None = None,
-        stop_price: float | None = None,
+            self,
+            order_id: UUID,
+            limit_price: float | None = None,
+            stop_price: float | None = None,
     ) -> Order:
         response = self._client.patch(
             f"{self._base_url}/orders/{order_id}",
@@ -115,7 +117,7 @@ class OMSClient(BrokerClient):
         return {
             "Authorization": f"Bearer {self._token}",
         }
-    
+
     def _raise_for_status(self, response: requests.Response):
         if not response.ok:
             data = None

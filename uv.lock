@@ -565,6 +565,18 @@ wheels = [
 ]
 
 [[package]]
+name = "faker"
+version = "40.18.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "tzdata", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/18/06/70886e82d8f1d2b73454f3a7c1b7405300128df22e70d85a828951366932/faker-40.18.0.tar.gz", hash = "sha256:2207575c0e8f90e6ccd6dbef764de875c614d16d3db4eee9712d9a00087f2e70", size = 1968243, upload-time = "2026-05-14T16:43:04.834Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/84/0b/5c0b2d3a4b7a715f1835dd3f963bfbe841a02ae5cad1df8ee0325dfad235/faker-40.18.0-py3-none-any.whl", hash = "sha256:61a6b94b74605ddb090a065deb197a1c585ae7a874c094cf6693671d271e6083", size = 2006355, upload-time = "2026-05-14T16:43:02.489Z" },
+]
+
+[[package]]
 name = "fastapi"
 version = "0.136.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1662,6 +1674,7 @@ dependencies = [
     { name = "click" },
     { name = "cryptography" },
     { name = "discord-py" },
+    { name = "faker" },
     { name = "fastapi" },
     { name = "kafka-python" },
     { name = "psycopg2-binary" },
@@ -1691,6 +1704,7 @@ requires-dist = [
     { name = "click", specifier = ">=8.1.0" },
     { name = "cryptography", specifier = ">=46.0.3" },
     { name = "discord-py", specifier = ">=2.6.4" },
+    { name = "faker", specifier = ">=40.18.0" },
     { name = "fastapi", specifier = ">=0.119.0" },
     { name = "kafka-python", specifier = ">=2.2.15" },
     { name = "psycopg2-binary", specifier = ">=2.9.11" },

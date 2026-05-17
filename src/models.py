@@ -63,26 +63,6 @@ class OHLC(CustomBaseModel):
     market_type: MarketType
 
 
-class Tick(BaseModel):
-    """Represents a single tick."""
-
-    symbol: str
-    timestamp: datetime
-    price: float
-
-
-class BacktestConfig(CustomBaseModel):
-    """Configuration for backtesting."""
-
-    timeframe: Timeframe
-    starting_balance: float
-    symbol: str
-    market_type: MarketType
-    start_date: datetime
-    end_date: datetime
-    broker: BrokerType
-
-
 class EquityCurvePoint(BaseModel):
     """Represents a point in the equity curve."""
 
@@ -111,11 +91,3 @@ class BacktestMetrics(BaseModel):
     )
     def round_values(cls, value):
         return round(value, 2)
-
-
-class DeploymentConfig(BaseModel):
-    """Represents deployment configuration for a strategy."""
-
-    symbol: str
-    deployment_id: UUID
-    broker: BrokerType

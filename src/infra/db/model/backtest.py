@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, ForeignKey, Integer, String, UUID
+from sqlalchemy import Date, ForeignKey, Integer, String, UUID, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from enums import BacktestStatus, BrokerType, MarketType, Timeframe
@@ -28,8 +28,8 @@ class Backtest(Base):
     # Broker is needed to know which data source to use for backtesting
     broker: Mapped[BrokerType] = mapped_column(String, nullable=False)
     starting_balance: Mapped[int] = mapped_column(Integer, nullable=False)
-    start_date: Mapped[date] = mapped_column(Date(), nullable=False)
-    end_date: Mapped[date] = mapped_column(Date(), nullable=False)
+    start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     timeframe: Mapped[Timeframe] = mapped_column(String, nullable=False)
     market_type: Mapped[MarketType] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(

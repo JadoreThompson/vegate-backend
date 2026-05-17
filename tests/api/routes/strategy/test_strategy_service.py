@@ -39,17 +39,16 @@ async def db_sess():
 
 
 class TestCreateStrategy:
-
     class TestUnitTest:
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_create_strategy_generation_error_raises(
-            self, strategy_service
+                self, strategy_service
         ):
             mock_db_sess = AsyncMock()
 
             with patch.object(
-                strategy_service, "_generate_strategy"
+                    strategy_service, "_generate_strategy"
             ) as mock_gen:
                 mock_gen.side_effect = StrategyGenerationError("Generation failed")
 
@@ -60,12 +59,12 @@ class TestCreateStrategy:
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_create_strategy_validation_error_raises(
-            self, strategy_service
+                self, strategy_service
         ):
             mock_db_sess = AsyncMock()
 
             with patch.object(
-                strategy_service, "_generate_strategy"
+                    strategy_service, "_generate_strategy"
             ) as mock_gen:
                 mock_gen.return_value = StrategyGenOutput(
                     name="Test Strategy",
@@ -75,7 +74,7 @@ class TestCreateStrategy:
                 )
 
                 with patch.object(
-                    strategy_service, "_validate_strategy_code"
+                        strategy_service, "_validate_strategy_code"
                 ) as mock_validate:
                     mock_validate.side_effect = StrategyValidationException(
                         ["Invalid code"]
@@ -105,7 +104,7 @@ class TestCreateStrategy:
             mock_db_sess.refresh = AsyncMock()
 
             with patch.object(
-                strategy_service, "_generate_strategy"
+                    strategy_service, "_generate_strategy"
             ) as mock_gen:
                 mock_gen.return_value = StrategyGenOutput(
                     name="Test Strategy",
@@ -115,7 +114,7 @@ class TestCreateStrategy:
                 )
 
                 with patch.object(
-                    strategy_service, "_validate_strategy_code", return_value=True
+                        strategy_service, "_validate_strategy_code", return_value=True
                 ):
                     request = CreateStrategyRequest(description="test strategy")
 
@@ -142,13 +141,13 @@ class TestCreateStrategy:
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_create_strategy_stores_in_db(
-            self, strategy_service, db_sess
+                self, strategy_service, db_sess
         ):
             user = await create_user("create-strategy-user-1")
             user_id = user.user_id
 
             with patch.object(
-                strategy_service, "_generate_strategy"
+                    strategy_service, "_generate_strategy"
             ) as mock_gen:
                 mock_gen.return_value = StrategyGenOutput(
                     name="Integration Strategy",
@@ -158,7 +157,7 @@ class TestCreateStrategy:
                 )
 
                 with patch.object(
-                    strategy_service, "_validate_strategy_code", return_value=True
+                        strategy_service, "_validate_strategy_code", return_value=True
                 ):
                     request = CreateStrategyRequest(
                         description="integration test strategy"
@@ -178,18 +177,17 @@ class TestCreateStrategy:
 
 
 class TestUpdateStrategy:
-
     class TestUnitTest:
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_update_strategy_not_found_raises(
-            self, strategy_service
+                self, strategy_service
         ):
             mock_db_sess = AsyncMock()
             mock_db_sess.scalar.return_value = None
 
             with patch.object(
-                strategy_service, "_get_user_strategy"
+                    strategy_service, "_get_user_strategy"
             ) as mock_get:
                 mock_get.side_effect = StrategyNotFoundException()
 
@@ -208,8 +206,8 @@ class TestUpdateStrategy:
             mock_strategy.name = "Old Name"
 
             with patch.object(
-                strategy_service, "_get_user_strategy",
-                return_value=mock_strategy
+                    strategy_service, "_get_user_strategy",
+                    return_value=mock_strategy
             ):
                 request = UpdateStrategyRequest(name="New Name")
 
@@ -227,8 +225,8 @@ class TestUpdateStrategy:
             mock_strategy.description = "Old Description"
 
             with patch.object(
-                strategy_service, "_get_user_strategy",
-                return_value=mock_strategy
+                    strategy_service, "_get_user_strategy",
+                    return_value=mock_strategy
             ):
                 request = UpdateStrategyRequest(description="New Description")
 
@@ -240,7 +238,6 @@ class TestUpdateStrategy:
 
 
 class TestDeleteStrategy:
-
     class TestUnitTest:
 
         @pytest.mark.asyncio(loop_scope="session")
@@ -248,7 +245,7 @@ class TestDeleteStrategy:
             mock_db_sess = AsyncMock()
 
             with patch.object(
-                strategy_service, "_get_user_strategy"
+                    strategy_service, "_get_user_strategy"
             ) as mock_get:
                 mock_get.side_effect = StrategyNotFoundException()
 
@@ -266,8 +263,8 @@ class TestDeleteStrategy:
             mock_db_sess.delete = mock_delete
 
             with patch.object(
-                strategy_service, "_get_user_strategy",
-                return_value=mock_strategy
+                    strategy_service, "_get_user_strategy",
+                    return_value=mock_strategy
             ):
                 await strategy_service.delete_strategy(
                     uuid4(), uuid4(), mock_db_sess
@@ -279,13 +276,13 @@ class TestDeleteStrategy:
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_delete_strategy_removes_from_db(
-            self, strategy_service, db_sess
+                self, strategy_service, db_sess
         ):
             user = await create_user("delete-strategy-1")
             user_id = user.user_id
 
             with patch.object(
-                strategy_service, "_generate_strategy"
+                    strategy_service, "_generate_strategy"
             ) as mock_gen:
                 mock_gen.return_value = StrategyGenOutput(
                     name="Delete Me",
@@ -295,7 +292,7 @@ class TestDeleteStrategy:
                 )
 
                 with patch.object(
-                    strategy_service, "_validate_strategy_code", return_value=True
+                        strategy_service, "_validate_strategy_code", return_value=True
                 ):
                     request = CreateStrategyRequest(
                         description="delete test"
@@ -317,15 +314,14 @@ class TestDeleteStrategy:
 
 
 class TestGenerateStrategy:
-
     class TestUnitTest:
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_generate_strategy_with_error_raises(
-            self, strategy_service
+                self, strategy_service
         ):
             with patch(
-                "api.routes.strategy.service.strategy_gen_agent.run"
+                    "api.routes.strategy.service.strategy_gen_agent.run"
             ) as mock_run:
                 mock_result = MagicMock()
                 mock_result.output = StrategyGenOutput(
@@ -334,12 +330,12 @@ class TestGenerateStrategy:
                 mock_run.return_value = mock_result
 
                 with pytest.raises(StrategyGenerationError, match="AI Error"):
-                    await strategy_service._generate_strategy("test prompt")
+                    await strategy_service._generate_strategy_code("test prompt")
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_generate_strategy_success(self, strategy_service):
             with patch(
-                "api.routes.strategy.service.strategy_gen_agent.run"
+                    "api.routes.strategy.service.strategy_gen_agent.run"
             ) as mock_run:
                 mock_result = MagicMock()
                 mock_result.output = StrategyGenOutput(
@@ -351,9 +347,9 @@ class TestGenerateStrategy:
                 mock_run.return_value = mock_result
 
                 with patch.object(
-                    strategy_service, "_validate_strategy_code", return_value=True
+                        strategy_service, "_validate_strategy_code", return_value=True
                 ):
-                    result = await strategy_service._generate_strategy("test prompt")
+                    result = await strategy_service._generate_strategy_code("test prompt")
 
                     assert result.name == "Generated Strategy"
                     assert result.description == "Generated description"

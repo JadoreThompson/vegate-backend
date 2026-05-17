@@ -8,9 +8,9 @@ class BacktestService(ABC):
         pass
 
     @abstractmethod
-    async def run_backtest(self, backtest_id: UUID):
+    async def run(self, backtest_id: UUID):
         pass
 
     @abstractmethod
-    async def stop_backtest(self, backtest_id: UUID):
+    async def stop(self, backtest_id: UUID):
         pass

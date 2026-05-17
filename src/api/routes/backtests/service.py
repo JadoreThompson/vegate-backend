@@ -1,13 +1,15 @@
 from uuid import UUID
 
 from mistralai.client.models import PaginationResponse
-from sqlalchemy import select, exists, and_, delete
+from sqlalchemy import select, exists, and_, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.models import PaginatedResponse
 from api.routes.backtests.exception import SymbolNotFoundException, BacktestNotFoundException, \
-    BacktestMetricsNotFoundException
+    BacktestMetricsNotFoundException, InvalidDateRange, BacktestInProgressError
 from api.routes.backtests.model import CreateBacktestRequest, BacktestResponse, BacktestMetricsResponse, \
     BacktestOrderResponse
+from api.routes.markets.service import MarketsService
 from api.routes.strategy.service import StrategyService
 from enums import BacktestStatus
 from infra.db.model import Backtest, OHLC, Strategy, BacktestMetrics, BacktestOrder
@@ -16,15 +18,24 @@ from service.backtest import BacktestService as IBacktestService
 
 class BacktestService:
 
-    def __init__(self, strategy_service: StrategyService, backtest_service: IBacktestService):
+    def __init__(self, strategy_service: StrategyService, backtest_service: IBacktestService,
+                 markets_service: MarketsService):
         self._strategy_service = strategy_service
-        self._backtest_service = backtest_service
+        self._backtest_runner_service = backtest_service
+        self._markets_service = markets_service
 
     async def create(self, request: CreateBacktestRequest, user_id: UUID, db_sess: AsyncSession) -> Backtest:
         await self._strategy_service.get_user_strategy(request.strategy_id, user_id, db_sess)
-        res = await db_sess.execute(select(exists()).where(and_(OHLC.symbol == request.symbol, OHLC.source == request.broker, OHLC.market_type == request.market_type, OHLC.timeframe == request.timeframe)))
-        if not res.first():
+
+        info_group = await self._markets_service.get_symbol_info(request.symbol, db_sess, broker_type=request.broker,
+                                                                 market_type=request.market_type,
+                                                                 timeframe=request.timeframe)
+        if len(info_group) == 0:
             raise SymbolNotFoundException(request.symbol)
+
+        info = info_group[0]
+        if info.start_date > request.start_date or info.end_date < request.end_date:
+            raise InvalidDateRange(f"Invalid date range. Available data {info.start_date} to {info.end_date}")
 
         backtest = Backtest(
             strategy_id=request.strategy_id,
@@ -41,21 +52,69 @@ class BacktestService:
         await db_sess.flush()
         await db_sess.refresh(backtest)
 
-        await self._backtest_service.run_backtest(backtest.id)
+        await self._backtest_runner_service.run(backtest.id)
 
         return backtest
 
     async def get_backtest(self, id: UUID, user_id: UUID, db_sess: AsyncSession) -> BacktestResponse:
         backtest = await self.get_user_backtest(id, user_id, db_sess)
-        if backtest.status != BacktestStatus.COMPLETED:
-            raise BacktestMetricsNotFoundException("Backtest is not complete. Please try again later")
+        # if backtest.status != BacktestStatus.COMPLETED:
+        #     raise BacktestMetricsNotFoundException("Backtest is not complete. Please try again later")
 
-        metrics: BacktestMetrics = await db_sess.scalar(select(BacktestMetrics).where(BacktestMetrics.backtest_id == id))
-        if metrics is None:
-            raise BacktestMetricsNotFoundException("Metrics not found. Please try again later")
+        metrics: BacktestMetrics = await db_sess.scalar(
+            select(BacktestMetrics).where(BacktestMetrics.backtest_id == id))
+        # if metrics is None:
+        #     raise BacktestMetricsNotFoundException("Metrics not found. Please try again later")
 
+        return self._to_response(backtest, metrics)
+
+    async def get_user_backtest(self, id: UUID, user_id: UUID, db_sess: AsyncSession) -> Backtest:
+        backtest = await db_sess.scalar(select(Backtest).where(Backtest.id == id).join(Strategy,
+                                                                                       Backtest.strategy_id == Strategy.strategy_id).where(
+            Strategy.user_id == user_id))
+        if backtest is None:
+            raise BacktestNotFoundException()
+        return backtest
+
+    async def get_backtests(self, user_id: UUID, db_sess: AsyncSession, *, page: int, limit: int,
+                            status: list[BacktestStatus] | None = None, symbols: list[str] | None = None) -> \
+            PaginatedResponse[BacktestResponse]:
+        # res = await db_sess.execute(
+        #     select(Backtest, BacktestMetrics)
+        #     .outerjoin(BacktestMetrics)
+        #     .join(Strategy)
+        #     .where(Strategy.user_id == user_id)
+        #     .offset((page - 1) * limit)
+        #     .limit(limit + 1)
+        #     .order_by(Backtest.created_at.desc())
+        # )
+        stmt = (select(Backtest, BacktestMetrics)
+                .outerjoin(BacktestMetrics)
+                .join(Strategy)
+                .where(Strategy.user_id == user_id)
+                .offset((page - 1) * limit)
+                .limit(limit + 1)
+                .order_by(Backtest.created_at.desc()))
+
+        if status is not None:
+            stmt = stmt.where(Backtest.status.in_(status))
+        if symbols is not None:
+            stmt = stmt.where(Backtest.symbol.in_(symbols))
+
+        res = await db_sess.execute(stmt)
+
+        backtests = [self._to_response(backtest, metrics) for backtest, metrics in res.all()]
+
+        return PaginatedResponse[BacktestResponse](
+            page=page,
+            size=min(limit, len(backtests)),
+            has_next=len(backtests) > limit,
+            data=backtests[:limit]
+        )
+
+    def _to_response(self, backtest: Backtest, metrics: BacktestMetrics | None) -> BacktestResponse:
         return BacktestResponse(
-            id=id,
+            id=backtest.id,
             strategy_id=backtest.strategy_id,
             symbol=backtest.symbol,
             broker=backtest.broker,
@@ -63,9 +122,9 @@ class BacktestService:
             starting_balance=backtest.starting_balance,
             start_date=backtest.start_date,
             end_date=backtest.end_date,
-            status=backtest.status,
+            status=BacktestStatus(backtest.status),
             created_at=backtest.created_at,
-            metrics=BacktestMetricsResponse(
+            metrics=None if metrics is None else BacktestMetricsResponse(
                 realised_pnl=metrics.realised_pnl,
                 unrealised_pnl=metrics.unrealised_pnl,
                 total_return_pct=metrics.total_return_pct,
@@ -74,56 +133,10 @@ class BacktestService:
             )
         )
 
-    async def get_user_backtest(self, id: UUID, user_id: UUID, db_sess: AsyncSession) -> Backtest:
-        backtest = await db_sess.scalar(select(Backtest).where(Backtest.id == id).join(Strategy, Backtest.strategy_id == Strategy.strategy_id).where(Strategy.user_id == user_id))
-        if backtest is None:
-            raise BacktestNotFoundException()
-        return backtest
-
-    async def get_backtests(self, user_id: UUID, db_sess: AsyncSession, *, page: int, limit: int, status: list[BacktestStatus] | None = None, symbols: list[str] | None = None) -> PaginationResponse[BacktestResponse]:
-        res = await db_sess.execute(
-            select(Backtest, BacktestMetrics)
-            .join(Strategy)
-            .join(BacktestMetrics)
-            .where(Strategy.user_id == user_id)
-            .offset((page - 1) * limit)
-            .limit(limit + 1)
-            .order_by(Backtest.created_at.desc())
-        )
-        backtests = [
-            BacktestResponse(
-                id=backtest.id,
-                strategy_id=backtest.strategy_id,
-                symbol=backtest.symbol,
-                broker=backtest.broker,
-                market_type=backtest.market_type,
-                starting_balance=backtest.starting_balance,
-                start_date=backtest.start_date,
-                end_date=backtest.end_date,
-                status=backtest.status,
-                created_at=backtest.created_at,
-                metrics=BacktestMetricsResponse(
-                    realised_pnl=metrics.realised_pnl,
-                    unrealised_pnl=metrics.unrealised_pnl,
-                    total_return_pct=metrics.total_return_pct,
-                    profit_factor=metrics.profit_factor,
-                    total_orders=metrics.total_orders,
-                )
-            )
-            for backtest, metrics in res.scalars().all()
-        ]
-
-        return PaginationResponse[BacktestResponse](
-            page=page,
-            size=min(limit, len(backtests)),
-            has_next=len(backtests) > limit,
-            data=backtests[:limit]
-        )
-
     async def delete(self, id: UUID, user_id: UUID, db_sess: AsyncSession):
         backtest = await self.get_user_backtest(id, user_id, db_sess)
         if backtest.status == BacktestStatus.IN_PROGRESS:
-            raise ValueError("Backtest is currently in progress")
+            raise BacktestInProgressError()
 
         await db_sess.delete(backtest)
 
@@ -160,7 +173,7 @@ class BacktestService:
             for bt_order in res.scalars().all()
         ]
 
-        return PaginationResponse[BacktestOrderResponse](
+        return PaginatedResponse[BacktestOrderResponse](
             page=page,
             size=min(limit, len(backtests)),
             has_next=len(backtests) > limit,

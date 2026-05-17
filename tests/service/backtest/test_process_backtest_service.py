@@ -31,7 +31,7 @@ class TestDeployBacktest:
             mock_process = MockProcess.return_value
             mock_process.is_alive.return_value = True
 
-            result = await service.run_backtest(BACKTEST_ID)
+            result = await service.run(BACKTEST_ID)
 
             assert BACKTEST_ID in service._backtests
             mock_process.start.assert_called_once()
@@ -43,8 +43,8 @@ class TestDeployBacktest:
             mock_process = MockProcess.return_value
             mock_process.is_alive.return_value = True
 
-            await service.run_backtest(BACKTEST_ID)
-            result = await service.run_backtest(BACKTEST_ID)
+            await service.run(BACKTEST_ID)
+            result = await service.run(BACKTEST_ID)
 
             assert result == {"status": "already running"}
             # Process should only have been constructed and started once.
@@ -57,7 +57,7 @@ class TestDeployBacktest:
             mock_process = MockProcess.return_value
             mock_process.is_alive.return_value = True
 
-            await service.run_backtest(BACKTEST_ID)
+            await service.run(BACKTEST_ID)
 
             assert BACKTEST_ID in service._backtests
             assert service._backtests[BACKTEST_ID] is mock_process
@@ -69,11 +69,11 @@ class TestDeployBacktest:
             second_process = make_mock_process(is_alive=True)
             MockProcess.side_effect = [first_process, second_process]
 
-            await service.run_backtest(BACKTEST_ID)
+            await service.run(BACKTEST_ID)
             # Simulate the first process having exited since deployment.
             first_process.is_alive.return_value = False
 
-            result = await service.run_backtest(BACKTEST_ID)
+            result = await service.run(BACKTEST_ID)
 
             assert service._backtests[BACKTEST_ID] is second_process
             second_process.start.assert_called_once()
@@ -87,15 +87,15 @@ class TestStopBacktest:
             mock_process = MockProcess.return_value
             mock_process.is_alive.return_value = True
 
-            await service.run_backtest(BACKTEST_ID)
-            result = await service.stop_backtest(BACKTEST_ID)
+            await service.run(BACKTEST_ID)
+            result = await service.stop(BACKTEST_ID)
 
             mock_process.terminate.assert_called_once()
             assert result == {"status": "stopped"}
 
     @pytest.mark.asyncio
     async def test_stop_backtest_not_running_returns_not_running(self, service):
-        result = await service.stop_backtest(BACKTEST_ID)
+        result = await service.stop(BACKTEST_ID)
         assert result == {"status": "not running"}
 
     @pytest.mark.asyncio
@@ -104,10 +104,10 @@ class TestStopBacktest:
             mock_process = MockProcess.return_value
             mock_process.is_alive.return_value = True
 
-            await service.run_backtest(BACKTEST_ID)
+            await service.run(BACKTEST_ID)
             mock_process.is_alive.return_value = False
 
-            result = await service.stop_backtest(BACKTEST_ID)
+            result = await service.stop(BACKTEST_ID)
 
             assert result == {"status": "not running"}
             mock_process.terminate.assert_not_called()
@@ -118,8 +118,8 @@ class TestStopBacktest:
             mock_process = MockProcess.return_value
             mock_process.is_alive.return_value = True
 
-            await service.run_backtest(BACKTEST_ID)
-            await service.stop_backtest(BACKTEST_ID)
+            await service.run(BACKTEST_ID)
+            await service.stop(BACKTEST_ID)
 
             # The entry should still be present (stopped, but tracked).
             assert BACKTEST_ID in service._backtests
@@ -134,8 +134,8 @@ class TestStopAll:
             second_process = make_mock_process(is_alive=True)
             MockProcess.side_effect = [first_process, second_process]
 
-            await service.run_backtest(BACKTEST_ID)
-            await service.run_backtest(BACKTEST_ID_2)
+            await service.run(BACKTEST_ID)
+            await service.run(BACKTEST_ID_2)
             result = await service.stop_all()
 
             first_process.terminate.assert_called_once()
@@ -156,8 +156,8 @@ class TestStopAll:
             second_process = make_mock_process(is_alive=True)
             MockProcess.side_effect = [first_process, second_process]
 
-            await service.run_backtest(BACKTEST_ID)
-            await service.run_backtest(BACKTEST_ID_2)
+            await service.run(BACKTEST_ID)
+            await service.run(BACKTEST_ID_2)
             await service.stop_all()
 
             first_process.join.assert_called_once_with(timeout=5)
@@ -170,8 +170,8 @@ class TestStopAll:
             second_process = make_mock_process(is_alive=False)  # already dead
             MockProcess.side_effect = [first_process, second_process]
 
-            await service.run_backtest(BACKTEST_ID)
-            await service.run_backtest(BACKTEST_ID_2)
+            await service.run(BACKTEST_ID)
+            await service.run(BACKTEST_ID_2)
             await service.stop_all()
 
             first_process.terminate.assert_called_once()
@@ -188,12 +188,12 @@ class TestBacktestProcessRunner:
             mock_process = MockProcess.return_value
             mock_process.is_alive.return_value = True
 
-            await service.run_backtest(BACKTEST_ID)
+            await service.run(BACKTEST_ID)
 
             # Verify Process was constructed with _run_backtest as its target.
             constructor_kwargs = MockProcess.call_args.kwargs
             assert (
-                constructor_kwargs.get("target") is _run_backtest
+                    constructor_kwargs.get("target") is _run_backtest
             ), "Process should be created with _run_backtest as the target function"
 
 
@@ -206,8 +206,8 @@ class TestMultipleBacktests:
             second_process = make_mock_process(is_alive=True)
             MockProcess.side_effect = [first_process, second_process]
 
-            result1 = await service.run_backtest(BACKTEST_ID)
-            result2 = await service.run_backtest(BACKTEST_ID_2)
+            result1 = await service.run(BACKTEST_ID)
+            result2 = await service.run(BACKTEST_ID_2)
 
             assert result1 == {"status": "deployed"}
             assert result2 == {"status": "deployed"}
@@ -221,10 +221,10 @@ class TestMultipleBacktests:
             second_process = make_mock_process(is_alive=True)
             MockProcess.side_effect = [first_process, second_process]
 
-            await service.run_backtest(BACKTEST_ID)
-            await service.run_backtest(BACKTEST_ID_2)
+            await service.run(BACKTEST_ID)
+            await service.run(BACKTEST_ID_2)
 
-            result = await service.stop_backtest(BACKTEST_ID)
+            result = await service.stop(BACKTEST_ID)
 
             assert result == {"status": "stopped"}
             first_process.terminate.assert_called_once()
@@ -240,8 +240,8 @@ class TestMultipleBacktests:
             second_process = make_mock_process(is_alive=True)
             MockProcess.side_effect = [first_process, second_process]
 
-            await service.run_backtest(BACKTEST_ID)
-            await service.run_backtest(BACKTEST_ID_2)
+            await service.run(BACKTEST_ID)
+            await service.run(BACKTEST_ID_2)
             await service.stop_all()
 
             first_process.terminate.assert_called_once()
