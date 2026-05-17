@@ -7,11 +7,13 @@ from enums import BrokerType, MarketType, Timeframe
 from infra.db.model.ohlc import OHLC
 from infra.db.utils import get_db_sess_sync
 from models import OHLC as OHLCModel
+from service.ohlc.feed.client import OHLCFeedClient
 
 
-class BacktestOHLCFeedClient:
+class BacktestOHLCFeedClient(OHLCFeedClient):
 
     def __init__(self, start: int, end: int):
+        super().__init__()
         self._market_type = None
         self._symbol = None
         self._timeframe = None
@@ -29,18 +31,18 @@ class BacktestOHLCFeedClient:
     @property
     def cur_candle(self) -> OHLCModel:
         return self._cur_candle
-    
+
     @property
     def start(self):
         return self._start
 
     def subscribe(
-        self,
-        symbol: str,
-        market_type: MarketType,
-        broker: BrokerType,
-        timeframe: Timeframe,
-        start: int | None = None     
+            self,
+            symbol: str,
+            market_type: MarketType,
+            broker: BrokerType,
+            timeframe: Timeframe,
+            start: int | None = None
     ) -> None:
         self._symbol = symbol
         self._market_type = market_type

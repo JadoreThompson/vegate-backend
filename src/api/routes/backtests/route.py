@@ -82,6 +82,7 @@ async def delete_backtest_endpoint(
 ):
     """Delete a backtest."""
     await backtest_service.delete(backtest_id, jwt.sub, db_sess)
+    await db_sess.commit()
 
 
 @router.get(

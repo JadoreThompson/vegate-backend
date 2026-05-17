@@ -5,7 +5,6 @@ import pytest
 
 from service.deployment.process import ProcessDeploymentService
 
-
 BACKTEST_ID = UUID("11111111-1111-1111-1111-111111111111")
 DEPLOYMENT_ID = UUID("22222222-2222-2222-2222-222222222222")
 
@@ -48,7 +47,7 @@ class TestDeployBacktest:
 
 
 class TestStopBacktest:
-    
+
     @pytest.mark.asyncio
     async def test_stop_backtest_terminates_running_process(self, service, mock_process):
         with patch("service.deployment.process.Process") as MockProcessClass:
@@ -80,7 +79,7 @@ class TestStopBacktest:
 
 
 class TestDeployStrategy:
-    
+
     @pytest.mark.asyncio
     async def test_deploy_strategy_starts_process(self, service, mock_process):
         with patch("service.deployment.process.Process") as MockProcessClass:
@@ -111,7 +110,7 @@ class TestStopStrategy:
             MockProcessClass.return_value = mock_process
 
             await service.deploy_strategy(DEPLOYMENT_ID)
-            result = await service.stop_strategy(DEPLOYMENT_ID)
+            result = await service.stop(DEPLOYMENT_ID)
 
             mock_process.terminate.assert_called_once()
             mock_process.join.assert_called_once_with(timeout=5)
@@ -119,7 +118,7 @@ class TestStopStrategy:
 
     @pytest.mark.asyncio
     async def test_stop_strategy_not_running_returns_not_running(self, service):
-        result = await service.stop_strategy(DEPLOYMENT_ID)
+        result = await service.stop(DEPLOYMENT_ID)
 
         assert result == {"status": "not running"}
 
@@ -130,13 +129,13 @@ class TestStopStrategy:
 
             await service.deploy_strategy(DEPLOYMENT_ID)
             mock_process.is_alive.return_value = False
-            result = await service.stop_strategy(DEPLOYMENT_ID)
+            result = await service.stop(DEPLOYMENT_ID)
 
             assert result == {"status": "not running"}
 
 
 class TestStopAll:
-    
+
     @pytest.mark.asyncio
     async def test_stop_all_terminates_all_running_processes(self, service, mock_process):
         with patch("service.deployment.process.Process") as MockProcessClass:

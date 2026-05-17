@@ -13,7 +13,6 @@ from api.routes.strategy.models import (
 from api.routes.strategy.service import StrategyService
 from api.types import JWTPayload
 
-
 router = APIRouter(prefix="/strategy", tags=["Strategy"])
 strategy_service = StrategyService()
 
@@ -25,6 +24,7 @@ async def create_strategy_endpoint(
     db_sess: AsyncSession = Depends(depends_db_sess),
 ):
     strategy = await strategy_service.create(body, jwt.sub, db_sess)
+    await db_sess.commit()
     return StrategyResponse(
         id=strategy.strategy_id,
         name=strategy.name,
@@ -64,7 +64,9 @@ async def list_strategies_endpoint(
     db_sess: AsyncSession = Depends(depends_db_sess),
 ):
     """List all strategy with pagination (without code field)."""
-    return await strategy_service.get_strategies(jwt.sub, db_sess, page=page, limit=limit)
+    return await strategy_service.get_strategies(
+        jwt.sub, db_sess, page=page, limit=limit
+    )
 
 
 @router.patch("/{strategy_id}", response_model=StrategyResponse)

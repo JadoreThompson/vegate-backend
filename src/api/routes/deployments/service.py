@@ -37,6 +37,8 @@ class DeploymentService:
         await db_sess.flush()
         await db_sess.refresh(deployment)
 
+        await self._deployment_service.run(deployment.deployment_id)
+
         return deployment
 
     async def stop(self, deployment_id: UUID, user_id: UUID, db_sess: AsyncSession):
@@ -78,7 +80,7 @@ class DeploymentService:
             page=page,
             size=min(limit, len(rows)),
             has_next=len(rows) >= limit,
-            data=[self.to_response(deployment, metrics) for deployment, metrics in rows],
+            data=[self.to_response(deployment, metrics) for deployment, metrics in rows[:limit]],
         )
 
     async def get_orders(self, deployment_id: UUID, user_id: UUID, db_sess: AsyncSession, *, page: int, limit: int):
@@ -94,7 +96,7 @@ class DeploymentService:
 
         rows = res.all()
 
-        return PaginatedResponse[StrategyDeploymentResponse](
+        return PaginatedResponse[StrategyDeploymentOrderResponse](
             page=page,
             size=min(limit, len(rows)),
             has_next=len(rows) >= limit,
@@ -115,7 +117,7 @@ class DeploymentService:
                     created_at=order.created_at,
                     candle_ts=order.candle_ts
                 )
-                for order in rows
+                for order in rows[:limit]
             ]
         )
 

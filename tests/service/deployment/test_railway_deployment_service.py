@@ -132,7 +132,7 @@ class TestStopStrategy:
 
         await asyncio.sleep(5)
 
-        stop_result = await service.stop_strategy(result["service_id"])
+        stop_result = await service.stop(result["service_id"])
         SERVICE_IDS.append(stop_result["service_id"])
 
         await asyncio.sleep(5)

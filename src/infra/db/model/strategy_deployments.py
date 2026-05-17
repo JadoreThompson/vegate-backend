@@ -6,7 +6,7 @@ from sqlalchemy import DateTime, ForeignKey, String, Text, UUID as SaUUID, Float
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from enums import StrategyDeploymentStatus, MarketType, Timeframe
+from enums import StrategyDeploymentStatus, MarketType, Timeframe, BrokerType
 from utils import get_datetime
 from .base import Base, datetime_tz, uuid_pk
 
@@ -32,6 +32,7 @@ class StrategyDeployments(Base):
         nullable=False,
     )
     symbol: Mapped[str] = mapped_column(String, nullable=False)
+    broker: Mapped[BrokerType] = mapped_column(String, nullable=False)
     timeframe: Mapped[Timeframe] = mapped_column(String, nullable=False)
     market_type: Mapped[MarketType] = mapped_column(String, nullable=False)
     status: Mapped[StrategyDeploymentStatus] = mapped_column(
@@ -55,5 +56,8 @@ class StrategyDeployments(Base):
         back_populates="deployment", cascade="all, delete-orphan"
     )
     account_snapshots: Mapped[list["AccountSnapshots"]] = relationship(
+        back_populates="deployment", cascade="all, delete-orphan"
+    )
+    metrics: Mapped["StrategyDeploymentMetrics"] = relationship(
         back_populates="deployment", cascade="all, delete-orphan"
     )

@@ -22,7 +22,7 @@ from infra.db.model import (
 from infra.redis import REDIS_CLIENT
 from models import EquityCurvePoint
 from utils import get_datetime
-from .models import DeployStrategyRequest
+from .models import CreateDeploymentRequest
 
 logger = logging.getLogger("deployments.controller")
 
@@ -33,9 +33,9 @@ class Point(NamedTuple):
 
 
 def calculate_sharpe_ratio(
-    equity_curve: list[tuple[datetime, float]],
-    risk_free_rate: float = 0.0,
-    periods_per_year: int = 252,
+        equity_curve: list[tuple[datetime, float]],
+        risk_free_rate: float = 0.0,
+        periods_per_year: int = 252,
 ) -> float:
     """
     Calculate the Sharpe ratio from an equity curve.
@@ -100,8 +100,8 @@ def calculate_sharpe_ratio(
 
 
 def calculate_max_drawdown(
-    equity_curve: list[tuple[datetime, float]],
-    cash_curve: list[tuple[datetime, float]],
+        equity_curve: list[tuple[datetime, float]],
+        cash_curve: list[tuple[datetime, float]],
 ) -> tuple[float, float]:
     """
     Calculate maximum drawdown from an equity curve.
@@ -178,9 +178,9 @@ def calculate_max_drawdown(
 
 
 async def create_deployment(
-    user_id: UUID,
-    data: DeployStrategyRequest,
-    db_sess: AsyncSession,
+        user_id: UUID,
+        data: CreateDeploymentRequest,
+        db_sess: AsyncSession,
 ) -> StrategyDeployments:
     """
     Create a new deployment for a strategy.
@@ -226,7 +226,7 @@ async def create_deployment(
 
 
 async def get_deployment(
-    deployment_id: UUID, db_sess: AsyncSession
+        deployment_id: UUID, db_sess: AsyncSession
 ) -> StrategyDeployments | None:
     """Get a deployment by ID."""
     return await db_sess.scalar(
@@ -237,11 +237,11 @@ async def get_deployment(
 
 
 async def list_strategy_deployments(
-    user_id: UUID,
-    strategy_id: UUID,
-    db_sess: AsyncSession,
-    offset: int = 0,
-    limit: int = 100,
+        user_id: UUID,
+        strategy_id: UUID,
+        db_sess: AsyncSession,
+        offset: int = 0,
+        limit: int = 100,
 ) -> list[StrategyDeployments]:
     """
     List all deployments for a specific strategy with pagination.
@@ -270,11 +270,11 @@ async def list_strategy_deployments(
 
 
 async def list_all_deployments(
-    user_id: UUID,
-    db_sess: AsyncSession,
-    offset: int = 0,
-    limit: int = 100,
-    status: StrategyDeploymentStatus | None = None,
+        user_id: UUID,
+        db_sess: AsyncSession,
+        offset: int = 0,
+        limit: int = 100,
+        status: StrategyDeploymentStatus | None = None,
 ) -> list[StrategyDeployments]:
     """
     List all deployments for a user with optional status filter and pagination.
@@ -300,9 +300,9 @@ async def list_all_deployments(
 
 
 async def stop_deployment(
-    user_id: UUID,
-    deployment_id: UUID,
-    db_sess: AsyncSession,
+        user_id: UUID,
+        deployment_id: UUID,
+        db_sess: AsyncSession,
 ) -> StrategyDeployments:
     """
     Stop a running deployment.
@@ -342,11 +342,11 @@ async def stop_deployment(
 
 
 async def get_deployment_orders(
-    user_id: UUID,
-    deployment_id: UUID,
-    db_sess: AsyncSession,
-    offset: int = 0,
-    limit: int = 100,
+        user_id: UUID,
+        deployment_id: UUID,
+        db_sess: AsyncSession,
+        offset: int = 0,
+        limit: int = 100,
 ) -> list[Orders]:
     """
     Get all orders for a deployment with pagination.
@@ -375,9 +375,9 @@ async def get_deployment_orders(
 
 
 async def build_weekly_equity_graph(
-    deployment: StrategyDeployments,
-    broker: BrokerType,
-    db_sess: AsyncSession,
+        deployment: StrategyDeployments,
+        broker: BrokerType,
+        db_sess: AsyncSession,
 ) -> list[EquityCurvePoint]:
     """Build a weekly equity graph using account snapshots.
 
@@ -450,13 +450,13 @@ async def build_weekly_equity_graph(
 
 
 async def get_price_points(
-    source: BrokerType,
-    symbol: str,
-    timeframe: Timeframe,
-    start_date: datetime,
-    end_date: datetime,
-    db_sess: AsyncSession,
-    n: int = 5,
+        source: BrokerType,
+        symbol: str,
+        timeframe: Timeframe,
+        start_date: datetime,
+        end_date: datetime,
+        db_sess: AsyncSession,
+        n: int = 5,
 ) -> tuple[int, float]:
     sd = int(start_date.timestamp())
     ed = int(end_date.timestamp())
@@ -498,9 +498,9 @@ async def get_price_points(
 
 
 async def calculate_deployment_metrics(
-    deployment: StrategyDeployments,
-    broker: BrokerType,
-    db_sess: AsyncSession,
+        deployment: StrategyDeployments,
+        broker: BrokerType,
+        db_sess: AsyncSession,
 ) -> PerformanceMetrics:
     """Calculate deployment metrics using account snapshots.
 
@@ -593,9 +593,9 @@ async def calculate_deployment_metrics(
 
 
 async def get_deployment_with_metrics(
-    user_id: UUID,
-    deployment_id: UUID,
-    db_sess: AsyncSession,
+        user_id: UUID,
+        deployment_id: UUID,
+        db_sess: AsyncSession,
 ) -> tuple[StrategyDeployments, PerformanceMetrics]:
     """
     Get a deployment with its calculated metrics.

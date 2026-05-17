@@ -1,80 +1,62 @@
 from multiprocessing import Process
 from uuid import UUID
 
+from config import OHLC_FEED_HOST, OHLC_FEED_PORT, OMS_BASE_URL
+from infra.redis import REDIS_CLIENT_SYNC
 from service.deployment.base import DeploymentService
-
-
-def _run_backtest(backtest_id: UUID):
-    from runners.backtest_runner import BacktestRunner
-
-    runner = BacktestRunner(backtest_id)
-    runner.run()
+from service.deployment.exception import DeploymentNotFoundException
+from service.event.publisher import SyncEventPublisher
+from service.ohlc.feed.client import OHLCFeedClient
+from service.oms.client import OMSClient
+from strategy.service import StrategyDeploymentService
 
 
 def _run_strategy(deployment_id: UUID):
-    from runners.deployment_runner import DeploymentRunner
+    ohlc_feed_client = OHLCFeedClient(host=OHLC_FEED_HOST, port=OHLC_FEED_PORT)
+    oms_client = OMSClient(base_url=OMS_BASE_URL)
+    event_publisher = SyncEventPublisher()
 
-    runner = DeploymentRunner(deployment_id)
-    runner.run()
+    sds = StrategyDeploymentService(
+        deployment_id=deployment_id,
+        ohlc_feed_client=ohlc_feed_client,
+        oms_client=oms_client,
+        event_publisher=event_publisher,
+        redis_client=REDIS_CLIENT_SYNC
+    )
+    sds.setup()
+    sds.run()
 
 
 class ProcessDeploymentService(DeploymentService):
+
     def __init__(self):
         super().__init__()
-        self._backtests: dict[UUID, Process] = {}
         self._deployments: dict[UUID, Process] = {}
 
-    async def deploy_backtest(self, backtest_id: UUID) -> dict:
-        if backtest_id in self._backtests and self._backtests[backtest_id].is_alive():
-            return {"status": "already running"}
+    async def run(self, deployment_id: UUID):
+        if deployment_id in self._deployments:
+            if self._deployments[deployment_id].is_alive():
+                return
 
-        p = Process(target=_run_backtest, args=(backtest_id,))
-        p.start()
-        self._backtests[backtest_id] = p
-        return {"status": "deployed"}
-
-    async def stop_backtest(self, backtest_id: UUID) -> dict:
-        if (
-            backtest_id not in self._backtests
-            or not self._backtests[backtest_id].is_alive()
-        ):
-            return {"status": "not running"}
-        self._backtests[backtest_id].terminate()
-        self._backtests[backtest_id].join(timeout=5)
-        return {"status": "stopped"}
-
-    async def run_strategy(self, deployment_id: UUID) -> dict:
-        if (
-            deployment_id in self._deployments
-            and self._deployments[deployment_id].is_alive()
-        ):
-            return {"status": "already running"}
+            self._deployments[deployment_id].kill()
+            self._deployments[deployment_id].join(timeout=5)
 
         p = Process(target=_run_strategy, args=(deployment_id,))
         p.start()
         self._deployments[deployment_id] = p
-        return {"status": "deployed"}
 
-    async def stop_strategy(self, deployment_id: UUID) -> dict:
-        if (
-            deployment_id not in self._deployments
-            or not self._deployments[deployment_id].is_alive()
-        ):
-            return {"status": "not running"}
+    async def stop(self, deployment_id: UUID):
+        if deployment_id not in self._deployments:
+            raise DeploymentNotFoundException(deployment_id)
 
         self._deployments[deployment_id].terminate()
         self._deployments[deployment_id].join(timeout=5)
-        return {"status": "stopped"}
+        self._deployments.pop(deployment_id)
 
-    async def stop_all(self) -> dict:
-        for backtest_id, process in self._backtests.items():
-            if process.is_alive():
-                process.terminate()
-                process.join(timeout=5)
-
+    async def stop_all(self):
         for deployment_id, process in self._deployments.items():
             if process.is_alive():
                 process.terminate()
                 process.join(timeout=5)
 
-        return {"status": "all stopped"}
+        self._deployments.clear()

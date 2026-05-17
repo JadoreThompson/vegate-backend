@@ -49,6 +49,7 @@ async def login(
     try:
         user = await auth_service.authenticate_user(request=body, db_sess=db_sess)
         rsp = await jwt_service.set_cookie(user=user, db_sess=db_sess)
+        await db_sess.commit()
         return rsp
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
@@ -184,5 +185,6 @@ async def confirm_reset_password(
 ):
     try:
         await auth_service.verify_reset_password(request=body, db_sess=db_sess)
+        await db_sess.commit()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

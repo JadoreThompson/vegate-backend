@@ -16,7 +16,7 @@ class StrategyDeploymentMetrics(Base):
     id: Mapped[uuid.UUID] = uuid_pk()
     deployment_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("strategy_deployments.id", ondelete="CASCADE"),
+        ForeignKey("strategy_deployments.deployment_id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
     )

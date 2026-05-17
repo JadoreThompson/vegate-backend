@@ -7,6 +7,7 @@ from infra.db.model.backtest_equity_curve import BacktestEquityCurve
 from infra.db.model.backtest_metric import BacktestMetrics
 from infra.db.model.backtest_order import BacktestOrder
 from infra.db.model.strategy_deployments import StrategyDeployments
+from infra.db.model.strategy_deployment_metrics import StrategyDeploymentMetrics
 from infra.db.model.strategy_deployment_orders import StrategyDeploymentOrders
 from infra.db.model.orders import Orders
 from infra.db.model.ticks import Ticks

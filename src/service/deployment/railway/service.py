@@ -66,7 +66,7 @@ class RailwayDeploymentService(DeploymentService):
         await self.stop_service(service_id)
         return {"service_id": service_id}
 
-    async def run_strategy(self, deployment_id: UUID) -> dict:
+    async def run(self, deployment_id: UUID) -> dict:
         name = f"dp_{deployment_id}"
         start_command = (
             f"uv run src/main.py deployment run --deployment-id {deployment_id}"
@@ -82,7 +82,7 @@ class RailwayDeploymentService(DeploymentService):
             "environment": "production",
         }
 
-    async def stop_strategy(self, deployment_id: UUID) -> dict:
+    async def stop(self, deployment_id: UUID) -> dict:
         async with get_db_session() as sess:
             result = await sess.execute(
                 select(StrategyDeployments.service_id).where(

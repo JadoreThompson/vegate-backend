@@ -9,9 +9,13 @@ from api.routes.strategy.agents.strategy import strategy_gen_agent, StrategyGenO
 from api.routes.strategy.exception import (
     StrategyGenerationError,
     StrategyValidationException,
-    StrategyNotFoundException
+    StrategyNotFoundException,
 )
-from api.routes.strategy.models import CreateStrategyRequest, UpdateStrategyRequest, StrategyResponse
+from api.routes.strategy.models import (
+    CreateStrategyRequest,
+    UpdateStrategyRequest,
+    StrategyResponse,
+)
 from infra.db.model import Strategy
 
 
@@ -20,7 +24,9 @@ class StrategyService:
     def __init__(self):
         pass
 
-    async def create(self, request: CreateStrategyRequest, user_id: UUID, db_sess: AsyncSession) -> Strategy:
+    async def create(
+        self, request: CreateStrategyRequest, user_id: UUID, db_sess: AsyncSession
+    ) -> Strategy:
         strategy_details = await self._generate_strategy_code(request.description)
         await self._validate_strategy_code(strategy_details.code)
 
@@ -54,12 +60,17 @@ class StrategyService:
 
         return True
 
-    async def get_strategy(self, id: UUID, user_id: UUID, db_sess: AsyncSession) -> Strategy | None:
+    async def get_strategy(
+        self, id: UUID, user_id: UUID, db_sess: AsyncSession
+    ) -> Strategy | None:
         return await db_sess.scalar(
-            select(Strategy).where(and_(Strategy.strategy_id == id, Strategy.user_id == user_id)))
+            select(Strategy).where(
+                and_(Strategy.strategy_id == id, Strategy.user_id == user_id)
+            )
+        )
 
     async def get_strategies(
-            self, user_id: UUID, db_sess: AsyncSession, *, page: int, limit: int
+        self, user_id: UUID, db_sess: AsyncSession, *, page: int, limit: int
     ) -> PaginatedResponse[StrategyResponse]:
         result = await db_sess.execute(
             select(Strategy)
@@ -88,8 +99,13 @@ class StrategyService:
             data=strategies[:limit],
         )
 
-    async def update_strategy(self, request: UpdateStrategyRequest, id: UUID, user_id: UUID,
-                              db_sess: AsyncSession) -> Strategy:
+    async def update(
+        self,
+        request: UpdateStrategyRequest,
+        id: UUID,
+        user_id: UUID,
+        db_sess: AsyncSession,
+    ) -> Strategy:
         strategy = await self.get_user_strategy(id, user_id, db_sess)
 
         if request.name is not None:
@@ -100,13 +116,18 @@ class StrategyService:
 
         return strategy
 
-    async def delete_strategy(self, id: UUID, user_id: UUID, db_sess: AsyncSession) -> None:
+    async def delete(self, id: UUID, user_id: UUID, db_sess: AsyncSession) -> None:
         strategy = await self.get_user_strategy(id, user_id, db_sess)
         await db_sess.delete(strategy)
 
-    async def get_user_strategy(self, id: UUID, user_id: UUID, db_sess: AsyncSession) -> Strategy:
+    async def get_user_strategy(
+        self, id: UUID, user_id: UUID, db_sess: AsyncSession
+    ) -> Strategy:
         strategy = await db_sess.scalar(
-            select(Strategy).where(and_(Strategy.strategy_id == id, Strategy.user_id == user_id)))
+            select(Strategy).where(
+                and_(Strategy.strategy_id == id, Strategy.user_id == user_id)
+            )
+        )
         if strategy is None:
             raise StrategyNotFoundException()
         return strategy
