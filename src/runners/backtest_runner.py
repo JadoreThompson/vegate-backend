@@ -17,6 +17,7 @@ from infra.db.model import (
     BacktestMetrics,
     BacktestEquityCurve,
 )
+from infra.db.model.instrument import Instrument
 from models import BacktestMetrics as BacktestMetricsModel, EquityCurvePoint
 from service.event.publisher import SyncEventPublisher
 from service.ohlc.feed.backtest.client import BacktestOHLCFeedClient
@@ -38,24 +39,43 @@ class BacktestRunner(BaseRunner):
         self._logger.info(f"Starting BacktestRunner for ID '{self._backtest_id}'")
 
         try:
-            # Fetch backtest and strategy from database
-            db_backtest, db_strategy = self._fetch_backtest_and_strategy()
-            if db_backtest is None or db_strategy is None:
-                return
-            if db_backtest.status == BacktestStatus.COMPLETED:
-                raise ValueError("Backtest already complete")
-
             self._update_backtest_status(BacktestStatus.IN_PROGRESS)
+
+            with get_db_sess_sync() as db_sess:
+                db_backtest = db_sess.get(Backtest, self._backtest_id)
+                if db_backtest is None:
+                    self._logger.error(
+                        f"Backtest object not found for ID: {self._backtest_id}"
+                    )
+                    return
+                
+                if db_backtest.status != BacktestStatus.PENDING:
+                    self._logger.info("Backtest status is not pending. Aborting backtest")
+                    return
+
+                self._logger.info("Backtest object found")
+                db_sess.expunge(db_backtest)
+
+                db_strategy = db_sess.get(StrategyEntity, db_backtest.strategy_id)
+                if db_strategy is None:
+                    self._logger.error(f"Strategy for backtest {self._backtest_id}")
+                    return
+                
+                self._logger.info("Strategy object found")
+                db_sess.expunge(db_strategy)
+
+                instrument = db_sess.get(Instrument, db_backtest.instrument_id)
+                db_sess.expunge(instrument)
 
             # Create backtest configuration
             bt_config = BacktestConfig(
                 start_date=db_backtest.start_date,
                 end_date=db_backtest.end_date,
-                symbol=db_backtest.symbol,
-                market_type=db_backtest.market_type,
+                symbol=instrument.symbol,
+                market_type=instrument.market_type,
                 starting_balance=db_backtest.starting_balance,
                 timeframe=Timeframe(db_backtest.timeframe),
-                broker=BrokerType(db_backtest.broker),
+                broker=BrokerType(instrument.broker_type),
             )
 
             # Create broker and run backtest
@@ -70,47 +90,49 @@ class BacktestRunner(BaseRunner):
             self._logger.info("Storing results...")
             self._store_results(result)
             self._logger.info("Finished storing results")
+
         except Exception as e:
             self._logger.error(
                 f"An error occurred handling backtest {self._backtest_id}", exc_info=e
             )
-        finally:
             self._update_backtest_status(BacktestStatus.FAILED)
 
     def _fetch_backtest_and_strategy(
         self,
-    ) -> tuple[Backtest | None, StrategyEntity | None]:
-        """Fetch backtest and strategy from database.
+    ) -> tuple[Backtest | None, StrategyEntity | None, Instrument | None]:
+        # """Fetch backtest and strategy from database.
 
-        Returns:
-            Tuple of (db_backtest, db_strategy) or (None, None) if not found
-        """
-        with get_db_sess_sync() as db_sess:
-            db_backtest = db_sess.get(Backtest, self._backtest_id)
-            if db_backtest is None:
-                self._logger.error(
-                    f"Backtest object not found for ID: {self._backtest_id}"
-                )
-                return None, None
+        # Returns:
+        #     Tuple of (db_backtest, db_strategy) or (None, None) if not found
+        # """
+        # with get_db_sess_sync() as db_sess:
+        #     db_backtest = db_sess.get(Backtest, self._backtest_id)
+        #     if db_backtest is None:
+        #         self._logger.error(
+        #             f"Backtest object not found for ID: {self._backtest_id}"
+        #         )
+        #         return None, None, None
 
-            self._logger.info("Backtest object found")
+        #     self._logger.info("Backtest object found")
 
-            db_strategy = db_sess.get(StrategyEntity, db_backtest.strategy_id)
-            if db_strategy is None:
-                self._logger.error(
-                    f"Strategy for backtest {self._backtest_id}"
-                )
-                db_backtest.status = BacktestStatus.FAILED.value
-                db_sess.commit()
-                return None, None
+        #     db_strategy = db_sess.get(StrategyEntity, db_backtest.strategy_id)
+        #     if db_strategy is None:
+        #         self._logger.error(f"Strategy for backtest {self._backtest_id}")
+        #         db_backtest.status = BacktestStatus.FAILED.value
+        #         db_sess.commit()
+        #         return None, None, None
 
-            self._logger.info("Strategy object found")
+        #     instrument = db_sess.get(Instrument, db_backtest.instrument_id)
+        #     db_sess.expunge(instrument)
 
-            # Expunge objects from session to use outside of context
-            db_sess.expunge(db_backtest)
-            db_sess.expunge(db_strategy)
+        #     self._logger.info("Strategy object found")
 
-        return db_backtest, db_strategy
+        #     # Expunge objects from session to use outside of context
+        #     db_sess.expunge(db_backtest)
+        #     db_sess.expunge(db_strategy)
+
+        # return db_backtest, db_strategy, instrument
+        pass
 
     def _write_strategy_code(self, code: str) -> None:
         """Write strategy code to user_strategy.py file.
@@ -188,7 +210,7 @@ class BacktestRunner(BaseRunner):
         n = len(equity_curve)
         if n > 5:
             indices = [0, n * 1 // 4, n * 2 // 4, n * 3 // 4, n - 1]
-            equity_curve = [equity_curve[i].model_dump(mode='json') for i in indices]
+            equity_curve = [equity_curve[i].model_dump(mode="json") for i in indices]
 
         # Update database
         with get_db_sess_sync() as db_sess:
@@ -209,7 +231,7 @@ class BacktestRunner(BaseRunner):
                     total_return_pct=result.total_return_pct,
                     profit_factor=result.profit_factor,
                     total_orders=result.total_orders,
-                    equity_curve=equity_curve
+                    equity_curve=equity_curve,
                 )
             )
 

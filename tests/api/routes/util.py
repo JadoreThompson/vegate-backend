@@ -1,10 +1,12 @@
 from datetime import datetime, UTC
 
 from sqlalchemy import insert
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from enums import BrokerType, Timeframe, MarketType
 from infra.db import get_db_session, get_db_sess_sync
 from infra.db.model import User, OHLC
+from infra.db.model.instrument import Instrument
 
 
 async def create_user(username: str) -> User:
@@ -24,26 +26,49 @@ async def create_user(username: str) -> User:
     return user
 
 
-def seed_candles(n: int = 100):
-    symbol_broker_tfs = (("AAPL", BrokerType.ALPACA, Timeframe.m1), ("AAPL", BrokerType.ALPACA, Timeframe.m5))
+def seed_candles():
+    symbol_broker_tfs = (
+        ("AAPL", BrokerType.ALPACA, MarketType.STOCKS, Timeframe.m1),
+        ("AAPL", BrokerType.ALPACA, MarketType.STOCKS, Timeframe.m5),
+    )
 
     with get_db_sess_sync() as db_sess:
-        for symbol, broker, tf in symbol_broker_tfs:
+        for symbol, broker, market_type, tf in symbol_broker_tfs:
+            instrument_id = db_sess.scalar(
+                pg_insert(Instrument)
+                .values(
+                    symbol=symbol,
+                    native_symbol=symbol,
+                    broker_type=broker,
+                    market_type=market_type,
+                )
+                .on_conflict_do_nothing(
+                    index_elements=["symbol", "market_type", "broker_type"]
+                )
+                .returning(Instrument.id)
+            )
+
+            if instrument_id is None:
+                continue
+
             candles = [
                 OHLC(
-                    source=broker,
-                    symbol=symbol,
                     timeframe=tf,
-                    market_type=MarketType.STOCKS,
+                    instrument_id=instrument_id,
                     open=100.0,
                     high=100.0,
                     low=100.0,
                     close=100.0,
                     volume=10.0,
-                    timestamp=int(datetime(year=2026, month=1, day=((1 + i) % 30) + 1, tzinfo=UTC).timestamp()),
+                    timestamp=int(
+                        datetime(
+                            year=2026, month=1, day=((1 + i) % 30) + 1, tzinfo=UTC
+                        ).timestamp()
+                    ),
                 )
-                for i in range(n)
+                for i in range(30)
             ]
             db_sess.add_all(candles)
+
         db_sess.flush()
         db_sess.commit()

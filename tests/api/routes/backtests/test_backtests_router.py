@@ -1,22 +1,24 @@
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
+
 import pytest
 import pytest_asyncio
-from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4, UUID
-
 from httpx import AsyncClient
 from sqlalchemy import delete
 
+from api.lib.object_registry import ObjectRegistry
 from api.routes.auth.service import AuthService
+from api.routes.backtests.service import APIBacktestsService
 from api.routes.markets.service import MarketsService
 from api.routes.strategy.agents.strategy import StrategyGenOutput
-from api.routes.strategy.service import APIStrategyService
 from api.routes.strategy.models import StrategyResponse
+from api.routes.strategy.service import APIStrategyService
 from api.routes.util import seed_candles
 from enums import BacktestStatus
 from infra.db import get_db_session, get_db_sess_sync
 from infra.db.model import Backtest, OHLC
 from infra.redis.client import REDIS_CLIENT
-from runners import BacktestRunner
+from service.backtest.base import BacktestService
 
 
 @pytest.fixture
@@ -43,16 +45,6 @@ def markets_service():
     return MarketsService()
 
 
-@pytest.fixture(scope="module", autouse=True)
-def patch_backtest_service():
-    from api.routes.backtests.route import backtest_service
-
-    backtest_runner_service = MagicMock()
-    backtest_runner_service.run_backtest = AsyncMock()
-    backtest_service._backtest_runner_service = backtest_runner_service
-    return backtest_service
-
-
 @pytest_asyncio.fixture(loop_scope="session")
 async def db_sess():
     async with get_db_session() as db_sess:
@@ -76,8 +68,11 @@ def seed():
 async def create_strategy(
     client: AsyncClient, prompt: str = "Create a test strategy"
 ) -> StrategyResponse:
-    from api.routes.strategy.route import strategy_service
+    from api.app import app
 
+    object_registry = app.state.object_registry
+
+    strategy_service = object_registry.get(APIStrategyService)
     generate_strategy_code = strategy_service._generate_strategy_code
     validate_strategy_code = strategy_service._validate_strategy_code
     strategy_service._generate_strategy_code = AsyncMock(
@@ -107,6 +102,11 @@ class TestCreateBacktest:
         strategy = await create_strategy(authenticated_client)
         strategy_id = strategy.id
 
+        from api.app import app
+
+        api_backtests_service = app.state.object_registry.get(APIBacktestsService)
+        api_backtests_service._backtest_runner_service.run = AsyncMock()
+
         payload = {
             "strategy_id": str(strategy_id),
             "symbol": "AAPL",
@@ -114,7 +114,7 @@ class TestCreateBacktest:
             "market_type": "stocks",
             "starting_balance": 10000,
             "start_date": "2026-01-01T00:00:00Z",
-            "end_date": "2026-01-15T23:59:59Z",
+            "end_date": "2026-01-15T23:59:00Z",
             "timeframe": "1m",
         }
 
@@ -256,6 +256,11 @@ class TestGetBacktest:
         strategy = await create_strategy(authenticated_client)
         strategy_id = strategy.id
 
+        from api.app import app
+
+        api_backtests_service = app.state.object_registry.get(APIBacktestsService)
+        api_backtests_service._backtest_runner_service.run = AsyncMock()
+
         payload = {
             "strategy_id": str(strategy_id),
             "symbol": "AAPL",
@@ -272,9 +277,6 @@ class TestGetBacktest:
         assert rsp.status_code == 201, rsp.json()
 
         backtest_id = rsp.json()["id"]
-        # backtest = await db_sess.get(Backtest, backtest_id)
-        # backtest.status = BacktestStatus.COMPLETED
-        # await db_sess.commit()
 
         res = await authenticated_client.get(f"/backtests/{backtest_id}")
 
@@ -303,6 +305,13 @@ class TestListBacktests:
     async def test_list_backtests_with_pagination(self, authenticated_client):
         strategy = await create_strategy(authenticated_client)
 
+        from api.app import app
+
+        api_backtests_service = app.state.object_registry.get(APIBacktestsService)
+        api_backtests_service._backtest_runner_service.run = AsyncMock()
+
+        seed_candles()
+
         request = {
             "strategy_id": str(strategy.id),
             "symbol": "AAPL",
@@ -310,7 +319,7 @@ class TestListBacktests:
             "market_type": "stocks",
             "starting_balance": 10000,
             "start_date": "2026-01-01T00:00:00Z",
-            "end_date": "2026-01-15T23:59:59Z",
+            "end_date": "2026-01-15T23:59:00Z",
             "timeframe": "1m",
         }
 
@@ -330,6 +339,11 @@ class TestListBacktests:
         self, authenticated_client, db_sess
     ):
         strategy = await create_strategy(authenticated_client)
+
+        from api.app import app
+
+        api_backtests_service = app.state.object_registry.get(APIBacktestsService)
+        api_backtests_service._backtest_runner_service.run = AsyncMock()
 
         request = {
             "strategy_id": str(strategy.id),
@@ -372,6 +386,11 @@ class TestDeleteBacktest:
     async def test_delete_backtest_returns_204(self, authenticated_client, db_sess):
         strategy = await create_strategy(authenticated_client)
 
+        from api.app import app
+
+        api_backtests_service = app.state.object_registry.get(APIBacktestsService)
+        api_backtests_service._backtest_runner_service.run = AsyncMock()
+
         request = {
             "strategy_id": str(strategy.id),
             "symbol": "AAPL",
@@ -399,6 +418,11 @@ class TestDeleteBacktest:
     async def test_delete_backtest_in_progress_returns_400(self, authenticated_client):
         strategy = await create_strategy(authenticated_client)
 
+        from api.app import app
+
+        api_backtests_service = app.state.object_registry.get(APIBacktestsService)
+        api_backtests_service._backtest_runner_service.run = AsyncMock()
+
         request = {
             "strategy_id": str(strategy.id),
             "symbol": "AAPL",
@@ -422,31 +446,32 @@ class TestGetBacktestOrders:
 
     @pytest.fixture
     def mock_run_backtest(self):
-        from api.routes.backtests.route import backtest_service
+        from api.app import app
 
-        def run_backtest(backtest_id: UUID):
-            runner = BacktestRunner(backtest_id)
-            runner.run()
-
-        backtest_service._backtest_runner_service.run = run_backtest
+        object_registry: ObjectRegistry = app.state.object_registry
+        backtest_service = object_registry.get(BacktestService, subclass=True)
+        backtest_service.run = AsyncMock()
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_get_backtest_orders_returns_200(
         self, authenticated_client, mock_run_backtest
     ):
+        strategy = await create_strategy(authenticated_client)
+
         payload = {
-            "strategy_id": str(uuid4()),
+            "strategy_id": str(strategy.id),
             "symbol": "AAPL",
             "broker": "alpaca",
             "market_type": "stocks",
             "starting_balance": 10000,
-            "start_date": "2024-01-01",
-            "end_date": "2024-12-31",
-            "timeframe": "1h",
+            "start_date": "2026-01-01T03:00:00Z",
+            "end_date": "2026-01-12T03:00:00Z",
+            "timeframe": "1m",
         }
 
         res = await authenticated_client.post("/backtests/", json=payload)
-        backtest_id = res.json()["id"]
+        data = res.json()
+        backtest_id = data["id"]
 
         res = await authenticated_client.get(f"/backtests/{backtest_id}/orders")
 

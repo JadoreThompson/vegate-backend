@@ -13,7 +13,6 @@ from api.routes.auth.exception import (
 )
 from api.routes.auth.route import router as auth_router
 from api.routes.backtests.exception import (
-    SymbolNotFoundException,
     InvalidDateRange,
     BacktestNotFoundException,
     BacktestInProgressError,
@@ -31,6 +30,7 @@ from api.routes.deployments.exception import (
 )
 from api.routes.deployments.route import router as deployment_router
 from api.routes.deployments.service import APIDeploymentsService
+from api.routes.markets.exception import SymbolNotFoundException
 from api.routes.markets.service import MarketsService
 from api.routes.public.route import router as public_router
 from api.routes.strategy.exception import StrategyNotFoundException
@@ -46,36 +46,42 @@ from service.jwt import JWTError
 
 
 async def lifespan(app: FastAPI):
-    # Registering services
+    object_registry = ObjectRegistry()
+    app.state.object_registry = object_registry
+
     markets_service = MarketsService()
-    ObjectRegistry.register(markets_service)
+    object_registry.register(markets_service)
 
     strategy_service = APIStrategyService()
-    ObjectRegistry.register(strategy_service)
+    object_registry.register(strategy_service)
 
     backtest_service = ProcessBacktestService()
+    object_registry.register(backtest_service)
 
     api_backtest_service = APIBacktestsService(
         strategy_service=strategy_service,
         backtest_service=backtest_service,
         markets_service=markets_service,
     )
-    ObjectRegistry.register(api_backtest_service)
+    object_registry.register(api_backtest_service)
 
     deployment_service = ProcessDeploymentService()
+    object_registry.register(deployment_service)
 
     api_deployments_service = APIDeploymentsService(
         markets_service=MarketsService(), deployment_service=deployment_service
     )
-    ObjectRegistry.register(api_deployments_service)
+    object_registry.register(api_deployments_service)
 
     event_consumer = StrategyDeploymentEventsConsumer()
-    asyncio.create_task(event_consumer.run())
-    ObjectRegistry.register(event_consumer)
+    task = asyncio.create_task(event_consumer.run())
+    object_registry.register(event_consumer)
 
     yield
 
-    await ObjectRegistry.close()
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+    await object_registry.close()
 
 
 app = FastAPI(lifespan=lifespan)

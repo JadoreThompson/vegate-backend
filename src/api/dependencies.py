@@ -69,6 +69,7 @@ def depends_deployment_service() -> DeploymentService:
 
 
 def depends_class(typ: Type):
-    def _func():
-        return ObjectRegistry.get(typ)
+    def _func(req: Request):
+        object_registry: ObjectRegistry = req.app.state.object_registry
+        return object_registry.get(typ)
     return _func

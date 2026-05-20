@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 from uuid import UUID
 
@@ -36,6 +37,8 @@ class APIBacktestsService:
         self._backtest_runner_service = backtest_service
         self._markets_service = markets_service
 
+        self._logger = logging.getLogger(self.__class__.__name__)
+
     async def create(
         self, request: CreateBacktestRequest, user_id: UUID, db_sess: AsyncSession
     ) -> Backtest:
@@ -58,21 +61,18 @@ class APIBacktestsService:
 
         backtest = Backtest(
             strategy_id=request.strategy_id,
-            # symbol=request.symbol,
             instrument_id=info.id,
-            # broker=request.broker,
             starting_balance=request.starting_balance,
             start_date=request.start_date,
             end_date=request.end_date,
             timeframe=request.timeframe,
-            # market_type=request.market_type,
             status=BacktestStatus.IN_PROGRESS,
         )
         db_sess.add(backtest)
         await db_sess.flush()
         await db_sess.refresh(backtest)
 
-        # await self._backtest_runner_service.run(backtest.id)
+        await self._backtest_runner_service.run(backtest.id)
 
         return backtest
 
@@ -81,11 +81,13 @@ class APIBacktestsService:
     ) -> BacktestResponse:
         backtest = await self.get_user_backtest(id, user_id, db_sess)
 
-        metrics: BacktestMetrics = await db_sess.scalar(
+        instrument = await db_sess.get(Instrument, backtest.instrument_id)
+
+        metrics = await db_sess.scalar(
             select(BacktestMetrics).where(BacktestMetrics.backtest_id == id)
         )
 
-        return self.to_response(backtest, metrics)
+        return self.to_response(backtest, instrument, metrics)
 
     async def get_user_backtest(
         self, id: UUID, user_id: UUID, db_sess: AsyncSession
@@ -110,15 +112,6 @@ class APIBacktestsService:
         status: list[BacktestStatus] | None = None,
         symbols: list[str] | None = None,
     ) -> PaginatedResponse[BacktestResponse]:
-        # res = await db_sess.execute(
-        #     select(Backtest, BacktestMetrics)
-        #     .outerjoin(BacktestMetrics)
-        #     .join(Strategy)
-        #     .where(Strategy.user_id == user_id)
-        #     .offset((page - 1) * limit)
-        #     .limit(limit + 1)
-        #     .order_by(Backtest.created_at.desc())
-        # )
         stmt = (
             select(Backtest, BacktestMetrics, Instrument)
             .join(Instrument, Instrument.id == Backtest.instrument_id)
@@ -133,12 +126,13 @@ class APIBacktestsService:
         if status is not None:
             stmt = stmt.where(Backtest.status.in_(status))
         if symbols is not None:
-            stmt = stmt.join(Instrument, Instrument.id == Backtest.instrument_id).where(Instrument.symbol.in_(symbols))
+            stmt = stmt.where(Instrument.symbol.in_(symbols))
 
         res = await db_sess.execute(stmt)
 
         backtests = [
-            self.to_response(backtest, instrument, metrics) for backtest, instrument, metrics in res.all()
+            self.to_response(backtest, instrument, metrics)
+            for backtest, metrics, instrument in res.all()
         ]
 
         return PaginatedResponse[BacktestResponse](
@@ -172,25 +166,23 @@ class APIBacktestsService:
         )
 
     def to_response(
-        self, backtest: Backtest, instrument: Instrument, metrics: BacktestMetrics | None
+        self,
+        backtest: Backtest,
+        instrument: Instrument,
+        metrics: BacktestMetrics | None,
     ) -> BacktestResponse:
         return BacktestResponse(
             id=backtest.id,
             strategy_id=backtest.strategy_id,
-            # symbol=backtest.symbol,
-            # broker=backtest.broker,
-            # market_type=backtest.market_type,
             symbol=instrument.symbol,
             broker=instrument.broker_type,
             market_type=instrument.market_type,
             starting_balance=backtest.starting_balance,
-            # start_date=backtest.start_date,
             start_date=date(
                 year=backtest.start_date.year,
                 month=backtest.start_date.month,
                 day=backtest.start_date.day,
             ),
-            # end_date=backtest.end_date,
             end_date=date(
                 year=backtest.end_date.year,
                 month=backtest.end_date.month,

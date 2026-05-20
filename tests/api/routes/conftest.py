@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest_asyncio
+from asgi_lifespan import LifespanManager
 from httpx import AsyncClient, ASGITransport
 
 
@@ -8,10 +9,11 @@ from httpx import AsyncClient, ASGITransport
 async def client():
     from api.app import app
 
-    async with AsyncClient(
+    async with LifespanManager(app=app):
+        async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
-    ) as ac:
-        yield ac
+        ) as ac:
+            yield ac
 
 
 @pytest_asyncio.fixture(loop_scope="session")

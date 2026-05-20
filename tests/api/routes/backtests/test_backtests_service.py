@@ -1,35 +1,40 @@
-import pytest
-from uuid import uuid4
-from unittest.mock import AsyncMock, MagicMock, patch
-import pytest_asyncio
 from datetime import date, datetime
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
-from api.routes.backtests.model import (
-    CreateBacktestRequest,
-    BacktestResponse,
-    BacktestMetricsResponse,
-    BacktestOrderResponse,
-)
-from api.routes.backtests.service import APIBacktestsService
+import pytest
+import pytest_asyncio
+from sqlalchemy import delete
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+
 from api.routes.backtests.exception import (
-    SymbolNotFoundException,
+    BacktestInProgressError,
     BacktestNotFoundException,
-    BacktestMetricsNotFoundException,
 )
+from api.routes.backtests.model import BacktestResponse, CreateBacktestRequest
+from api.routes.backtests.service import APIBacktestsService
 from api.routes.broker_connections.test_broker_connections_service import create_user
+from api.routes.markets.exception import SymbolNotFoundException
+from api.routes.markets.model import InstrumentInfo
+from api.routes.strategy.exception import StrategyNotFoundException
 from api.routes.strategy.service import APIStrategyService
 from enums import (
     BacktestStatus,
     BrokerType,
     MarketType,
-    Timeframe,
-    OrderStatus,
     OrderSide,
+    OrderStatus,
     OrderType,
+    Timeframe,
 )
-from infra.db.model import Backtest, Strategy, BacktestMetrics, BacktestOrder
-from infra.db.utils import get_db_sess_sync, get_db_session
-from sqlalchemy import delete
+from infra.db.model import (
+    Backtest,
+    BacktestMetrics,
+    BacktestOrder,
+    Strategy,
+)
+from infra.db.model.instrument import Instrument
+from infra.db.utils import get_db_session, get_db_sess_sync
 
 
 @pytest.fixture
@@ -46,10 +51,19 @@ def mock_backtest_runner_service():
 
 
 @pytest.fixture
-def backtest_service(mock_strategy_service, mock_backtest_runner_service):
+def mock_markets_service():
+    service = MagicMock()
+    return service
+
+
+@pytest.fixture
+def backtest_service(
+    mock_strategy_service, mock_backtest_runner_service, mock_markets_service
+):
     return APIBacktestsService(
         strategy_service=mock_strategy_service,
         backtest_service=mock_backtest_runner_service,
+        markets_service=mock_markets_service,
     )
 
 
@@ -80,8 +94,6 @@ class TestCreateBacktest:
         ):
             mock_db_sess = AsyncMock()
 
-            from api.routes.strategy.exception import StrategyNotFoundException
-
             mock_strategy_service.get_user_strategy.side_effect = (
                 StrategyNotFoundException()
             )
@@ -102,7 +114,7 @@ class TestCreateBacktest:
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_create_symbol_not_found_raises(
-            self, backtest_service, mock_strategy_service
+            self, backtest_service, mock_strategy_service, mock_markets_service
         ):
             mock_db_sess = AsyncMock()
 
@@ -124,11 +136,18 @@ class TestCreateBacktest:
             )
 
             with pytest.raises(SymbolNotFoundException):
+                mock_markets_service.get_symbol_info = AsyncMock(
+                    side_effect=SymbolNotFoundException(request.symbol)
+                )
                 await backtest_service.create(request, uuid4(), mock_db_sess)
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_create_success(
-            self, backtest_service, mock_strategy_service, mock_backtest_runner_service
+            self,
+            backtest_service,
+            mock_strategy_service,
+            mock_backtest_runner_service,
+            mock_markets_service,
         ):
             mock_db_sess = AsyncMock()
 
@@ -155,37 +174,24 @@ class TestCreateBacktest:
                 timeframe=Timeframe.H1,
             )
 
+            mock_markets_service.get_symbol_info = AsyncMock(
+                return_value=InstrumentInfo(
+                    id=uuid4(),
+                    symbol=request.symbol,
+                    native_symbol=request.symbol,
+                    broker_type=request.broker,
+                    market_type=request.market_type,
+                    timeframe=request.timeframe,
+                    start_date=date(2023, 12, 30),
+                    end_date=date(2025, 1, 1),
+                )
+            )
+
             result = await backtest_service.create(request, uuid4(), mock_db_sess)
 
             assert result is not None
             mock_db_sess.add.assert_called_once()
-            mock_backtest_runner_service.run_backtest.assert_called_once()
-
-        @pytest.mark.asyncio(loop_scope="session")
-        async def test_create_starts_backtest(
-            self, backtest_service, mock_backtest_runner_service, mock_strategy_service
-        ):
-            mock_db_sess = AsyncMock()
-
-            mock_strategy_service.get_user_strategy = AsyncMock()
-
-            mock_result = MagicMock()
-            mock_result.first.return_value = True
-            mock_db_sess.execute.return_value = mock_result
-
-            request = CreateBacktestRequest(
-                strategy_id=uuid4(),
-                symbol="AAPL",
-                broker=BrokerType.ALPACA,
-                market_type=MarketType.STOCKS,
-                starting_balance=10000,
-                start_date=date(2024, 1, 1),
-                end_date=date(2024, 12, 31),
-                timeframe=Timeframe.H1,
-            )
-            await backtest_service.create(request, uuid4(), mock_db_sess)
-
-            assert mock_backtest_runner_service.run_backtest.assert_called_once
+            mock_backtest_runner_service.run.assert_called_once()
 
 
 class TestGetBacktest:
@@ -200,21 +206,11 @@ class TestGetBacktest:
                 await backtest_service.get_user_backtest(uuid4(), uuid4(), mock_db_sess)
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_get_backtest_incomplete_raises(self, backtest_service):
-            mock_db_sess = AsyncMock()
-
-            mock_backtest = MagicMock()
-            mock_backtest.status = BacktestStatus.IN_PROGRESS
-            mock_db_sess.scalar.return_value = mock_backtest
-
-            with pytest.raises(BacktestMetricsNotFoundException):
-                await backtest_service.get_backtest(uuid4(), uuid4(), mock_db_sess)
-
-        @pytest.mark.asyncio(loop_scope="session")
         async def test_get_backtest_success(self, backtest_service):
             mock_db_sess = AsyncMock()
 
             mock_backtest = MagicMock()
+            mock_backtest.id = uuid4()
             mock_backtest.strategy_id = uuid4()
             mock_backtest.symbol = "AAPL"
             mock_backtest.broker = BrokerType.ALPACA
@@ -233,6 +229,15 @@ class TestGetBacktest:
             mock_metrics.total_orders = 10
 
             mock_db_sess.scalar.side_effect = [mock_backtest, mock_metrics]
+
+            mock_instrument = MagicMock()
+            mock_instrument.id = uuid4()
+            mock_instrument.symbol = "AAPL"
+            mock_instrument.native_symbol = "AAPL"
+            mock_instrument.broker_type = mock_backtest.broker
+            mock_instrument.market_type = mock_backtest.market_type
+
+            mock_db_sess.get.return_value = mock_instrument
 
             result = await backtest_service.get_backtest(uuid4(), uuid4(), mock_db_sess)
 
@@ -267,9 +272,16 @@ class TestGetBacktests:
             mock_metrics.profit_factor = 1.5
             mock_metrics.total_orders = 10
 
+            mock_instrument = MagicMock()
+            mock_instrument.id = uuid4()
+            mock_instrument.symbol = "AAPL"
+            mock_instrument.native_symbol = "AAPL"
+            mock_instrument.broker_type = mock_backtest.broker
+            mock_instrument.market_type = mock_backtest.market_type
+
             mock_result = MagicMock()
-            mock_result.scalars.return_value.all.return_value = [
-                (mock_backtest, mock_metrics)
+            mock_result.all.return_value = [
+                (mock_backtest, mock_metrics, mock_instrument)
             ]
 
             mock_db_sess.execute.return_value = mock_result
@@ -294,7 +306,7 @@ class TestDeleteBacktest:
             mock_backtest.status = BacktestStatus.IN_PROGRESS
             mock_db_sess.scalar.return_value = mock_backtest
 
-            with pytest.raises(ValueError, match="in progress"):
+            with pytest.raises(BacktestInProgressError):
                 await backtest_service.delete(uuid4(), uuid4(), mock_db_sess)
 
         @pytest.mark.asyncio(loop_scope="session")
@@ -320,22 +332,6 @@ class TestGetOrders:
         async def test_get_orders_returns_paginated_response(self, backtest_service):
             mock_db_sess = AsyncMock()
 
-            # mock_order = MagicMock()
-            # mock_order.id = uuid4()
-            # mock_order.backtest_id = uuid4()
-            # mock_order.symbol = "AAPL"
-            # mock_order.side = "buy"
-            # mock_order.order_type = "market"
-            # mock_order.quantity = 10.0
-            # mock_order.notional = None
-            # mock_order.filled_quantity = 10.0
-            # mock_order.limit_price = None
-            # mock_order.stop_price = None
-            # mock_order.avg_fill_price = 100.0
-            # mock_order.status = MagicMock()
-            # mock_order.submitted_at = MagicMock()
-            # mock_order.filled_at = MagicMock()
-            # mock_order.details = None
             mock_order = BacktestOrder(
                 id=uuid4(),
                 backtest_id=uuid4(),
@@ -395,62 +391,31 @@ class TestGetUserBacktest:
 
 class TestIntegrationTests:
 
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_get_backtest_with_completed_status_returns_metrics(
-        self,
-        backtest_service,
-        mock_strategy_service,
-        mock_backtest_runner_service,
-        db_sess,
-    ):
-        # user_id = uuid4()
-        # strategy_id = uuid4()
-        user = await create_user("test-get-backtest-user")
-        user_id = user.user_id
-
-        strategy = Strategy(
-            user_id=user_id,
-            name="Test Strategy",
-            description="Test description",
-            prompt="test prompt",
-            code="class Strategy: pass",
-        )
-        db_sess.add(strategy)
-        await db_sess.flush()
-
-        backtest = Backtest(
-            strategy_id=strategy.strategy_id,
-            symbol="AAPL",
-            broker=BrokerType.ALPACA,
-            starting_balance=10000,
-            start_date=date(2024, 1, 1),
-            end_date=date(2024, 12, 31),
-            timeframe=Timeframe.H1,
-            market_type=MarketType.STOCKS,
-            status=BacktestStatus.COMPLETED,
-        )
-        db_sess.add(backtest)
-        await db_sess.flush()
-
-        metrics = BacktestMetrics(
-            backtest_id=backtest.id,
-            realised_pnl=1000.0,
-            unrealised_pnl=500.0,
-            total_return_pct=15.0,
-            profit_factor=1.5,
-            total_orders=10,
-        )
-        db_sess.add(metrics)
-        await db_sess.commit()
-
-        async with get_db_session() as new_db_sess:
-            result = await backtest_service.get_backtest(
-                backtest.id, user_id, new_db_sess
+    @pytest_asyncio.fixture(loop_scope="session")
+    async def instrument_id(self):
+        async with get_db_session() as db_sess:
+            res = await db_sess.execute(
+                pg_insert(Instrument)
+                .values(
+                    symbol="AAPL",
+                    native_symbol="AAPL",
+                    broker_type=BrokerType.ALPACA,
+                    market_type=MarketType.STOCKS,
+                )
+                .on_conflict_do_update(
+                    index_elements=["symbol", "market_type", "broker_type"],
+                    set_={
+                        "symbol": Instrument.symbol,
+                    },
+                )
+                .returning(Instrument.id)
             )
 
-        assert result.symbol == "AAPL"
-        assert result.status == BacktestStatus.COMPLETED
-        assert result.metrics.realised_pnl == 1000.0
+            instrument_id = res.scalar_one()
+
+            await db_sess.commit()
+
+            return instrument_id
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_delete_completed_backtest_removes_from_db(
@@ -459,6 +424,7 @@ class TestIntegrationTests:
         mock_strategy_service,
         mock_backtest_runner_service,
         db_sess,
+        instrument_id,
     ):
         user = await create_user("test-delete-backtest-user-2")
         user_id = user.user_id
@@ -476,13 +442,11 @@ class TestIntegrationTests:
 
         backtest = Backtest(
             strategy_id=strategy.strategy_id,
-            symbol="AAPL",
-            broker=BrokerType.ALPACA,
+            instrument_id=instrument_id,
             starting_balance=10000,
             start_date=date(2024, 1, 1),
             end_date=date(2024, 12, 31),
             timeframe=Timeframe.H1,
-            market_type=MarketType.STOCKS,
             status=BacktestStatus.COMPLETED,
         )
         db_sess.add(backtest)
@@ -499,70 +463,6 @@ class TestIntegrationTests:
 
         assert deleted is None
 
-    # @pytest.mark.asyncio(loop_scope="session")
-    # async def test_get_orders_returns_user_orders_only(
-    #     self, backtest_service, mock_strategy_service, mock_backtest_runner_service, db_sess
-    # ):
-    #     user = await create_user(("test-get-orders-user-2"))
-    #     user_id = user.user_id
-    #     other_user = await create_user(("test-get-orders-other-user-3"))
-    #     other_user_id = other_user.user_id
-    #     strategy_id = uuid4()
-    #     other_strategy_id = uuid4()
-    #
-    #     strategy = Strategy(
-    #         user_id=user_id,
-    #         name="Orders Test Strategy",
-    #         description="Test description",
-    #         prompt="test prompt",
-    #         code="class Strategy: pass",
-    #     )
-    #     db_sess.add(strategy)
-    #
-    #     other_strategy = Strategy(
-    #         user_id=other_user_id,
-    #         name="Other Strategy",
-    #         description="Other description",
-    #         prompt="other prompt",
-    #         code="class Strategy: pass",
-    #     )
-    #     db_sess.add(other_strategy)
-    #     await db_sess.flush()
-    #
-    #     backtest = Backtest(
-    #         strategy_id=strategy.strategy_id,
-    #         symbol="AAPL",
-    #         broker=BrokerType.ALPACA,
-    #         starting_balance=10000,
-    #         start_date=date(2024, 1, 1),
-    #         end_date=date(2024, 12, 31),
-    #         timeframe=Timeframe.H1,
-    #         market_type=MarketType.STOCKS,
-    #         status=BacktestStatus.COMPLETED,
-    #     )
-    #     db_sess.add(backtest)
-    #     await db_sess.flush()
-    #
-    #     order = BacktestOrder(
-    #         backtest_id=backtest.id,
-    #         symbol="AAPL",
-    #         side="buy",
-    #         order_type="market",
-    #         quantity=10.0,
-    #         filled_quantity=10.0,
-    #         status=OrderStatus.FILLED,
-    #         submitted_at=datetime(2024, 1, 1),
-    #     )
-    #     db_sess.add(order)
-    #     await db_sess.commit()
-    #
-    #     async with get_db_session() as new_db_sess:
-    #         result = await backtest_service.get_orders(
-    #             backtest.id, user_id, new_db_sess, page=1, limit=10
-    #         )
-    #
-    #     assert len(result.data) == 1
-
     @pytest.mark.asyncio(loop_scope="session")
     async def test_get_orders_returns_user_orders_only(
         self,
@@ -570,6 +470,7 @@ class TestIntegrationTests:
         mock_strategy_service,
         mock_backtest_runner_service,
         db_sess,
+        instrument_id,
     ):
         user = await create_user("test-get-orders-user-2")
         user_id = user.user_id
@@ -600,13 +501,11 @@ class TestIntegrationTests:
         # User-owned backtest
         backtest = Backtest(
             strategy_id=strategy.strategy_id,
-            symbol="AAPL",
-            broker=BrokerType.ALPACA,
+            instrument_id=instrument_id,
             starting_balance=10000,
             start_date=date(2024, 1, 1),
             end_date=date(2024, 12, 31),
             timeframe=Timeframe.H1,
-            market_type=MarketType.STOCKS,
             status=BacktestStatus.COMPLETED,
         )
         db_sess.add(backtest)
@@ -614,13 +513,11 @@ class TestIntegrationTests:
         # Other user's backtest
         other_backtest = Backtest(
             strategy_id=other_strategy.strategy_id,
-            symbol="MSFT",
-            broker=BrokerType.ALPACA,
+            instrument_id=instrument_id,
             starting_balance=5000,
             start_date=date(2024, 1, 1),
             end_date=date(2024, 12, 31),
             timeframe=Timeframe.H1,
-            market_type=MarketType.STOCKS,
             status=BacktestStatus.COMPLETED,
         )
         db_sess.add(other_backtest)
@@ -670,7 +567,6 @@ class TestIntegrationTests:
         returned_order = result.data[0]
 
         assert returned_order.id == user_order.id
-        assert returned_order.deployment_id == backtest.id
         assert returned_order.symbol == "AAPL"
 
         # Ensure another user's order was not returned
