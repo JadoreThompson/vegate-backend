@@ -27,13 +27,14 @@ class APIStrategyService:
     async def create(
         self, request: CreateStrategyRequest, user_id: UUID, db_sess: AsyncSession
     ) -> Strategy:
-        # strategy_details = await self._generate_strategy_code(request.description)
-        strategy_details = StrategyGenOutput(
-            name="Test Strategy",
-            description="A test strategy",
-            code="# print('Hello world')",
-        )
-        # await self._validate_strategy_code(strategy_details.code)
+        strategy_details = await self._generate_strategy_code(request.description)
+        await self._validate_strategy_code(strategy_details.code)
+        
+        # strategy_details = StrategyGenOutput(
+        #     name="Test Strategy",
+        #     description="A test strategy",
+        #     code="# print('Hello world')",
+        # )
 
         new_strategy = Strategy(
             user_id=user_id,
@@ -67,7 +68,7 @@ class APIStrategyService:
 
     async def get_strategy(
         self, strategy_id: UUID, user_id: UUID, db_sess: AsyncSession
-    ) -> Strategy | None:
+    ) -> Strategy:
         return await self.get_user_strategy(strategy_id, user_id, db_sess)
 
     async def get_strategies(
