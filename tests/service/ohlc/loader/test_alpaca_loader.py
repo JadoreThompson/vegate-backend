@@ -1,127 +1,109 @@
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch, call
-
 import pytest
+import pytest_asyncio
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
+
+import aiohttp
+from sqlalchemy import delete, select, func
 
 from enums import BrokerType, MarketType, Timeframe
+from infra.db.model import OHLC
+from infra.db.model.instrument import Instrument
+from infra.db.utils import get_db_session, get_db_sess_sync
 from service.ohlc.loader.alpaca import AlpacaOHLCLoader
 
 
 @pytest.fixture
-def mock_session():
-    session = MagicMock()
-    session.get = AsyncMock()
-    return session
+def alpaca_loader():
+    return AlpacaOHLCLoader(api_key="test-api-key", secret_key="test-secret-key")
 
 
-@pytest.fixture
-def loader(mock_session):
-    with patch("aiohttp.ClientSession", return_value=mock_session):
-        loader = AlpacaOHLCLoader("test_api_key", "test_secret_key")
-        loader._http_sess = mock_session
-        yield loader
+@pytest.fixture(scope="module", autouse=True)
+def clear_tables():
+    yield
+    with get_db_sess_sync() as db_sess:
+        db_sess.execute(delete(OHLC))
+        db_sess.execute(
+            delete(Instrument).where(Instrument.broker_type == BrokerType.ALPACA)
+        )
+        db_sess.commit()
+
+
+@pytest_asyncio.fixture(loop_scope="session")
+async def db_sess():
+    async with get_db_session() as db_sess:
+        yield db_sess
 
 
 class TestFormatSymbol:
+    """Unit tests for symbol formatting."""
 
-    @pytest.mark.parametrize(
-        "input_symbol,expected",
-        [
-            ("BTC/USD", "BTCUSD"),
-            ("ETH/USD", "ETHUSD"),
-            ("AAPL", "AAPL"),
-            ("BTC/USD/BTC/USD", "BTCUSDBTCUSD"),
-        ],
-    )
-    def test_format_symbol_various_formats(self, input_symbol, expected):
-        result = AlpacaOHLCLoader._format_symbol(input_symbol)
-        assert result == expected
+    def test_format_symbol_removes_slashes(self, alpaca_loader):
+        assert alpaca_loader._format_symbol("BTC/USD") == "BTCUSD"
 
-    @pytest.mark.asyncio
-    async def test_symbol_uppercase_conversion(self, loader, mock_session):
-        mock_response = MagicMock()
-        mock_response.ok = True
-        mock_response.status = 200
-        mock_response.json = AsyncMock(
-            return_value={
-                "bars": {
-                    "AAPL": [
-                        {
-                            "t": "2024-01-01T09:30:00Z",
-                            "o": 100.0,
-                            "h": 101.0,
-                            "l": 99.0,
-                            "c": 100.5,
-                        }
-                    ]
-                },
-                "next_page_token": None,
-            }
+    def test_format_symbol_no_change_without_slashes(self, alpaca_loader):
+        assert alpaca_loader._format_symbol("AAPL") == "AAPL"
+
+    def test_format_symbol_empty_string(self, alpaca_loader):
+        assert alpaca_loader._format_symbol("") == ""
+
+
+class TestParseCandle:
+    """Unit tests for parsing individual candles."""
+
+    def test_parse_candle_success(self, alpaca_loader):
+        instrument_id = uuid4()
+        candle = {
+            "t": "2024-01-01T10:00:00Z",
+            "o": 100.0,
+            "h": 105.0,
+            "l": 99.0,
+            "c": 102.0,
+            "v": 1000,
+        }
+
+        result = alpaca_loader._parse_candle(candle, Timeframe.H1, instrument_id)
+
+        assert result["open"] == 100.0
+        assert result["high"] == 105.0
+        assert result["low"] == 99.0
+        assert result["close"] == 102.0
+        assert result["volume"] == 1000
+        assert result["timeframe"] == Timeframe.H1
+        assert result["instrument_id"] == str(instrument_id)
+        assert isinstance(result["timestamp"], int)
+
+    def test_parse_candle_with_different_timeframe(self, alpaca_loader):
+        instrument_id = uuid4()
+        candle = {
+            "t": "2024-06-15T14:30:00+00:00",
+            "o": 50.0,
+            "h": 55.0,
+            "l": 48.0,
+            "c": 52.0,
+            "v": 5000,
+        }
+
+        result = alpaca_loader._parse_candle(candle, Timeframe.m5, instrument_id)
+
+        assert result["timeframe"] == Timeframe.m5
+        assert result["timestamp"] == int(
+            datetime(2024, 6, 15, 14, 30, tzinfo=UTC).timestamp()
         )
-        mock_session.get.return_value = mock_response
-
-        mock_db_session = AsyncMock()
-        mock_db_sess = AsyncMock()
-        mock_db_sess.__aenter__ = AsyncMock(return_value=mock_db_session)
-        mock_db_sess.__aexit__ = AsyncMock(return_value=None)
-
-        mock_result = MagicMock()
-        mock_result.first.return_value = (0,)
-        mock_db_session.execute.return_value = mock_result
-
-        with patch(
-            "service.ohlc.loader.alpaca.get_db_session", return_value=mock_db_sess
-        ):
-            await loader.load_candles(
-                "aapl",  # lowercase input — must be normalised to "AAPL"
-                MarketType.STOCKS,
-                Timeframe.m1,
-                datetime(2024, 1, 1),
-                datetime(2024, 1, 2),
-            )
-
-        get_calls = mock_session.get.call_args_list
-        assert get_calls, "Expected at least one HTTP GET call"
-        for c in get_calls:
-            params = c[0][1] if len(c[0]) > 1 else c[1].get("params", {})
-            if "symbols" in params:
-                assert params["symbols"] == "AAPL", (
-                    f"Symbol was not uppercased: got {params['symbols']!r}"
-                )
-
-
-class TestTimeframeMapping:
-
-    @pytest.mark.parametrize(
-        "timeframe",
-        [
-            Timeframe.m1,
-            Timeframe.m5,
-            Timeframe.m15,
-            Timeframe.m30,
-            Timeframe.H1,
-            Timeframe.H4,
-            Timeframe.D1,
-        ],
-    )
-    def test_valid_timeframes(self, timeframe):
-        from alpaca.data.timeframe import TimeFrame as AlpacaTimeFrame
-
-        result = AlpacaOHLCLoader._timeframe_2_alpaca_timeframe(timeframe)
-        assert isinstance(result, AlpacaTimeFrame)
-
-    def test_unsupported_timeframe(self):
-        class FakeTimeframe:
-            pass
-
-        with pytest.raises(ValueError, match="Unsupported timeframe"):
-            AlpacaOHLCLoader._timeframe_2_alpaca_timeframe(FakeTimeframe())
 
 
 class TestFetchBars:
+    """Unit tests for fetching bars from Alpaca API."""
 
-    @pytest.mark.asyncio
-    async def test_fetch_bars_stocks_market(self, loader, mock_session):
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_fetch_bars_missing_params_raises(self, alpaca_loader):
+        with pytest.raises(ValueError, match="Either params or all of"):
+            async for _ in alpaca_loader._fetch_bars(MarketType.STOCKS):
+                pass
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_fetch_bars_with_params_only(self, alpaca_loader):
         mock_response = MagicMock()
         mock_response.ok = True
         mock_response.status = 200
@@ -130,106 +112,76 @@ class TestFetchBars:
                 "bars": {
                     "AAPL": [
                         {
-                            "t": "2024-01-01T09:30:00Z",
-                            "o": 100.0,
-                            "h": 101.0,
-                            "l": 99.0,
-                            "c": 100.5,
+                            "t": "2024-01-01T10:00:00Z",
+                            "o": 100,
+                            "h": 105,
+                            "l": 99,
+                            "c": 102,
+                            "v": 1000,
                         }
                     ]
                 },
                 "next_page_token": None,
             }
         )
-        mock_session.get.return_value = mock_response
+
+        mock_session = AsyncMock()
+        mock_session.get = AsyncMock(return_value=mock_response)
+        alpaca_loader._http_sess = mock_session
+
+        params = {
+            "symbols": "AAPL",
+            "start": "2024-01-01",
+            "end": "2024-01-02",
+            "timeframe": "1Hour",
+        }
 
         bars_list = []
-        params_list = []
-        async for bars, params in loader._fetch_bars(
-            "AAPL",
-            MarketType.STOCKS,
-            Timeframe.m1,
-            datetime(2024, 1, 1),
-            datetime(2024, 1, 2),
-        ):
-            bars_list.append(bars)
-            params_list.append(params)
-
-        assert len(bars_list) == 1
-        assert bars_list[0][0]["o"] == 100.0
-        assert params_list[0]["symbols"] == "AAPL"
-
-    @pytest.mark.asyncio
-    async def test_fetch_bars_crypto_market(self, loader, mock_session):
-        mock_response = MagicMock()
-        mock_response.ok = True
-        mock_response.status = 200
-        mock_response.json = AsyncMock(
-            return_value={
-                "bars": {
-                    "BTCUSD": [
-                        {
-                            "t": "2024-01-01T00:00:00Z",
-                            "o": 50000.0,
-                            "h": 50500.0,
-                            "l": 49500.0,
-                            "c": 50200.0,
-                        }
-                    ]
-                },
-                "next_page_token": None,
-            }
-        )
-        mock_session.get.return_value = mock_response
-
-        bars_list = []
-        async for bars, _ in loader._fetch_bars(
-            "BTCUSD",
-            MarketType.CRYPTO,
-            Timeframe.H1,
-            datetime(2024, 1, 1),
-            datetime(2024, 1, 2),
+        async for bars, returned_params in alpaca_loader._fetch_bars(
+            MarketType.STOCKS, params=params
         ):
             bars_list.append(bars)
 
         assert len(bars_list) == 1
-        assert bars_list[0][0]["o"] == 50000.0
+        mock_session.get.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_fetch_bars_with_page_token(self, loader, mock_session):
-        first_response = MagicMock()
-        first_response.ok = True
-        first_response.status = 200
-        first_response.json = AsyncMock(
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_fetch_bars_pagination(self, alpaca_loader):
+        mock_response1 = MagicMock()
+        mock_response1.ok = True
+        mock_response1.status = 200
+        mock_response1.json = AsyncMock(
             return_value={
                 "bars": {
                     "AAPL": [
                         {
-                            "t": "2024-01-01T09:30:00Z",
-                            "o": 100.0,
-                            "h": 101.0,
-                            "l": 99.0,
-                            "c": 100.5,
+                            "t": "2024-01-01T10:00:00Z",
+                            "o": 100,
+                            "h": 105,
+                            "l": 99,
+                            "c": 102,
+                            "v": 1000,
                         }
                     ]
                 },
-                "next_page_token": "page_token_123",
+                "next_page_token": "token123",
             }
         )
 
-        second_response = MagicMock()
-        second_response.ok = True
-        second_response.status = 200
-        second_response.json = AsyncMock(
+        mock_response2 = MagicMock()
+        mock_response2.ok = True
+        mock_response2.status = 200
+        mock_response2.json = AsyncMock(
             return_value={
                 "bars": {
                     "AAPL": [
                         {
-                            "t": "2024-01-01T09:35:00Z",
-                            "o": 101.0,
-                            "h": 102.0,
-                            "l": 100.0,
-                            "c": 101.5,
+                            "t": "2024-01-01T11:00:00Z",
+                            "o": 102,
+                            "h": 108,
+                            "l": 101,
+                            "c": 107,
+                            "v": 2000,
                         }
                     ]
                 },
@@ -237,455 +189,437 @@ class TestFetchBars:
             }
         )
 
-        mock_session.get.side_effect = [first_response, second_response]
+        mock_session = AsyncMock()
+        mock_session.get = AsyncMock(side_effect=[mock_response1, mock_response2])
+        alpaca_loader._http_sess = mock_session
+
+        params = {
+            "symbols": "AAPL",
+            "start": "2024-01-01",
+            "end": "2024-01-02",
+            "timeframe": "1Hour",
+        }
 
         bars_list = []
-        async for bars, _ in loader._fetch_bars(
-            "AAPL",
-            MarketType.STOCKS,
-            Timeframe.m1,
-            datetime(2024, 1, 1),
-            datetime(2024, 1, 2),
+        async for bars, returned_params in alpaca_loader._fetch_bars(
+            MarketType.STOCKS, params=params
         ):
             bars_list.append(bars)
 
         assert len(bars_list) == 2
         assert mock_session.get.call_count == 2
 
-    @pytest.mark.asyncio
-    async def test_fetch_bars_403_subscription_error(self, loader, mock_session):
-        error_response = MagicMock()
-        error_response.ok = False
-        error_response.status = 403
-        error_response.json = AsyncMock(
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_fetch_bars_http_error_raises(self, alpaca_loader):
+        mock_response = MagicMock()
+        mock_response.ok = False
+        mock_response.status = 500
+        mock_response.json = AsyncMock(
+            return_value={"message": "Internal Server Error"}
+        )
+
+        mock_session = AsyncMock()
+        mock_session.get = AsyncMock(return_value=mock_response)
+        alpaca_loader._http_sess = mock_session
+
+        params = {
+            "symbols": "AAPL",
+            "start": "2024-01-01",
+            "end": "2024-01-02",
+            "timeframe": "1Hour",
+        }
+
+        with pytest.raises(RuntimeError, match="Error in client response status: 500"):
+            async for _ in alpaca_loader._fetch_bars(MarketType.STOCKS, params=params):
+                pass
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_fetch_bars_403_sip_error_breaks(self, alpaca_loader):
+        mock_response = MagicMock()
+        mock_response.ok = False
+        mock_response.status = 403
+        mock_response.json = AsyncMock(
             return_value={
                 "message": "subscription does not permit querying recent SIP data"
             }
         )
 
-        success_response = MagicMock()
-        success_response.ok = True
-        success_response.status = 200
-        success_response.json = AsyncMock(
-            return_value={
-                "bars": {
-                    "AAPL": [
-                        {
-                            "t": "2024-01-01T09:30:00Z",
-                            "o": 100.0,
-                            "h": 101.0,
-                            "l": 99.0,
-                            "c": 100.5,
-                        }
-                    ]
-                },
-                "next_page_token": None,
-            }
-        )
+        mock_session = AsyncMock()
+        mock_session.get = AsyncMock(return_value=mock_response)
+        alpaca_loader._http_sess = mock_session
 
-        mock_session.get.side_effect = [error_response, success_response]
+        params = {
+            "symbols": "AAPL",
+            "start": "2024-01-01",
+            "end": "2024-01-02",
+            "timeframe": "1Hour",
+        }
 
         bars_list = []
-        async for bars, params in loader._fetch_bars(
-            "AAPL",
-            MarketType.STOCKS,
-            Timeframe.m1,
-            datetime(2024, 1, 1),
-            datetime(2024, 1, 2),
+        async for bars, returned_params in alpaca_loader._fetch_bars(
+            MarketType.STOCKS, params=params
         ):
             bars_list.append(bars)
 
-        assert len(bars_list) == 1
-        assert mock_session.get.call_count == 2
+        # Should break out of loop on 403 SIP error
+        assert len(bars_list) == 0
 
-    @pytest.mark.asyncio
-    async def test_fetch_bars_unsupported_market_type(self, loader):
-        class UnknownMarketType:
-            pass
 
-        with pytest.raises(ValueError, match="Unsupported market type"):
-            async for _ in loader._fetch_bars(
-                "AAPL",
-                UnknownMarketType(),
-                Timeframe.m1,
-                datetime(2024, 1, 1),
-                datetime(2024, 1, 2),
-            ):
-                pass
+class TestPersistRecords:
+    """Unit tests for persisting records to database."""
 
-    @pytest.mark.asyncio
-    async def test_fetch_bars_http_error(self, loader, mock_session):
-        mock_response = MagicMock()
-        mock_response.ok = False
-        mock_response.status = 500
-        mock_response.json = AsyncMock(return_value={"error": "Internal Server Error"})
-        mock_session.get.return_value = mock_response
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_persist_records_empty_list_returns_zero(self, alpaca_loader):
+        result = await alpaca_loader._persist_records(uuid4(), "AAPL", Timeframe.H1, [])
+        assert result == 0
 
-        with pytest.raises(RuntimeError, match="Error in client response status"):
-            async for _ in loader._fetch_bars(
-                "AAPL",
-                MarketType.STOCKS,
-                Timeframe.m1,
-                datetime(2024, 1, 1),
-                datetime(2024, 1, 2),
-            ):
-                pass
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_persist_records_new_records(self, alpaca_loader, db_sess):
+        # First create an instrument
+        instrument = Instrument(
+            symbol="TEST",
+            native_symbol="TEST",
+            market_type=MarketType.STOCKS,
+            broker_type=BrokerType.ALPACA,
+        )
+        db_sess.add(instrument)
+        await db_sess.flush()
+        await db_sess.refresh(instrument)
+        await db_sess.commit()
+
+        records = [
+            {
+                "open": 100.0,
+                "high": 105.0,
+                "low": 99.0,
+                "close": 102.0,
+                "timestamp": int(datetime(2024, 1, 1, 10, 0).timestamp()),
+                "timeframe": Timeframe.H1,
+                "volume": 1000,
+                "instrument_id": str(instrument.id),
+            }
+        ]
+
+        count = await alpaca_loader._persist_records(
+            instrument.id, "TEST", Timeframe.H1, records
+        )
+
+        assert count == 1
+
+        # Verify record exists
+        async with get_db_session() as new_sess:
+            res = await new_sess.execute(
+                select(OHLC).where(OHLC.instrument_id == instrument.id)
+            )
+            ohlc_records = res.scalars().all()
+            assert len(ohlc_records) == 1
+            assert ohlc_records[0].open == 100.0
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_persist_records_skips_existing(self, alpaca_loader, db_sess):
+        # Create instrument
+        instrument = Instrument(
+            symbol="TEST2",
+            native_symbol="TEST2",
+            market_type=MarketType.STOCKS,
+            broker_type=BrokerType.ALPACA,
+        )
+        db_sess.add(instrument)
+        await db_sess.flush()
+        await db_sess.refresh(instrument)
+        await db_sess.commit()
+
+        records = [
+            {
+                "open": 100.0,
+                "high": 105.0,
+                "low": 99.0,
+                "close": 102.0,
+                "timestamp": int(datetime(2024, 1, 1, 10, 0).timestamp()),
+                "timeframe": Timeframe.H1,
+                "volume": 1000,
+                "instrument_id": str(instrument.id),
+            }
+        ]
+
+        # First persist
+        count1 = await alpaca_loader._persist_records(
+            instrument.id, "TEST2", Timeframe.H1, records
+        )
+        assert count1 == 1
+
+        # Second persist should skip
+        count2 = await alpaca_loader._persist_records(
+            instrument.id, "TEST2", Timeframe.H1, records
+        )
+        assert count2 == 0
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_persist_records_overwrites_partial(self, alpaca_loader, db_sess):
+        # Create instrument
+        instrument = Instrument(
+            symbol="TEST3",
+            native_symbol="TEST3",
+            market_type=MarketType.STOCKS,
+            broker_type=BrokerType.ALPACA,
+        )
+        db_sess.add(instrument)
+        await db_sess.flush()
+        await db_sess.refresh(instrument)
+        await db_sess.commit()
+
+        records1 = [
+            {
+                "open": 100.0,
+                "high": 105.0,
+                "low": 99.0,
+                "close": 102.0,
+                "timestamp": int(datetime(2024, 1, 1, 10, 0).timestamp()),
+                "timeframe": Timeframe.H1,
+                "volume": 1000,
+                "instrument_id": str(instrument.id),
+            }
+        ]
+
+        # First persist
+        count1 = await alpaca_loader._persist_records(
+            instrument.id, "TEST3", Timeframe.H1, records1
+        )
+        assert count1 == 1
+
+        # Different records in same time range
+        records2 = [
+            {
+                "open": 200.0,
+                "high": 205.0,
+                "low": 199.0,
+                "close": 202.0,
+                "timestamp": int(datetime(2024, 1, 1, 10, 0).timestamp()),
+                "timeframe": Timeframe.H1,
+                "volume": 2000,
+                "instrument_id": str(instrument.id),
+            },
+            {
+                "open": 300.0,
+                "high": 305.0,
+                "low": 299.0,
+                "close": 302.0,
+                "timestamp": int(datetime(2024, 1, 1, 11, 0).timestamp()),
+                "timeframe": Timeframe.H1,
+                "volume": 3000,
+                "instrument_id": str(instrument.id),
+            },
+        ]
+
+        # Should delete existing and insert new
+        count2 = await alpaca_loader._persist_records(
+            instrument.id, "TEST3", Timeframe.H1, records2
+        )
+        assert count2 == 2
+
+        # Verify only 2 records exist
+        async with get_db_session() as new_sess:
+            res = await new_sess.execute(
+                select(func.count(OHLC.ohlc_id)).where(
+                    OHLC.instrument_id == instrument.id
+                )
+            )
+            assert res.scalar() == 2
+
+
+class TestGetOrCreateInstrumentId:
+    """Unit tests for instrument ID retrieval/creation."""
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_get_existing_instrument(self, alpaca_loader, db_sess):
+        instrument = Instrument(
+            symbol="EXISTING",
+            native_symbol="EXISTING",
+            market_type=MarketType.STOCKS,
+            broker_type=BrokerType.ALPACA,
+        )
+        db_sess.add(instrument)
+        await db_sess.flush()
+        await db_sess.refresh(instrument)
+        await db_sess.commit()
+
+        instrument_id = await alpaca_loader._get_or_create_instrument_id(
+            "EXISTING", MarketType.STOCKS
+        )
+
+        assert instrument_id == instrument.id
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_create_instrument_formats_symbol(self, alpaca_loader, db_sess):
+        instrument_id = await alpaca_loader._get_or_create_instrument_id(
+            "BTC/USD", MarketType.CRYPTO
+        )
+
+        async with get_db_session() as new_sess:
+            result = await new_sess.execute(
+                select(Instrument).where(Instrument.native_symbol == "BTC/USD")
+            )
+            instrument = result.scalar_one()
+            assert instrument.symbol == "BTCUSD"
 
 
 class TestLoadCandles:
+    """Unit tests for the main load_candles method."""
 
-    def _make_mock_db(self, count_value):
-        """Return (mock_db_sess, mock_db_session) pre-wired with a count result."""
-        mock_db_session = AsyncMock()
-        mock_db_sess = AsyncMock()
-        mock_db_sess.__aenter__ = AsyncMock(return_value=mock_db_session)
-        mock_db_sess.__aexit__ = AsyncMock(return_value=None)
-        mock_result = MagicMock()
-        mock_result.first.return_value = (count_value,)
-        mock_db_session.execute.return_value = mock_result
-        return mock_db_sess, mock_db_session
-
-    def _one_bar_response(self):
-        mock_response = MagicMock()
-        mock_response.ok = True
-        mock_response.status = 200
-        mock_response.json = AsyncMock(
-            return_value={
-                "bars": {
-                    "AAPL": [
-                        {
-                            "t": "2024-01-01T09:30:00Z",
-                            "o": 100.0,
-                            "h": 101.0,
-                            "l": 99.0,
-                            "c": 100.5,
-                        }
-                    ]
-                },
-                "next_page_token": None,
-            }
-        )
-        return mock_response
-
-    # The count query must always happen; then an insert must follow when the
-    # existing count is 0 (no prior records for that window).
-    @pytest.mark.asyncio
-    async def test_load_candles_inserts_records_when_count_is_zero(
-        self, loader, mock_session
-    ):
-        mock_session.get.return_value = self._one_bar_response()
-        mock_db_sess, mock_db_session = self._make_mock_db(count_value=0)
-
-        captured_records = []
-
-        async def capture_execute(*args, **kwargs):
-            if len(args) > 1 and isinstance(args[1], list):
-                captured_records.extend(args[1])
-            return MagicMock()
-
-        mock_db_session.execute.side_effect = capture_execute
-
-        with patch(
-            "service.ohlc.loader.alpaca.get_db_session", return_value=mock_db_sess
-        ):
-            await loader.load_candles(
-                "AAPL",
-                MarketType.STOCKS,
-                Timeframe.m1,
-                datetime(2024, 1, 1),
-                datetime(2024, 1, 2),
-            )
-
-        assert mock_db_session.execute.call_count >= 2, (
-            "Expected at least a count query and an insert call"
-        )
-        assert len(captured_records) == 1, (
-            "One bar in the response should produce exactly one inserted record"
-        )
-
-    @pytest.mark.asyncio
-    async def test_load_candles_skips_when_count_matches(self, loader, mock_session):
-        mock_session.get.return_value = self._one_bar_response()
-        # DB already holds 1 record, which matches the 1 bar returned by the API.
-        mock_db_sess, mock_db_session = self._make_mock_db(count_value=1)
-
-        with patch(
-            "service.ohlc.loader.alpaca.get_db_session", return_value=mock_db_sess
-        ):
-            await loader.load_candles(
-                "AAPL",
-                MarketType.STOCKS,
-                Timeframe.m1,
-                datetime(2024, 1, 1),
-                datetime(2024, 1, 2),
-            )
-
-        execute_calls = [str(c) for c in mock_db_session.execute.call_args_list]
-        assert not any("delete" in c.lower() for c in execute_calls), (
-            "Delete should not be called when stored count matches fetched count"
-        )
-        assert not any("insert" in c.lower() for c in execute_calls), (
-            "Insert should not be called when stored count matches fetched count"
-        )
-
-    @pytest.mark.asyncio
-    async def test_load_candles_deletes_and_reinserts_when_count_mismatches(
-        self, loader, mock_session
-    ):
-        mock_session.get.return_value = self._one_bar_response()
-        # Mismatch - DB holds 2 records but the API only returned 1.
-        mock_db_sess, mock_db_session = self._make_mock_db(count_value=2)
-
-        with patch(
-            "service.ohlc.loader.alpaca.get_db_session", return_value=mock_db_sess
-        ):
-            await loader.load_candles(
-                "AAPL",
-                MarketType.STOCKS,
-                Timeframe.m1,
-                datetime(2024, 1, 1),
-                datetime(2024, 1, 2),
-            )
-
-        execute_calls = [str(c) for c in mock_db_session.execute.call_args_list]
-        assert any("delete" in c.lower() for c in execute_calls), (
-            "Delete should be called when stored count mismatches fetched count"
-        )
-        assert any("insert" in c.lower() for c in execute_calls), (
-            "Insert should be called after delete when count mismatches"
-        )
-
-
-class TestDataParsing:
-
-    def test_parse_bar_record_correctly(self):
-        bar = {
-            "t": "2024-01-01T09:30:00Z",
-            "o": 100.0,
-            "h": 101.0,
-            "l": 99.0,
-            "c": 100.5,
-        }
-
-        record = {
-            "source": BrokerType.ALPACA,
-            "symbol": "AAPL",
-            "open": bar["o"],
-            "high": bar["h"],
-            "low": bar["l"],
-            "close": bar["c"],
-            "timestamp": int(
-                datetime.fromisoformat(bar["t"].replace("Z", "+00:00")).timestamp()
-            ),
-            "timeframe": Timeframe.m1,
-        }
-
-        assert record["source"] == BrokerType.ALPACA
-        assert record["symbol"] == "AAPL"
-        assert record["open"] == 100.0
-        assert record["high"] == 101.0
-        assert record["low"] == 99.0
-        assert record["close"] == 100.5
-        assert record["timeframe"] == Timeframe.m1
-        assert isinstance(record["timestamp"], int)
-
-    @pytest.mark.asyncio
-    async def test_parsed_records_have_correct_schema(self, loader, mock_session):
-        mock_response = MagicMock()
-        mock_response.ok = True
-        mock_response.status = 200
-        mock_response.json = AsyncMock(
-            return_value={
-                "bars": {
-                    "AAPL": [
-                        {
-                            "t": "2024-01-01T09:30:00Z",
-                            "o": 100.0,
-                            "h": 101.0,
-                            "l": 99.0,
-                            "c": 100.5,
-                        },
-                        {
-                            "t": "2024-01-01T09:31:00Z",
-                            "o": 100.5,
-                            "h": 101.5,
-                            "l": 100.0,
-                            "c": 101.0,
-                        },
-                    ]
-                },
-                "next_page_token": None,
-            }
-        )
-        mock_session.get.return_value = mock_response
-
-        mock_db_session = AsyncMock()
-        mock_db_sess = AsyncMock()
-        mock_db_sess.__aenter__ = AsyncMock(return_value=mock_db_session)
-        mock_db_sess.__aexit__ = AsyncMock(return_value=None)
-
-        captured_records = []
-
-        async def capture_execute(*args, **kwargs):
-            # Discriminate: the count query passes no list; the insert does.
-            if len(args) > 1 and isinstance(args[1], list):
-                captured_records.extend(args[1])
-                return MagicMock()
-            # First call is the count query returning 0 so insert is triggered.
-            mock_result = MagicMock()
-            mock_result.first.return_value = (0,)
-            return mock_result
-
-        mock_db_session.execute.side_effect = capture_execute
-
-        with patch(
-            "service.ohlc.loader.alpaca.get_db_session", return_value=mock_db_sess
-        ):
-            await loader.load_candles(
-                "AAPL",
-                MarketType.STOCKS,
-                Timeframe.m1,
-                datetime(2024, 1, 1),
-                datetime(2024, 1, 2),
-            )
-
-        assert len(captured_records) == 2, (
-            "Two bars in the API response should produce two parsed records"
-        )
-
-        required_fields = {"source", "symbol", "open", "high", "low", "close",
-                           "timestamp", "timeframe"}
-        for record in captured_records:
-            missing = required_fields - record.keys()
-            assert not missing, f"Record is missing fields: {missing}"
-
-            assert record["source"] == BrokerType.ALPACA
-            assert record["symbol"] == "AAPL"
-            assert isinstance(record["open"], float)
-            assert isinstance(record["high"], float)
-            assert isinstance(record["low"], float)
-            assert isinstance(record["close"], float)
-            assert isinstance(record["timestamp"], int)
-            assert record["timeframe"] == Timeframe.m1
-
-
-class TestDuplicationHandling:
-
-    @pytest.mark.asyncio
-    async def test_duplicate_check_queries_correct_table(self, loader, mock_session):
-        mock_response = MagicMock()
-        mock_response.ok = True
-        mock_response.status = 200
-        mock_response.json = AsyncMock(
-            return_value={
-                "bars": {
-                    "AAPL": [
-                        {
-                            "t": "2024-01-01T09:30:00Z",
-                            "o": 100.0,
-                            "h": 101.0,
-                            "l": 99.0,
-                            "c": 100.5,
-                        }
-                    ]
-                },
-                "next_page_token": None,
-            }
-        )
-        mock_session.get.return_value = mock_response
-
-        mock_db_session = AsyncMock()
-        mock_db_sess = AsyncMock()
-        mock_db_sess.__aenter__ = AsyncMock(return_value=mock_db_session)
-        mock_db_sess.__aexit__ = AsyncMock(return_value=None)
-
-        mock_result = MagicMock()
-        mock_result.first.return_value = (0,)
-        mock_db_session.execute.return_value = mock_result
-
-        with patch(
-            "service.ohlc.loader.alpaca.get_db_session", return_value=mock_db_sess
-        ):
-            await loader.load_candles(
-                "AAPL",
-                MarketType.STOCKS,
-                Timeframe.m1,
-                datetime(2024, 1, 1),
-                datetime(2024, 1, 2),
-            )
-
-        first_call_args = mock_db_session.execute.call_args_list[0]
-        first_stmt = first_call_args[0][0]
- 
-        from sqlalchemy.dialects import sqlite
-        compiled_sql = str(
-            first_stmt.compile(
-                dialect=sqlite.dialect(),
-                compile_kwargs={"literal_binds": True},
-            )
-        ).lower()
- 
-        assert "count" in compiled_sql, (
-            "First DB call should be a COUNT query for duplicate detection; "
-            f"got: {compiled_sql!r}"
-        )
-        assert "aapl" in compiled_sql or "symbol" in compiled_sql, (
-            "COUNT query should be filtered by symbol; "
-            f"got: {compiled_sql!r}"
-        )
-
-
-class TestDatabaseInsertion:
-
-    @pytest.mark.asyncio
-    async def test_batch_insert_multiple_records(self, loader, mock_session):
-        mock_response = MagicMock()
-        mock_response.ok = True
-        mock_response.status = 200
-        mock_response.json = AsyncMock(
-            return_value={
-                "bars": {
-                    "AAPL": [
-                        {
-                            "t": f"2024-01-01T0{i}:30:00Z",
-                            "o": 100.0 + i,
-                            "h": 101.0 + i,
-                            "l": 99.0 + i,
-                            "c": 100.5 + i,
-                        }
-                        for i in range(5)
-                    ]
-                },
-                "next_page_token": None,
-            }
-        )
-        mock_session.get.return_value = mock_response
-
-        mock_db_session = AsyncMock()
-        mock_db_sess = AsyncMock()
-        mock_db_sess.__aenter__ = AsyncMock(return_value=mock_db_session)
-        mock_db_sess.__aexit__ = AsyncMock(return_value=None)
-
-        mock_result = MagicMock()
-        mock_result.first.return_value = (0,)
-        mock_db_session.execute.return_value = mock_result
-
-        with patch(
-            "service.ohlc.loader.alpaca.get_db_session", return_value=mock_db_sess
-        ):
-            await loader.load_candles(
-                "AAPL",
-                MarketType.STOCKS,
-                Timeframe.m1,
-                datetime(2024, 1, 1),
-                datetime(2024, 1, 2),
-            )
-
-        insert_calls = [
-            c
-            for c in mock_db_session.execute.call_args_list
-            if "insert" in str(c).lower()
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_load_candles_success(self, alpaca_loader):
+        mock_bars = [
+            {
+                "t": "2024-01-01T10:00:00Z",
+                "o": 100,
+                "h": 105,
+                "l": 99,
+                "c": 102,
+                "v": 1000,
+            },
+            {
+                "t": "2024-01-01T11:00:00Z",
+                "o": 102,
+                "h": 108,
+                "l": 101,
+                "c": 107,
+                "v": 2000,
+            },
         ]
-        assert len(insert_calls) == 1, (
-            "All records should be written in a single batch insert, not one call per record"
+
+        mock_fetch = MagicMock()
+        mock_fetch.__aiter__.return_value = iter(
+            [(mock_bars, {"start": "2024-01-01", "end": "2024-01-02"})]
         )
+        alpaca_loader._fetch_bars = MagicMock(return_value=mock_fetch)
+
+        mock_persist = AsyncMock(return_value=2)
+        alpaca_loader._persist_records = mock_persist
+
+        mock_instrument_id = uuid4()
+        mock_get_instrument = AsyncMock(return_value=mock_instrument_id)
+        alpaca_loader._get_or_create_instrument_id = mock_get_instrument
+
+        await alpaca_loader.load_candles(
+            symbol="AAPL",
+            market_type=MarketType.STOCKS,
+            timeframe=Timeframe.H1,
+            start_date=datetime(2024, 1, 1),
+            end_date=datetime(2024, 1, 2),
+        )
+
+        mock_get_instrument.assert_awaited_once_with("AAPL", MarketType.STOCKS)
+        mock_persist.assert_awaited_once()
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_load_candles_multiple_batches(self, alpaca_loader):
+        mock_bars1 = [
+            {
+                "t": "2024-01-01T10:00:00Z",
+                "o": 100,
+                "h": 105,
+                "l": 99,
+                "c": 102,
+                "v": 1000,
+            },
+        ]
+        mock_bars2 = [
+            {
+                "t": "2024-01-01T11:00:00Z",
+                "o": 102,
+                "h": 108,
+                "l": 101,
+                "c": 107,
+                "v": 2000,
+            },
+        ]
+
+        async def mock_fetch_generator():
+            yield mock_bars1, {"start": "2024-01-01", "end": "2024-01-01"}
+            yield mock_bars2, {"start": "2024-01-02", "end": "2024-01-02"}
+
+        alpaca_loader._fetch_bars = MagicMock(return_value=mock_fetch_generator())
+
+        mock_persist = AsyncMock(return_value=1)
+        alpaca_loader._persist_records = mock_persist
+
+        mock_instrument_id = uuid4()
+        alpaca_loader._get_or_create_instrument_id = AsyncMock(
+            return_value=mock_instrument_id
+        )
+
+        await alpaca_loader.load_candles(
+            symbol="AAPL",
+            market_type=MarketType.STOCKS,
+            timeframe=Timeframe.H1,
+            start_date=datetime(2024, 1, 1),
+            end_date=datetime(2024, 1, 2),
+        )
+
+        assert mock_persist.call_count == 2
+
+
+class TestIntegration:
+    """Integration tests for AlpacaOHLCLoader with real database."""
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_end_to_end_persist_and_retrieve(self, alpaca_loader, db_sess):
+        """Test that records are properly persisted and can be retrieved."""
+        # Create instrument first
+        instrument = Instrument(
+            symbol="INTTEST",
+            native_symbol="INTTEST",
+            market_type=MarketType.STOCKS,
+            broker_type=BrokerType.ALPACA,
+        )
+        db_sess.add(instrument)
+        await db_sess.flush()
+        await db_sess.refresh(instrument)
+        await db_sess.commit()
+
+        records = [
+            {
+                "open": 150.0,
+                "high": 155.0,
+                "low": 148.0,
+                "close": 153.0,
+                "timestamp": int(datetime(2024, 6, 1, 10, 0).timestamp()),
+                "timeframe": Timeframe.H1,
+                "volume": 5000,
+                "instrument_id": str(instrument.id),
+            },
+            {
+                "open": 153.0,
+                "high": 158.0,
+                "low": 152.0,
+                "close": 157.0,
+                "timestamp": int(datetime(2024, 6, 1, 11, 0).timestamp()),
+                "timeframe": Timeframe.H1,
+                "volume": 6000,
+                "instrument_id": str(instrument.id),
+            },
+        ]
+
+        count = await alpaca_loader._persist_records(
+            instrument.id, "INTTEST", Timeframe.H1, records
+        )
+
+        assert count == 2
+
+        # Verify records
+        async with get_db_session() as new_sess:
+            res = await new_sess.execute(
+                select(OHLC)
+                .where(OHLC.instrument_id == instrument.id)
+                .order_by(OHLC.timestamp.asc())
+            )
+            ohlc_records = res.scalars().all()
+
+            assert len(ohlc_records) == 2
+            assert ohlc_records[0].open == 150.0
+            assert ohlc_records[0].high == 155.0
+            assert ohlc_records[0].low == 148.0
+            assert ohlc_records[0].close == 153.0
+            assert ohlc_records[0].volume == 5000
+            assert ohlc_records[1].open == 153.0
+            assert ohlc_records[1].close == 157.0
