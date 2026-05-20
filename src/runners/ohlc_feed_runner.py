@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timedelta
 
 from config import ALPACA_API_KEY, ALPACA_SECRET_KEY, CONFIG_YAML
 from enums import BrokerType, MarketType, Timeframe
@@ -6,6 +7,7 @@ from runners.base import BaseRunner
 from service.ohlc.feed.alpaca.service import AlpacaOHLCFeed
 from service.ohlc.feed.base import OHLCFeed
 from service.ohlc.feed.server import OHLCFeedServer
+from service.ohlc.loader.alpaca import AlpacaOHLCLoader
 
 
 class OHLCFeedRunner(BaseRunner):
@@ -32,17 +34,26 @@ class OHLCFeedRunner(BaseRunner):
                 timeframe = Timeframe(tf)
                 if broker == BrokerType.ALPACA:
                     feed = AlpacaOHLCFeed(
-                        market_type=market_type,
                         symbol=symbol,
+                        market_type=market_type,
                         timeframe=timeframe,
                         api_key=ALPACA_API_KEY,
                         secret_key=ALPACA_SECRET_KEY,
-                        start_date=item["start_date"],
+                    )
+
+                    loader = AlpacaOHLCLoader(
+                        api_key=ALPACA_API_KEY, secret_key=ALPACA_SECRET_KEY
                     )
                 else:
                     raise ValueError(f"Unsupported broker type '{broker}'")
 
-                # await feed.start()
+                await loader.load_candles(
+                    symbol,
+                    market_type,
+                    timeframe,
+                    item["start_date"],
+                    datetime.now() + timedelta(days=1),
+                )
                 asyncio.create_task(self._wrapper(feed.run()))
                 feeds.append(feed)
 

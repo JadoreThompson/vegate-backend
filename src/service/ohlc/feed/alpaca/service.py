@@ -1,13 +1,12 @@
 import asyncio
-from datetime import datetime, timedelta
 import json
 import logging
-from asyncio import iscoroutine
+from datetime import datetime
 from typing import Any, Awaitable, Callable
 from uuid import UUID
 
-from sqlalchemy import insert
 import websockets
+from sqlalchemy import insert
 
 from enums import BrokerType, MarketType, Timeframe
 from infra.db.model.ohlc import OHLC
@@ -15,8 +14,6 @@ from infra.db.utils import get_db_session
 from models import OHLC as OHLCModel
 from service.ohlc.feed.alpaca.exception import AlpacaFeedException
 from service.ohlc.feed.base import OHLCFeed
-from service.ohlc.loader.alpaca import AlpacaOHLCLoader
-from utils import get_datetime
 
 
 class AlpacaOHLCFeed(OHLCFeed):
@@ -26,12 +23,11 @@ class AlpacaOHLCFeed(OHLCFeed):
 
     def __init__(
         self,
-        market_type: MarketType,
         symbol: str,
+        market_type: MarketType,
         timeframe: Timeframe,
         api_key: str,
         secret_key: str,
-        start_date: datetime,
     ):
         self._market_type = market_type
         self._symbol = symbol
@@ -39,12 +35,11 @@ class AlpacaOHLCFeed(OHLCFeed):
         self._timeframe = timeframe
         self._api_key = api_key
         self._secret_key = secret_key
-        self._start_date = start_date
 
         self._on_candle = None
         self._instrument_id: UUID | None = None
         self._task: asyncio.Task | None = None
-        self._name = f"{self.__class__.__name__}-{market_type}-{self._fmt_symbol}"
+        self._name = f"{self.__class__.__name__}-{self._fmt_symbol}-{market_type.value}"
 
         self._logger = logging.getLogger(self._name)
 
@@ -69,21 +64,7 @@ class AlpacaOHLCFeed(OHLCFeed):
         return self._timeframe
 
     async def run(self) -> None:
-        loader = AlpacaOHLCLoader(self._api_key, self._secret_key)
-        result = await loader.load_candles(
-            symbol=self._symbol,
-            market_type=self.market_type,
-            timeframe=self._timeframe,
-            start_date=self._start_date,
-            end_date=get_datetime().date() + timedelta(days=1),
-        )
-        self._instrument_id = loader.instrument_id
-
-        url = (
-            "wss://stream.data.alpaca.markets/v1beta3/crypto/eu-1"
-            if self._market_type == MarketType.CRYPTO
-            else "wss://stream.data.alpaca.markets/v2/iex"
-        )
+        url = self._get_url()
 
         async with websockets.connect(url) as ws:
             await ws.send(
@@ -109,27 +90,16 @@ class AlpacaOHLCFeed(OHLCFeed):
 
             while True:
                 msg = await ws.recv()
-                self._logger.info(msg)
-                data = json.loads(msg)
-                if self._on_candle is not None:
-                    candle_data = data[0]
-                    candle = OHLCModel(
-                        open=candle_data["o"],
-                        high=candle_data["h"],
-                        low=candle_data["l"],
-                        close=candle_data["c"],
-                        symbol=self._symbol,
-                        volume=candle_data["v"],
-                        broker=BrokerType.ALPACA,
-                        market_type=self._market_type,
-                        timestamp=int(datetime.fromisoformat(candle_data["t"]).timestamp()),
-                        timeframe=self._timeframe,
-                    )
 
-                    await self._persist_candle(candle)
-                    
+                data = json.loads(msg)
+                bar = data[0]
+                candle = self._parse_candle(bar)
+
+                await self._persist_candle(candle)
+
+                if self._on_candle is not None:
                     res = self._on_candle(candle)
-                    if iscoroutine(res):
+                    if asyncio.iscoroutine(res):
                         await res
 
     async def join(self) -> None:
@@ -142,6 +112,11 @@ class AlpacaOHLCFeed(OHLCFeed):
                 await self._task
             except asyncio.CancelledError:
                 pass
+
+    def _get_url(self):
+        if self._market_type == MarketType.CRYPTO:
+            return "wss://stream.data.alpaca.markets/v1beta3/crypto/eu-1"
+        return "wss://stream.data.alpaca.markets/v2/iex"
 
     async def _persist_candle(self, candle: OHLCModel) -> None:
         async with get_db_session() as db_sess:
@@ -170,3 +145,17 @@ class AlpacaOHLCFeed(OHLCFeed):
 
     def set_on_candle(self, func: Callable[[OHLC], Any | Awaitable[Any]]) -> None:
         self._on_candle = func
+
+    def _parse_candle(self, candle: dict):
+        return OHLCModel(
+            open=candle["o"],
+            high=candle["h"],
+            low=candle["l"],
+            close=candle["c"],
+            symbol=self._symbol,
+            volume=candle["v"],
+            broker=BrokerType.ALPACA,
+            market_type=self._market_type,
+            timestamp=int(datetime.fromisoformat(candle["t"]).timestamp()),
+            timeframe=self._timeframe,
+        )
