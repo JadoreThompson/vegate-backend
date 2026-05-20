@@ -17,7 +17,6 @@ class ProcessBacktestService(BacktestService):
     def __init__(self):
         super().__init__()
         self._backtests: dict[UUID, Process] = {}
-        self._deployments: dict[UUID, Process] = {}
         self._max_concurrent_backtests = 5
 
     @property
@@ -32,23 +31,28 @@ class ProcessBacktestService(BacktestService):
         self._max_concurrent_backtests = max_concurrent_backtests
 
     async def run(self, backtest_id: UUID) -> dict:
+        if len(self._backtests) >= self._max_concurrent_backtests:
+            raise ValueError(f"Max concurrent backtests {self._max_concurrent_backtests} reached.")
+        
         if backtest_id in self._backtests and self._backtests[backtest_id].is_alive():
-            return {"status": "already running"}
+            return
 
         p = Process(target=_run_backtest, args=(backtest_id,))
         p.start()
         self._backtests[backtest_id] = p
-        return {"status": "deployed"}
+        return
 
     async def stop(self, backtest_id: UUID) -> dict:
         if (
                 backtest_id not in self._backtests
                 or not self._backtests[backtest_id].is_alive()
         ):
-            return {"status": "not running"}
+            return
+        
         self._backtests[backtest_id].terminate()
         self._backtests[backtest_id].join(timeout=5)
-        return {"status": "stopped"}
+
+        return
 
     async def stop_all(self) -> dict:
         for backtest_id, process in self._backtests.items():
@@ -56,4 +60,4 @@ class ProcessBacktestService(BacktestService):
                 process.terminate()
                 process.join(timeout=5)
 
-        return {"status": "all stopped"}
+        self._backtests.clear()
