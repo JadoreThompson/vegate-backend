@@ -7,7 +7,10 @@ from redis.asyncio import Redis
 from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config import REDIS_STRATEGY_HEARTBEAT_KEY_PREFIX, STRATEGY_DEPLOYMENT_EVENTS_KEY
+from config import (
+    REDIS_STRATEGY_DEPLOYMENT_HEARTBEAT_KEY_PREFIX,
+    STRATEGY_DEPLOYMENT_EVENTS_KEY,
+)
 from enums import StrategyDeploymentStatus
 from events.deployment import DeploymentStatusChangedEvent, DeploymentEventType
 from infra.db.model.strategy_deployments import StrategyDeployments
@@ -22,7 +25,7 @@ class DeploymentMonitoringService:
         self,
         redis_client: Redis,
         event_publisher: EventPublisher,
-        heartbeat_prefix_key: str = REDIS_STRATEGY_HEARTBEAT_KEY_PREFIX,
+        heartbeat_prefix_key: str = REDIS_STRATEGY_DEPLOYMENT_HEARTBEAT_KEY_PREFIX,
         monitor_interval: int = 15,
     ):
         self._redis_client = redis_client
@@ -82,6 +85,7 @@ class DeploymentMonitoringService:
             await self._kafka_consumer.start()
 
             async for record in self._kafka_consumer:
+                print(record.value)
                 for key, value in record.headers:
                     if (
                         key == "event_type"
@@ -100,6 +104,8 @@ class DeploymentMonitoringService:
                                 self._running_deployments.add(deployment_id)
 
                 await self._kafka_consumer.commit()
+        except Exception as e:
+            print(e)
         finally:
             await self._kafka_consumer.stop()
 
@@ -107,20 +113,20 @@ class DeploymentMonitoringService:
         try:
             while self._alive:
                 await asyncio.sleep(self._monitor_interval)
-                
+
                 if not self._alive:
                     break
-                
+
                 async with self._lock:
                     running_deployments = list(self._running_deployments)
                     suspicious_deployments = list(self._suspicious_deployments)
-                
+
                 async with self._redis_client.pipeline() as pl:
                     for id in running_deployments:
                         pl.get(f"{self._heartbeat_prefix_key}{id}")
                     for id in suspicious_deployments:
                         pl.get(f"{self._heartbeat_prefix_key}{id}")
-                    
+
                     results = await pl.execute()
 
                 to_suspicious = []
@@ -133,19 +139,25 @@ class DeploymentMonitoringService:
                         deployment_id = running_deployments[i]
 
                         if not res:
-                            self._logger.info(f"Pushing deployment '{deployment_id}' to suspicious")
+                            self._logger.info(
+                                f"Pushing deployment '{deployment_id}' to suspicious"
+                            )
                             to_suspicious.append(deployment_id)
-                    
+
                     elif i < len(suspicious_deployments):
                         deployment_id = suspicious_deployments[i]
 
                         if not res:
-                            self._logger.info(f"Pushing deployment '{deployment_id}' to stopped")
+                            self._logger.info(
+                                f"Pushing deployment '{deployment_id}' to stopped"
+                            )
                             to_stopped.append(deployment_id)
                         else:
-                            self._logger.info(f"Pushing deployment '{deployment_id}' to running")
+                            self._logger.info(
+                                f"Pushing deployment '{deployment_id}' to running"
+                            )
                             to_running.append(deployment_id)
-                
+
                 async with get_db_session() as db_sess:
                     if to_suspicious:
                         await self._set_status_suspicious(to_suspicious, db_sess)
@@ -167,6 +179,8 @@ class DeploymentMonitoringService:
 
         except asyncio.CancelledError:
             pass
+        except Exception as e:
+            print(e)
 
     async def _set_status_suspicious(
         self, deployment_ids: list[UUID], db_sess: AsyncSession

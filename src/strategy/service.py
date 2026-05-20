@@ -8,7 +8,7 @@ from redis import Redis
 from sqlalchemy import select
 
 from config import (
-    REDIS_STRATEGY_HEARTBEAT_KEY_PREFIX,
+    REDIS_STRATEGY_DEPLOYMENT_HEARTBEAT_KEY_PREFIX,
     SRC_PATH,
     STRATEGY_DEPLOYMENT_EVENTS_KEY,
 )
@@ -34,7 +34,7 @@ class StrategyDeploymentService:
         event_publisher: SyncEventPublisher,
         redis_client: Redis,
         heartbeat_interval: int = 5,
-        heartbeat_key_prefix: str = REDIS_STRATEGY_HEARTBEAT_KEY_PREFIX,
+        heartbeat_key_prefix: str = REDIS_STRATEGY_DEPLOYMENT_HEARTBEAT_KEY_PREFIX,
     ):
         self._deployment_id = deployment_id
         self._ohlc_feed_client = ohlc_feed_client
@@ -149,7 +149,7 @@ class StrategyDeploymentService:
             time.sleep(self._heartbeat_interval)
             if not self._alive:
                 break
-            
+
             self._logger.info("Setting heartbeat...")
             self._redis_client.set(
                 f"{self._heartbeat_key_prefix}{self._deployment_id}", 1, ex=15

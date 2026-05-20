@@ -6,6 +6,7 @@ from enums import BrokerType, MarketType
 from service.ohlc.feed.base import OHLCFeed
 
 
+# TODO: Is this needed?
 class FeedManager:
 
     def __init__(self):

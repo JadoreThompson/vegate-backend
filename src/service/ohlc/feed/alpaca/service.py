@@ -58,7 +58,6 @@ class AlpacaOHLCFeed(OHLCFeed):
 
     @property
     def symbol(self):
-        # return self._fmt_symbol
         return self._symbol
 
     @property
@@ -119,7 +118,6 @@ class AlpacaOHLCFeed(OHLCFeed):
                         high=candle_data["h"],
                         low=candle_data["l"],
                         close=candle_data["c"],
-                        # symbol=self._fmt_symbol,
                         symbol=self._symbol,
                         volume=candle_data["v"],
                         broker=BrokerType.ALPACA,
@@ -127,7 +125,9 @@ class AlpacaOHLCFeed(OHLCFeed):
                         timestamp=int(datetime.fromisoformat(candle_data["t"]).timestamp()),
                         timeframe=self._timeframe,
                     )
+
                     await self._persist_candle(candle)
+                    
                     res = self._on_candle(candle)
                     if iscoroutine(res):
                         await res
@@ -147,9 +147,6 @@ class AlpacaOHLCFeed(OHLCFeed):
         async with get_db_session() as db_sess:
             await db_sess.execute(
                 insert(OHLC).values(
-                    # source=BrokerType.ALPACA,
-                    # symbol=candle.symbol,
-                    # market_type=candle.market_type,
                     instrument_id=self._instrument_id,
                     open=candle.open,
                     high=candle.high,
