@@ -15,6 +15,7 @@ from api.routes.broker_connections.service import (
 )
 from api.routes.broker_connections.exception import (
     BrokerAccountFetchException,
+    BrokerConnectionNotFoundException,
 )
 from enums import BrokerType
 from infra.db.model.broker_connections import BrokerConnections
@@ -23,7 +24,7 @@ from infra.db.utils import get_db_sess_sync, get_db_session
 
 
 @pytest_asyncio.fixture(loop_scope="session")
-async def broker_service():
+async def broker_connections_service():
     return BrokerConnectionsService()
 
 
@@ -64,11 +65,15 @@ class TestCreateBrokerConnection:
     class TestUnitTest:
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_create_alpaca_connection_success(self, broker_service):
+        async def test_create_alpaca_connection_success(
+            self, broker_connections_service
+        ):
             mock_db_sess = AsyncMock()
             mock_db_sess.scalar.return_value = uuid4()
 
-            with patch.object(broker_service, "_fetch_alpaca_account_id") as mock_fetch:
+            with patch.object(
+                broker_connections_service, "_fetch_alpaca_account_id"
+            ) as mock_fetch:
                 mock_fetch.return_value = _BrokerAccount(id="acc-123", number="ACC-001")
 
                 request = CreateBrokerConnectionRequest(
@@ -77,7 +82,7 @@ class TestCreateBrokerConnection:
                     secret_key="test-secret",
                 )
 
-                result = await broker_service.create_broker_connection(
+                result = await broker_connections_service.create_broker_connection(
                     request, uuid4(), mock_db_sess
                 )
 
@@ -87,9 +92,15 @@ class TestCreateBrokerConnection:
                 assert result.broker_account_number == "ACC-001"
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_fetch_alpaca_account_invalid_keys_raises(self, broker_service):
+        async def test_fetch_alpaca_account_invalid_keys_raises(
+            self, broker_connections_service
+        ):
             mock_get = AsyncMock()
-            broker_service._http_sess.get = mock_get
+            mock_http_sess = AsyncMock()
+            mock_http_sess.get = mock_get
+            broker_connections_service.get_http_session = MagicMock(
+                return_value=mock_http_sess
+            )
 
             mock_response = MagicMock()
             mock_response.ok = False
@@ -97,7 +108,7 @@ class TestCreateBrokerConnection:
             mock_get.return_value = mock_response
 
             with pytest.raises(BrokerAccountFetchException):
-                await broker_service._fetch_alpaca_account_id(
+                await broker_connections_service._fetch_alpaca_account_id(
                     "invalid-key", "invalid-secret"
                 )
 
@@ -105,9 +116,11 @@ class TestCreateBrokerConnection:
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_create_broker_connection_stores_in_db(
-            self, broker_service, db_sess
+            self, broker_connections_service, db_sess
         ):
-            with patch.object(broker_service, "_fetch_alpaca_account_id") as mock_fetch:
+            with patch.object(
+                broker_connections_service, "_fetch_alpaca_account_id"
+            ) as mock_fetch:
                 mock_fetch.return_value = _BrokerAccount(
                     id="acc-integration-123", number="INT-001"
                 )
@@ -120,7 +133,7 @@ class TestCreateBrokerConnection:
                     secret_key="test-secret-key",
                 )
 
-                result = await broker_service.create_broker_connection(
+                result = await broker_connections_service.create_broker_connection(
                     request, user.user_id, db_sess
                 )
 
@@ -143,7 +156,9 @@ class TestGetBrokerConnections:
     class TestUnitTest:
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_get_connections_returns_paginated_response(self, broker_service):
+        async def test_get_connections_returns_paginated_response(
+            self, broker_connections_service
+        ):
             mock_db_sess = AsyncMock()
 
             mock_conn = MagicMock()
@@ -157,7 +172,7 @@ class TestGetBrokerConnections:
 
             mock_db_sess.execute.return_value = mock_result
 
-            result = await broker_service.get_broker_connections(
+            result = await broker_connections_service.get_broker_connections(
                 uuid4(), mock_db_sess, page=1, limit=10
             )
 
@@ -170,7 +185,7 @@ class TestGetBrokerConnections:
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_get_connections_returns_user_connections(
-            self, broker_service, db_sess
+            self, broker_connections_service, db_sess
         ):
             user_a = await create_user(username="user_a")
             user_b = await create_user(username="user_b")
@@ -204,7 +219,7 @@ class TestGetBrokerConnections:
             await db_sess.commit()
 
             async with get_db_session() as db_sess:
-                result = await broker_service.get_broker_connections(
+                result = await broker_connections_service.get_broker_connections(
                     user_a.user_id, db_sess, page=1, limit=10
                 )
 
@@ -215,7 +230,7 @@ class TestGetBrokerConnections:
             )
 
             async with get_db_session() as db_sess:
-                result = await broker_service.get_broker_connections(
+                result = await broker_connections_service.get_broker_connections(
                     user_a.user_id, db_sess, page=2, limit=10
                 )
 
@@ -232,29 +247,30 @@ class TestGetBrokerConnection:
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_get_connection_returns_connection_when_found(
-            self, broker_service
+            self, broker_connections_service
         ):
             mock_db_sess = AsyncMock()
 
             mock_conn = MagicMock()
             mock_db_sess.scalar.return_value = mock_conn
 
-            result = await broker_service.get_broker_connection(
+            result = await broker_connections_service.get_broker_connection(
                 uuid4(), uuid4(), mock_db_sess
             )
 
             assert result == mock_conn
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_get_connection_returns_none_when_not_found(self, broker_service):
+        async def test_get_connection_returns_none_when_not_found(
+            self, broker_connections_service
+        ):
             mock_db_sess = AsyncMock()
             mock_db_sess.scalar.return_value = None
 
-            result = await broker_service.get_broker_connection(
-                uuid4(), uuid4(), mock_db_sess
-            )
-
-            assert result is None
+            with pytest.raises(BrokerConnectionNotFoundException):
+                result = await broker_connections_service.get_broker_connection(
+                    uuid4(), uuid4(), mock_db_sess
+                )
 
 
 class TestDeleteBrokerConnection:
@@ -263,7 +279,7 @@ class TestDeleteBrokerConnection:
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_delete_connection_returns_true_when_deleted(
-            self, broker_service
+            self, broker_connections_service
         ):
             mock_db_sess = AsyncMock()
 
@@ -271,7 +287,7 @@ class TestDeleteBrokerConnection:
             mock_result.rowcount = 1
             mock_db_sess.execute.return_value = mock_result
 
-            result = await broker_service.delete_broker_connection(
+            result = await broker_connections_service.delete_broker_connection(
                 uuid4(), uuid4(), mock_db_sess
             )
 
@@ -279,7 +295,7 @@ class TestDeleteBrokerConnection:
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_delete_connection_returns_false_when_not_found(
-            self, broker_service
+            self, broker_connections_service
         ):
             mock_db_sess = AsyncMock()
 
@@ -287,7 +303,7 @@ class TestDeleteBrokerConnection:
             mock_result.rowcount = 0
             mock_db_sess.execute.return_value = mock_result
 
-            result = await broker_service.delete_broker_connection(
+            result = await broker_connections_service.delete_broker_connection(
                 uuid4(), uuid4(), mock_db_sess
             )
 
@@ -296,7 +312,9 @@ class TestDeleteBrokerConnection:
     class TestIntegrationTest:
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_delete_connection_removes_from_db(self, broker_service, db_sess):
+        async def test_delete_connection_removes_from_db(
+            self, broker_connections_service, db_sess
+        ):
             user = await create_user(username="delete-user")
             broker_conn = BrokerConnections(
                 broker=BrokerType.ALPACA,
@@ -310,14 +328,14 @@ class TestDeleteBrokerConnection:
             await db_sess.commit()
 
             async with get_db_session() as new_db_sess:
-                conn = await broker_service.get_broker_connection(
+                conn = await broker_connections_service.get_broker_connection(
                     broker_conn.connection_id, user.user_id, new_db_sess
                 )
 
             assert conn.connection_id == broker_conn.connection_id
 
             async with get_db_session() as new_db_sess:
-                success = await broker_service.delete_broker_connection(
+                success = await broker_connections_service.delete_broker_connection(
                     broker_conn.connection_id, user.user_id, new_db_sess
                 )
                 await new_db_sess.commit()

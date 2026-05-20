@@ -21,6 +21,7 @@ from api.routes.backtests.route import router as backtests_router
 from api.routes.backtests.service import APIBacktestsService
 from api.routes.broker_connections.exception import (
     BrokerAccountFetchException,
+    BrokerConnectionNotFoundException,
     UnsupportedBrokerException,
 )
 from api.routes.broker_connections.route import router as broker_connections_router
@@ -221,3 +222,10 @@ async def handle_deployment_already_running_exception(
     req: Request, exc: DeploymentAlreadyRunningException
 ):
     return _error_response(400, str(exc))
+
+
+@app.exception_handler(BrokerConnectionNotFoundException)
+async def handle_backtest_not_found_exception(
+    req: Request, exc: BrokerConnectionNotFoundException
+):
+    return _error_response(404, str(exc))

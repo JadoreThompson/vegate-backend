@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.models import PaginatedResponse
 from api.routes.broker_connections.exception import (
     BrokerAccountFetchException,
+    BrokerConnectionNotFoundException,
     UnsupportedBrokerException,
 )
 from api.routes.broker_connections.model import (
@@ -105,8 +106,8 @@ class BrokerConnectionsService:
 
     async def get_broker_connection(
         self, id: UUID, user_id: UUID, db_sess: AsyncSession
-    ) -> BrokerConnections | None:
-        return await db_sess.scalar(
+    ) -> BrokerConnections:
+        conn = await db_sess.scalar(
             select(BrokerConnections).where(
                 and_(
                     BrokerConnections.connection_id == id,
@@ -114,6 +115,11 @@ class BrokerConnectionsService:
                 )
             )
         )
+
+        if conn is None:
+            raise BrokerConnectionNotFoundException()
+        
+        return conn
 
     async def delete_broker_connection(
         self, id: UUID, user_id: UUID, db_sess: AsyncSession
