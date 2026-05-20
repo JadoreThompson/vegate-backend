@@ -81,7 +81,6 @@ class APIDeploymentsService:
         try:
             await self._deployment_service.stop(deployment_id)
         except DeploymentNotFoundException as e:
-            # raise APIDeploymentNotFoundException(e.deployment_id)
             pass
 
     async def get(self, deployment_id: UUID, user_id: UUID, db_sess: AsyncSession):
@@ -92,8 +91,9 @@ class APIDeploymentsService:
     ):
         deployment = await self._get_user_deployment(deployment_id, user_id, db_sess)
         metrics = deployment.metrics
+        instrument = await db_sess.get(Instrument, deployment.instrument_id)
 
-        return self.to_response(deployment, metrics)
+        return self.to_response(deployment, instrument, metrics)
 
     async def get_all(
         self,
@@ -108,12 +108,13 @@ class APIDeploymentsService:
             select(StrategyDeployments, StrategyDeploymentMetrics, Instrument)
             .join(Instrument, Instrument.id == StrategyDeployments.instrument_id)
             .join(Strategy)
+            .outerjoin(StrategyDeploymentMetrics)
             .where(Strategy.user_id == user_id)
         )
 
         # Apply status filter if provided
         if status is not None:
-            stmt = stmt.where(StrategyDeployments.status == status)
+            stmt = stmt.where(StrategyDeployments.status.in_(status))
 
         stmt = (
             stmt.offset((page - 1) * limit)
@@ -211,8 +212,10 @@ class APIDeploymentsService:
         )
 
     async def get_events(
-        self, deployment_id: UUID, db_sess: AsyncSession, *, page: int, limit: int
+        self, deployment_id: UUID, user_id, db_sess: AsyncSession, *, page: int, limit: int
     ):
+        deployment = await self._get_user_deployment(deployment_id, user_id, db_sess)
+        
         res = await db_sess.execute(
             select(DeploymentEvent)
             .where(DeploymentEvent.deployment_id == deployment_id)
@@ -250,7 +253,7 @@ class APIDeploymentsService:
         self,
         deployment: StrategyDeployments,
         instrument: Instrument,
-        metrics: StrategyDeploymentMetrics,
+        metrics: StrategyDeploymentMetrics | None = None,
     ):
         return StrategyDeploymentResponse(
             id=deployment.deployment_id,

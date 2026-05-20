@@ -76,7 +76,6 @@ async def start_deployment_endpoint(
 ):
     await deployments_service.start(deployment_id, jwt.sub, db_sess)
     await db_sess.commit()
-    # return Response(status_code=503)
 
 
 @router.post("/{deployment_id}/stop")
@@ -92,7 +91,7 @@ async def stop_deployment_endpoint(
     await db_sess.commit()
 
 
-@router.get("/", response_model=list[StrategyDeploymentResponse])
+@router.get("/", response_model=PaginatedResponse[StrategyDeploymentResponse])
 async def get_deployments(
     page: int = Query(1, ge=1),
     limit: int = Query(100, ge=1, le=100),
@@ -143,7 +142,7 @@ async def get_events(
     ),
 ):
     return await deployments_service.get_events(
-        deployment_id, db_sess, page=page, limit=limit
+        deployment_id, jwt.sub, db_sess, page=page, limit=limit
     )
 
 

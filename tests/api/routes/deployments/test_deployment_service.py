@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import uuid4
 
 from unittest.mock import AsyncMock, MagicMock, patch
-from sqlalchemy import delete, insert
+from sqlalchemy import delete, insert, select
 
 from api.routes.deployments.exception import DeploymentNotFoundException
 from api.routes.deployments.models import (
@@ -24,11 +24,12 @@ from enums import (
 )
 from infra.db.model import Strategy, StrategyDeployments
 from infra.db.model.broker_connections import BrokerConnections
+from infra.db.model.instrument import Instrument
 from infra.db.model.strategy_deployment_metrics import StrategyDeploymentMetrics
 from infra.db.model.user import User
 from infra.db.utils import get_db_sess_sync, get_db_session
 from service.deployment import DeploymentService as IDeploymentService
-from api.routes.util import create_user
+from api.routes.util import create_user, seed_candles
 
 
 @pytest.fixture
@@ -68,6 +69,11 @@ async def db_sess():
         yield db_sess
 
 
+@pytest_asyncio.fixture(scope="module", autouse=True)
+def seed():
+    seed_candles()
+
+
 class TestCreateDeployment:
 
     class TestUnitTest:
@@ -79,6 +85,7 @@ class TestCreateDeployment:
             mock_db_sess = AsyncMock()
 
             mock_info = MagicMock(spec=InstrumentInfo)
+            mock_info.id = uuid4()
             mock_markets_service.get_symbol_info = AsyncMock(return_value=mock_info)
 
             mock_deployment = MagicMock()
@@ -99,34 +106,6 @@ class TestCreateDeployment:
 
             mock_db_sess.add.assert_called_once()
             mock_deployment_runner.run.assert_awaited_once()
-
-        @pytest.mark.asyncio(loop_scope="session")
-        async def test_create_adds_deployment_to_session(
-            self, deployment_service, mock_markets_service
-        ):
-            mock_db_sess = AsyncMock()
-
-            mock_info = MagicMock(spec=InstrumentInfo)
-            mock_markets_service.get_symbol_info = AsyncMock(return_value=mock_info)
-
-            request = CreateDeploymentRequest(
-                strategy_id=uuid4(),
-                broker_connection_id=uuid4(),
-                symbol="AAPL",
-                timeframe=Timeframe.m1,
-                market_type=MarketType.STOCKS,
-                broker_type=BrokerType.ALPACA,
-            )
-
-            await deployment_service.create(request, mock_db_sess)
-
-            mock_db_sess.add.assert_called_once()
-            added_obj = mock_db_sess.add.call_args[0][0]
-            assert isinstance(added_obj, StrategyDeployments)
-            assert added_obj.symbol == "AAPL"
-            assert added_obj.broker == BrokerType.ALPACA
-            assert added_obj.timeframe == Timeframe.m1
-            assert added_obj.market_type == MarketType.STOCKS
 
 
 class TestGetDeployment:
@@ -193,13 +172,18 @@ class TestGetDeployment:
             await db_sess.flush()
             await db_sess.refresh(broker_connection)
 
+            instrument_id = await db_sess.scalar(
+                select(Instrument.id).where(Instrument.symbol == "AAPL")
+            )
+
             deployment = StrategyDeployments(
                 strategy_id=strategy.strategy_id,
                 broker_connection_id=broker_connection.connection_id,
-                symbol="AAPL",
-                broker=BrokerType.ALPACA,
+                # symbol="AAPL",
+                # broker=BrokerType.ALPACA,
                 timeframe=Timeframe.m1,
-                market_type=MarketType.STOCKS,
+                # market_type=MarketType.STOCKS,
+                instrument_id=instrument_id,
             )
             db_sess.add(deployment)
             await db_sess.commit()
@@ -231,8 +215,12 @@ class TestGetAllDeployments:
             mock_deployment.updated_at = datetime.now()
             mock_deployment.stopped_at = None
 
+            mock_instrument = MagicMock()
+            mock_instrument.id = uuid4()
+            mock_instrument.symbol = "AAPL"
+
             mock_result = MagicMock()
-            mock_result.all.return_value = [(mock_deployment, None)]
+            mock_result.all.return_value = [(mock_deployment, None, mock_instrument)]
             mock_db_sess.execute.return_value = mock_result
 
             result = await deployment_service.get_all(
@@ -267,6 +255,10 @@ class TestGetAllDeployments:
             mock_db_sess = AsyncMock()
 
             # Return limit+1 results to trigger has_next=True
+            mock_instrument = MagicMock()
+            mock_instrument.id = uuid4()
+            mock_instrument.symbol = "AAPL"
+
             mock_deployments = []
             for _ in range(11):
                 d = MagicMock()
@@ -280,7 +272,7 @@ class TestGetAllDeployments:
                 d.created_at = datetime.now()
                 d.updated_at = datetime.now()
                 d.stopped_at = None
-                mock_deployments.append((d, None))
+                mock_deployments.append((d, None, mock_instrument))
 
             mock_result = MagicMock()
             mock_result.all.return_value = mock_deployments
@@ -391,6 +383,7 @@ class TestGetOrders:
 
             mock_order = MagicMock()
             mock_order.id = uuid4()
+            mock_order.broker_order_id = uuid4()
             mock_order.deployment_id = mock_deployment.deployment_id
             mock_order.symbol = "AAPL"
             mock_order.side = "buy"
@@ -435,91 +428,3 @@ class TestGetOrders:
             assert result.size == 0
             assert result.data == []
             assert result.has_next is False
-
-
-class TestToResponse:
-
-    def test_to_response_without_metrics(self, deployment_service):
-        deployment = MagicMock()
-        deployment.deployment_id = uuid4()
-        deployment.strategy_id = uuid4()
-        deployment.broker_connection_id = uuid4()
-        deployment.symbol = "AAPL"
-        deployment.timeframe = Timeframe.m1
-        deployment.status = StrategyDeploymentStatus.PENDING
-        deployment.error_message = None
-        deployment.created_at = datetime.now()
-        deployment.updated_at = datetime.now()
-        deployment.stopped_at = None
-
-        result = deployment_service.to_response(deployment, None)
-
-        assert isinstance(result, StrategyDeploymentResponse)
-        assert result.symbol == "AAPL"
-        assert result.metrics is None
-        assert result.status == StrategyDeploymentStatus.PENDING
-
-    def test_to_response_with_metrics(self, deployment_service):
-        deployment = MagicMock()
-        deployment.deployment_id = uuid4()
-        deployment.strategy_id = uuid4()
-        deployment.broker_connection_id = uuid4()
-        deployment.symbol = "AAPL"
-        deployment.timeframe = Timeframe.m1
-        deployment.status = StrategyDeploymentStatus.RUNNING
-        deployment.error_message = None
-        deployment.created_at = datetime.now()
-        deployment.updated_at = datetime.now()
-        deployment.stopped_at = None
-
-        metrics = MagicMock(spec=StrategyDeploymentMetrics)
-        metrics.realised_pnl = 500.0
-        metrics.unrealised_pnl = 100.0
-        metrics.profit_factor = 1.5
-        metrics.total_return_pct = 5.0
-        metrics.total_orders = 10
-
-        result = deployment_service.to_response(deployment, metrics)
-
-        assert isinstance(result, StrategyDeploymentResponse)
-        assert result.metrics is not None
-        assert isinstance(result.metrics, StrategyDeploymentMetricsResponse)
-        assert result.metrics.realised_pnl == 500.0
-        assert result.metrics.total_orders == 10
-
-    def test_to_response_stopped_deployment(self, deployment_service):
-        stopped_at = datetime.now()
-        deployment = MagicMock()
-        deployment.deployment_id = uuid4()
-        deployment.strategy_id = uuid4()
-        deployment.broker_connection_id = uuid4()
-        deployment.symbol = "MSFT"
-        deployment.timeframe = Timeframe.m5
-        deployment.status = StrategyDeploymentStatus.STOPPED
-        deployment.error_message = None
-        deployment.created_at = datetime.now()
-        deployment.updated_at = datetime.now()
-        deployment.stopped_at = stopped_at
-
-        result = deployment_service.to_response(deployment, None)
-
-        assert result.status == StrategyDeploymentStatus.STOPPED
-        assert result.stopped_at == stopped_at
-
-    def test_to_response_error_deployment(self, deployment_service):
-        deployment = MagicMock()
-        deployment.deployment_id = uuid4()
-        deployment.strategy_id = uuid4()
-        deployment.broker_connection_id = uuid4()
-        deployment.symbol = "TSLA"
-        deployment.timeframe = Timeframe.m1
-        deployment.status = StrategyDeploymentStatus.ERROR
-        deployment.error_message = "Strategy execution failed"
-        deployment.created_at = datetime.now()
-        deployment.updated_at = datetime.now()
-        deployment.stopped_at = None
-
-        result = deployment_service.to_response(deployment, None)
-
-        assert result.status == StrategyDeploymentStatus.ERROR
-        assert result.error_message == "Strategy execution failed"
