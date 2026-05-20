@@ -69,7 +69,7 @@ class TestRegisterUser:
     class TestUnitTest:
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_request_with_existing_usename_raises(self, auth_service):
+        async def test_request_with_existing_username_raises(self, auth_service):
             mock_db_sess = AsyncMock()
             mock_db_sess.execute.side_effect = [
                 MagicMock(),
@@ -837,7 +837,7 @@ class TestRequestPasswordChange:
             mock_db_sess = AsyncMock()
             mock_db_sess.get.return_value = None
 
-            request = ChangePasswordRequest(password="NewPassword123!")
+            request = ChangePasswordRequest(password="NewPassword123!!")
 
             with pytest.raises(UserDoesNotExistException):
                 await auth_service.request_password_change(
@@ -862,7 +862,7 @@ class TestRequestPasswordChange:
             auth_service._redis_client.set = AsyncMock()
             email_service.send_email = AsyncMock()
 
-            request = ChangePasswordRequest(password="NewPassword123!")
+            request = ChangePasswordRequest(password="NewPassword123!!")
 
             await auth_service.request_password_change(
                 request,
@@ -881,7 +881,7 @@ class TestRequestPasswordChange:
 
             payload = json.loads(redis_call_args.args[1])
 
-            assert payload["password"] == "NewPassword123!"
+            assert payload["password"] == "NewPassword123!!"
             assert "code" in payload
 
             assert redis_call_args.kwargs["ex"] == VERIFICATION_CODE_EXPIRY_SECS
