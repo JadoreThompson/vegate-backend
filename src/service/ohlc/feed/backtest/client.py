@@ -4,6 +4,7 @@ from typing import Generator
 from sqlalchemy import select
 
 from enums import BrokerType, MarketType, Timeframe
+from infra.db.model.instrument import Instrument
 from infra.db.model.ohlc import OHLC
 from infra.db.utils import get_db_sess_sync
 from models import OHLC as OHLCModel
@@ -17,7 +18,7 @@ class BacktestOHLCFeedClient(OHLCFeedClient):
         self._market_type = None
         self._symbol = None
         self._timeframe = None
-        self._broker = None
+        self._broker_type = None
         self._start = start
         self._end = end
         self._cur_candle: OHLCModel | None = None
@@ -37,24 +38,21 @@ class BacktestOHLCFeedClient(OHLCFeedClient):
         return self._start
 
     def subscribe(
-            self,
-            symbol: str,
-            market_type: MarketType,
-            broker: BrokerType,
-            timeframe: Timeframe,
-            start: int | None = None
+        self,
+        symbol: str,
+        market_type: MarketType,
+        broker: BrokerType,
+        timeframe: Timeframe,
+        start: int | None = None,
     ) -> None:
         self._symbol = symbol
         self._market_type = market_type
-        self._broker = broker
+        self._broker_type = broker
         self._timeframe = timeframe
         if start is not None:
             self._start = max(self._start, start)
 
-        self._name = (
-            f"{self.__class__.__name__}-"
-            f"{market_type}-{symbol}-{timeframe}"
-        )
+        self._name = f"{self.__class__.__name__}-" f"{market_type.value}-{symbol}-{timeframe.value}"
 
         self._logger = logging.getLogger(self._name)
 
@@ -70,13 +68,23 @@ class BacktestOHLCFeedClient(OHLCFeedClient):
 
     def candles(self) -> Generator[OHLCModel, None, None]:
         with get_db_sess_sync() as db_sess:
-            rows = db_sess.scalars(
-                select(OHLC)
+            squery = (
+                select(Instrument.id)
                 .where(
-                    OHLC.source == self._broker,
-                    OHLC.symbol == self._symbol,
-                    OHLC.market_type == self._market_type,
+                    Instrument.symbol == self._symbol,
+                    Instrument.market_type == self._market_type,
+                    Instrument.broker_type == self._broker_type,
+                )
+                .subquery()
+            )
+            rows = db_sess.scalars(
+                select(OHLC, Instrument)
+                .where(
+                    # OHLC.source == self._broker,
+                    # OHLC.symbol == self._symbol,
+                    # OHLC.market_type == self._market_type,
                     # OHLC.timeframe == self._timeframe,
+                    Instrument.id == squery.c.id,
                     OHLC.timeframe == Timeframe.m1,
                     OHLC.timestamp >= self._start,
                     OHLC.timestamp <= self._end,
@@ -91,9 +99,9 @@ class BacktestOHLCFeedClient(OHLCFeedClient):
                     low=float(row.low),
                     close=float(row.close),
                     volume=float(row.volume),
-                    symbol=row.symbol,
-                    broker=row.source,
-                    market_type=row.market_type,
+                    symbol=self._symbol,
+                    broker=self._broker_type,
+                    market_type=self._market_type,
                     timeframe=row.timeframe,
                     timestamp=row.timestamp,
                 )

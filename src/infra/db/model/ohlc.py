@@ -15,7 +15,6 @@ if TYPE_CHECKING:
 
 class OHLC(Base):
     __tablename__ = "ohlcs"
-    
 
     ohlc_id: Mapped[uuid.UUID] = uuid_pk()
     instrument_id: Mapped[uuid.UUID] = mapped_column(
