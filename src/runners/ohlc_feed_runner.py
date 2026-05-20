@@ -4,10 +4,11 @@ from config import ALPACA_API_KEY, ALPACA_SECRET_KEY, CONFIG_YAML
 from enums import BrokerType, MarketType, Timeframe
 from runners.base import BaseRunner
 from service.ohlc.feed.alpaca.service import AlpacaOHLCFeed
-from service.ohlc.feed.server import MarketFeedServer
+from service.ohlc.feed.base import OHLCFeed
+from service.ohlc.feed.server import OHLCFeedServer
 
 
-class MarketFeedRunner(BaseRunner):
+class OHLCFeedRunner(BaseRunner):
     """
     Launches the market feed server
     """
@@ -21,7 +22,7 @@ class MarketFeedRunner(BaseRunner):
         asyncio.run(self._run())
 
     async def _run(self):
-        feeds = []
+        feeds: list[OHLCFeed] = []
         for item in CONFIG_YAML["ohlc_feed"]:
             broker = BrokerType(item["broker"])
             market_type = MarketType(item["market_type"])
@@ -36,17 +37,28 @@ class MarketFeedRunner(BaseRunner):
                         timeframe=timeframe,
                         api_key=ALPACA_API_KEY,
                         secret_key=ALPACA_SECRET_KEY,
-                        start_date=item['start_date']
+                        start_date=item["start_date"],
                     )
                 else:
                     raise ValueError(f"Unsupported broker type '{broker}'")
 
-                await feed.start()
+                # await feed.start()
+                asyncio.create_task(self._wrapper(feed.run()))
                 feeds.append(feed)
 
-        manager = MarketFeedServer(self._host, self._port)
+        server = OHLCFeedServer(self._host, self._port)
         try:
-            await manager.init(feeds)
-            await manager.start()
+            await server.init(feeds)
+            await server.run()
+        except KeyboardInterrupt:
+            pass
         finally:
-            await manager.stop()
+            await server.stop()
+            for feed in feeds:
+                await feed.stop()
+
+    async def _wrapper(self, coro):
+        try:
+            await coro
+        except asyncio.CancelledError:
+            pass

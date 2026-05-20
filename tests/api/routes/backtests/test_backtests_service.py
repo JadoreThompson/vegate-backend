@@ -10,15 +10,23 @@ from api.routes.backtests.model import (
     BacktestMetricsResponse,
     BacktestOrderResponse,
 )
-from api.routes.backtests.service import BacktestService
+from api.routes.backtests.service import APIBacktestsService
 from api.routes.backtests.exception import (
     SymbolNotFoundException,
     BacktestNotFoundException,
     BacktestMetricsNotFoundException,
 )
 from api.routes.broker_connections.test_broker_connections_service import create_user
-from api.routes.strategy.service import StrategyService
-from enums import BacktestStatus, BrokerType, MarketType, Timeframe, OrderStatus, OrderSide, OrderType
+from api.routes.strategy.service import APIStrategyService
+from enums import (
+    BacktestStatus,
+    BrokerType,
+    MarketType,
+    Timeframe,
+    OrderStatus,
+    OrderSide,
+    OrderType,
+)
 from infra.db.model import Backtest, Strategy, BacktestMetrics, BacktestOrder
 from infra.db.utils import get_db_sess_sync, get_db_session
 from sqlalchemy import delete
@@ -26,7 +34,7 @@ from sqlalchemy import delete
 
 @pytest.fixture
 def mock_strategy_service():
-    return MagicMock(spec=StrategyService)
+    return MagicMock(spec=APIStrategyService)
 
 
 @pytest.fixture
@@ -39,7 +47,7 @@ def mock_backtest_runner_service():
 
 @pytest.fixture
 def backtest_service(mock_strategy_service, mock_backtest_runner_service):
-    return BacktestService(
+    return APIBacktestsService(
         strategy_service=mock_strategy_service,
         backtest_service=mock_backtest_runner_service,
     )
@@ -68,11 +76,12 @@ class TestCreateBacktest:
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_create_strategy_not_found_raises(
-                self, backtest_service, mock_strategy_service
+            self, backtest_service, mock_strategy_service
         ):
             mock_db_sess = AsyncMock()
 
             from api.routes.strategy.exception import StrategyNotFoundException
+
             mock_strategy_service.get_user_strategy.side_effect = (
                 StrategyNotFoundException()
             )
@@ -93,7 +102,7 @@ class TestCreateBacktest:
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_create_symbol_not_found_raises(
-                self, backtest_service, mock_strategy_service
+            self, backtest_service, mock_strategy_service
         ):
             mock_db_sess = AsyncMock()
 
@@ -119,7 +128,7 @@ class TestCreateBacktest:
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_create_success(
-                self, backtest_service, mock_strategy_service, mock_backtest_runner_service
+            self, backtest_service, mock_strategy_service, mock_backtest_runner_service
         ):
             mock_db_sess = AsyncMock()
 
@@ -153,8 +162,9 @@ class TestCreateBacktest:
             mock_backtest_runner_service.run_backtest.assert_called_once()
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_create_starts_backtest(self, backtest_service, mock_backtest_runner_service,
-                                              mock_strategy_service):
+        async def test_create_starts_backtest(
+            self, backtest_service, mock_backtest_runner_service, mock_strategy_service
+        ):
             mock_db_sess = AsyncMock()
 
             mock_strategy_service.get_user_strategy = AsyncMock()
@@ -182,9 +192,7 @@ class TestGetBacktest:
     class TestUnitTest:
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_get_backtest_not_found_raises(
-                self, backtest_service
-        ):
+        async def test_get_backtest_not_found_raises(self, backtest_service):
             mock_db_sess = AsyncMock()
             mock_db_sess.scalar.return_value = None
 
@@ -192,9 +200,7 @@ class TestGetBacktest:
                 await backtest_service.get_user_backtest(uuid4(), uuid4(), mock_db_sess)
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_get_backtest_incomplete_raises(
-                self, backtest_service
-        ):
+        async def test_get_backtest_incomplete_raises(self, backtest_service):
             mock_db_sess = AsyncMock()
 
             mock_backtest = MagicMock()
@@ -205,9 +211,7 @@ class TestGetBacktest:
                 await backtest_service.get_backtest(uuid4(), uuid4(), mock_db_sess)
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_get_backtest_success(
-                self, backtest_service
-        ):
+        async def test_get_backtest_success(self, backtest_service):
             mock_db_sess = AsyncMock()
 
             mock_backtest = MagicMock()
@@ -241,9 +245,7 @@ class TestGetBacktests:
     class TestUnitTest:
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_get_backtests_returns_paginated_response(
-                self, backtest_service
-        ):
+        async def test_get_backtests_returns_paginated_response(self, backtest_service):
             mock_db_sess = AsyncMock()
 
             mock_backtest = MagicMock()
@@ -285,9 +287,7 @@ class TestDeleteBacktest:
     class TestUnitTest:
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_delete_in_progress_raises(
-                self, backtest_service
-        ):
+        async def test_delete_in_progress_raises(self, backtest_service):
             mock_db_sess = AsyncMock()
 
             mock_backtest = MagicMock()
@@ -298,9 +298,7 @@ class TestDeleteBacktest:
                 await backtest_service.delete(uuid4(), uuid4(), mock_db_sess)
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_delete_success(
-                self, backtest_service
-        ):
+        async def test_delete_success(self, backtest_service):
             mock_db_sess = AsyncMock()
 
             mock_backtest = MagicMock()
@@ -319,9 +317,7 @@ class TestGetOrders:
     class TestUnitTest:
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_get_orders_returns_paginated_response(
-                self, backtest_service
-        ):
+        async def test_get_orders_returns_paginated_response(self, backtest_service):
             mock_db_sess = AsyncMock()
 
             # mock_order = MagicMock()
@@ -376,9 +372,7 @@ class TestGetUserBacktest:
     class TestUnitTest:
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_get_user_backtest_not_found_raises(
-                self, backtest_service
-        ):
+        async def test_get_user_backtest_not_found_raises(self, backtest_service):
             mock_db_sess = AsyncMock()
             mock_db_sess.scalar.return_value = None
 
@@ -386,15 +380,15 @@ class TestGetUserBacktest:
                 await backtest_service.get_user_backtest(uuid4(), uuid4(), mock_db_sess)
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_get_user_backtest_returns_backtest(
-                self, backtest_service
-        ):
+        async def test_get_user_backtest_returns_backtest(self, backtest_service):
             mock_db_sess = AsyncMock()
 
             mock_backtest = MagicMock()
             mock_db_sess.scalar.return_value = mock_backtest
 
-            result = await backtest_service.get_user_backtest(uuid4(), uuid4(), mock_db_sess)
+            result = await backtest_service.get_user_backtest(
+                uuid4(), uuid4(), mock_db_sess
+            )
 
             assert result == mock_backtest
 
@@ -403,7 +397,11 @@ class TestIntegrationTests:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_get_backtest_with_completed_status_returns_metrics(
-            self, backtest_service, mock_strategy_service, mock_backtest_runner_service, db_sess
+        self,
+        backtest_service,
+        mock_strategy_service,
+        mock_backtest_runner_service,
+        db_sess,
     ):
         # user_id = uuid4()
         # strategy_id = uuid4()
@@ -456,7 +454,11 @@ class TestIntegrationTests:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_delete_completed_backtest_removes_from_db(
-            self, backtest_service, mock_strategy_service, mock_backtest_runner_service, db_sess
+        self,
+        backtest_service,
+        mock_strategy_service,
+        mock_backtest_runner_service,
+        db_sess,
     ):
         user = await create_user("test-delete-backtest-user-2")
         user_id = user.user_id
@@ -563,7 +565,11 @@ class TestIntegrationTests:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_get_orders_returns_user_orders_only(
-            self, backtest_service, mock_strategy_service, mock_backtest_runner_service, db_sess
+        self,
+        backtest_service,
+        mock_strategy_service,
+        mock_backtest_runner_service,
+        db_sess,
     ):
         user = await create_user("test-get-orders-user-2")
         user_id = user.user_id

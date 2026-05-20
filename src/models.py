@@ -32,16 +32,16 @@ class OrderRequest(BaseModel):
 class Order(BaseModel):
     """Represents a trading order."""
 
-    order_id: str
+    id: str
     symbol: str
-    quantity: float | None = None
-    executed_quantity: float
-    notional: float | None = None
+    quantity: float
+    filled_quantity: float
+    notional: float
     order_type: OrderType
     side: OrderSide
     limit_price: float | None = None
     stop_price: float | None = None
-    filled_avg_price: float | None = None
+    avg_fill_price: float | None = None
     executed_at: datetime | None = None
     submitted_at: datetime | None = None
     status: OrderStatus = OrderStatus.PENDING

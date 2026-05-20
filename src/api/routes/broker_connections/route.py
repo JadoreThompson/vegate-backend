@@ -18,10 +18,11 @@ from .model import (
     GetOauthUrlResponse
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/broker-connections", tags=["Broker Connections"])
 alpaca_oauth_service = AlpacaService()
 broker_connections_service = BrokerConnectionsService()
-logger = logging.getLogger(__name__)
 
 
 @router.post("", response_model=BrokerConnectionResponse)

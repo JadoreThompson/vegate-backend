@@ -2,28 +2,39 @@ import json
 import logging
 from uuid import UUID, uuid4
 
+from redis.asyncio import Redis as AsyncRedis
 from sqlalchemy import func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import OMS_SESSION_PREFIX, STRATEGY_DEPLOYMENT_EVENTS_KEY
 from enums import BrokerType, OrderStatus
+from events.deployment import (
+    DeploymentCancelOrderSubmitted,
+    DeploymentModifyOrderSubmitted,
+    DeploymentOrderAcknowledged,
+    DeploymentOrderRejected,
+    DeploymentOrderSubmitted,
+)
 from infra.db.model.broker_connections import BrokerConnections
 from infra.db.model.strategy import Strategy
 from infra.db.model.strategy_deployment_orders import StrategyDeploymentOrders
 from infra.db.model.strategy_deployments import StrategyDeployments
 from infra.db.model.user import User
 from infra.db.utils import get_db_session
-from service.alpaca.models import AlpacaOAuthPayload
+from service.event.publisher import EventPublisher
+from service.oauth.alpaca.models import AlpacaOAuthPayload
 from service.encryption.service import EncryptionService
 from service.oms.broker_client.alpaca import AlpacaBrokerClient
 from service.oms.broker_client.base import BrokerClient
 from service.oms.broker_client.exception import BrokerClientException
+from service.oms.broker_client.model import Order
 from service.oms.exception import (
     BrokerConnectionDoesNotExistException,
     DuplicateOrderException,
+    InvalidSessionException,
     OrderNotFoundException,
 )
-from service.oms.broker_client.model import Order
-from service.oms.server.model import PlaceOrderRequest
+from service.oms.model import PlaceOrderRequest
 
 
 class Session:
@@ -35,11 +46,16 @@ class Session:
 
 class OMSService:
 
-    def __init__(self):
+    def __init__(self, redis_client: AsyncRedis, event_publisher: EventPublisher):
+        self._redis_client = redis_client
+        self._event_publisher = event_publisher
+
         self._broker_clients: dict[str, Session] = {}
         self._logger = logging.getLogger(self.__class__.__name__)
 
-    async def create_session(self, deployment_id: UUID) -> str:
+    async def create_session(
+        self, deployment_id: UUID, existing_token: str | None = None
+    ) -> str:
         """
         Connects to the broker for the deployment and returns a unique token.
         """
@@ -63,14 +79,18 @@ class OMSService:
 
         session = Session(deployment_id=deployment_id, broker_client=broker_client)
 
-        token = self._generate_token()
+        token = existing_token or self._generate_token()
         if token in self._broker_clients:
             raise ValueError(f"Token '{token}' already exists")
 
         self._broker_clients[token] = session
+        await self._redis_client.set(
+            f"{OMS_SESSION_PREFIX}{token}",
+            json.dumps({"deployment_id": str(deployment_id)}),
+        )
         return token
 
-    def close_session(self, token: str) -> None:
+    async def close_session(self, token: str) -> None:
         session = self._broker_clients.get(token)
 
         if not session:
@@ -80,29 +100,39 @@ class OMSService:
             session.broker_client.disconnect()
         except Exception as e:
             raise RuntimeError(f"Failed to disconnect broker client: {e}")
+        finally:
+            await self._redis_client.delete(f"{OMS_SESSION_PREFIX}{token}")
+            self._broker_clients.pop(token, None)
 
-        self._broker_clients.pop(token, None)
-
-    def _get_broker(self, token: str) -> BrokerClient:
+    async def _get_session(self, token: str) -> Session:
         session = self._broker_clients.get(token)
         if not session:
-            raise ValueError(f"Invalid or expired token '{token}'")
-        return session.broker_client
+            data = await self._redis_client.get(f"{OMS_SESSION_PREFIX}{token}")
 
-    def _get_session(self, token: str) -> Session:
-        session = self._broker_clients.get(token)
-        if not session:
-            raise ValueError(f"Invalid or expired token '{token}'")
+            if data is None:
+                raise InvalidSessionException(token)
+
+            payload = json.loads(data)
+            deployment_id = payload["deployment_id"]
+
+            await self.create_session(deployment_id, token)
+
+            session = self._broker_clients[token]
+
         return session
 
-    def get_balance(self, token: str) -> float:
-        return self._get_broker(token).get_balance()
+    async def get_balance(self, token: str) -> float:
+        return (await self._get_session(token)).broker_client.get_balance()
 
-    def get_equity(self, token: str) -> float:
-        return self._get_broker(token).get_equity()
+    async def get_equity(self, token: str) -> float:
+        return (await self._get_session(token)).broker_client.get_equity()
+
+    async def get_position(self, token: str, symbol: str) -> float:
+        return (await self._get_session(token)).broker_client.get_position(symbol)
 
     async def place_order(self, token: str, request: PlaceOrderRequest) -> Order:
-        session = self._get_session(token)
+        # TODO: Reject if candle_ts isn't >= t-1
+        session = await self._get_session(token)
 
         async with get_db_session() as db_sess:
             key = await self._generate_order_key(
@@ -110,45 +140,90 @@ class OMSService:
             )
             await self._ensure_unique_key(key, session.deployment_id, db_sess)
 
-        stmt = insert(StrategyDeploymentOrders).returning(StrategyDeploymentOrders.id)
         try:
+            self._logger.info("Before")
             order = session.broker_client.place_order(request.order)
-            stmt = stmt.values(
-                deployment_id=session.deployment_id,
-                symbol=order.symbol,
-                quantity=order.quantity,
-                notional=order.notional,
-                side=order.side,
-                limit_price=order.limit_price,
-                stop_price=order.stop_price,
-                candle_ts=request.candle_ts,
-                status=order.status,
-                key=key,
-                request_payload=json.dumps(request.model_dump(mode="json")),
-                broker_order_id=order.id,
+            self._logger.info("After")
+            broker_order_id = order.id
+            order_id = uuid4()
+            order.id = str(order_id)
+
+            await self._event_publisher.enqueue(
+                DeploymentOrderSubmitted(
+                    deployment_id=session.deployment_id, order=request.order
+                ),
+                STRATEGY_DEPLOYMENT_EVENTS_KEY,
             )
-        except BrokerClientException:
-            stmt = stmt.values(
-                deployment_id=session.deployment_id,
-                symbol=request.order.symbol,
-                quantity=request.order.quantity,
-                notional=request.order.notional,
-                side=request.order.side,
-                limit_price=request.order.limit_price,
-                stop_price=request.order.stop_price,
-                candle_ts=request.candle_ts,
-                status=OrderStatus.REJECTED,
-                key=key,
-                request_payload=json.dumps(request.model_dump(mode="json")),
+            await self._event_publisher.enqueue(
+                DeploymentOrderAcknowledged(
+                    deployment_id=session.deployment_id,
+                    order=order,
+                    broker_order_id=broker_order_id,
+                ),
+                STRATEGY_DEPLOYMENT_EVENTS_KEY,
             )
 
-        async with get_db_session() as db_sess:
-            res = await db_sess.execute(stmt)
-            order_id = res.scalar()
-            await db_sess.commit()
+            async with get_db_session() as db_sess:
+                order_id = await db_sess.scalar(
+                    insert(StrategyDeploymentOrders)
+                    .values(
+                        id=order_id,
+                        deployment_id=session.deployment_id,
+                        symbol=order.symbol,
+                        quantity=order.quantity,
+                        filled_quantity=order.filled_quantity,
+                        notional=order.notional,
+                        side=order.side,
+                        order_type=order.order_type,
+                        limit_price=order.limit_price,
+                        stop_price=order.stop_price,
+                        candle_ts=request.candle_ts,
+                        status=order.status,
+                        key=key,
+                        request_payload=json.dumps(request.model_dump(mode="json")),
+                        broker_order_id=order.id,
+                    )
+                    .returning(StrategyDeploymentOrders.id)
+                )
+                await db_sess.commit()
+            return order
 
-        order.id = order_id
-        return order
+        except BrokerClientException as e:
+            self._logger.error(
+                f"{session.broker_client.__class__.__name__} threw an exception",
+                exc_info=e,
+            )
+
+            async with get_db_session() as db_sess:
+                order_id = await db_sess.scalar(
+                    insert(StrategyDeploymentOrders)
+                    .values(
+                        deployment_id=session.deployment_id,
+                        symbol=request.order.symbol,
+                        quantity=request.order.quantity,
+                        notional=request.order.notional,
+                        side=request.order.side,
+                        order_type=request.order.order_type,
+                        filled_quantity=0,
+                        limit_price=request.order.limit_price,
+                        stop_price=request.order.stop_price,
+                        candle_ts=request.candle_ts,
+                        status=OrderStatus.REJECTED,
+                        key=key,
+                        request_payload=json.dumps(request.model_dump(mode="json")),
+                    )
+                    .returning(StrategyDeploymentOrders.id)
+                )
+                await db_sess.commit()
+
+            await self._event_publisher.enqueue(
+                DeploymentOrderRejected(
+                    deployment_id=session.deployment_id, order_id=order_id
+                ),
+                STRATEGY_DEPLOYMENT_EVENTS_KEY,
+            )
+
+            raise e
 
     async def modify_order(
         self,
@@ -159,8 +234,20 @@ class OMSService:
     ) -> Order:
         broker_order_id = await self._get_broker_order_id(order_id)
 
-        order = self._get_broker(token).modify_order(
+        session = await self._get_session(token)
+        order = session.broker_client.modify_order(
             broker_order_id, limit_price, stop_price
+        )
+
+        await self._event_publisher.enqueue(
+            DeploymentModifyOrderSubmitted(
+                deployment_id=session.deployment_id,
+                order_id=order_id,
+                broker_order_id=broker_order_id,
+                limit_price=limit_price,
+                stop_price=stop_price,
+            ),
+            STRATEGY_DEPLOYMENT_EVENTS_KEY,
         )
 
         async with get_db_session() as db_sess:
@@ -182,7 +269,17 @@ class OMSService:
     async def cancel_order(self, token: str, order_id: UUID) -> bool:
         broker_order_id = await self._get_broker_order_id(order_id)
 
-        success = self._get_broker(token).cancel_order(broker_order_id)
+        session = await self._get_session(token)
+        success = session.broker_client.cancel_order(broker_order_id)
+
+        await self._event_publisher.enqueue(
+            DeploymentCancelOrderSubmitted(
+                deployment_id=session.deployment_id,
+                order_id=order_id,
+                broker_order_id=broker_order_id,
+            ),
+            STRATEGY_DEPLOYMENT_EVENTS_KEY,
+        )
 
         async with get_db_session() as db_sess:
             await db_sess.execute(
@@ -197,7 +294,8 @@ class OMSService:
     async def get_order(self, token: str, order_id: UUID) -> Order:
         broker_order_id = await self._get_broker_order_id(order_id)
 
-        order = self._get_broker(token).get_order(broker_order_id)
+        session = await self._get_session(token)
+        order = session.broker_client.get_order(broker_order_id)
         if order is None:
             raise OrderNotFoundException(order_id)
 
@@ -205,7 +303,7 @@ class OMSService:
         return order
 
     async def cancel_all_orders(self, token: str) -> bool:
-        session = self._get_session(token)
+        session = await self._get_session(token)
 
         async with get_db_session() as db_sess:
             res = await db_sess.execute(
@@ -219,7 +317,7 @@ class OMSService:
         if not order_ids:
             return True
 
-        success = self._get_broker(token).cancel_all_orders()
+        success = (await self._get_session(token)).broker_client.cancel_all_orders()
         if success:
             async with get_db_session() as db_sess:
                 await db_sess.execute(
@@ -245,7 +343,7 @@ class OMSService:
             str(broker_order_id): internal_id for internal_id, broker_order_id in rows
         }
 
-        orders = self._get_broker(token).get_orders()
+        orders = (await self._get_session(token)).broker_client.get_orders()
 
         result = []
         for order in orders:

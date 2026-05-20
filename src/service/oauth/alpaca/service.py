@@ -27,7 +27,12 @@ from .types import _RedisOAuthPayload, AlpacaTradingEnv
 class AlpacaService:
 
     def __init__(self):
-        self._http_sess = aiohttp.ClientSession()
+        self._http_sess: aiohttp.ClientSession | None = None
+
+    def get_http_session(self):
+        if self._http_sess is None:
+            self._http_sess = aiohttp.ClientSession()
+        return self._http_sess
 
     async def get_oauth_url(self, user_id: UUID, env: AlpacaTradingEnv) -> str:
         """Generate OAuth URL for Alpaca authentication."""
@@ -105,7 +110,7 @@ class AlpacaService:
             "redirect_uri": ALPACA_OAUTH_REDIRECT_URI,
         }
 
-        rsp = await self._http_sess.post(
+        rsp = await self.get_http_session().post(
             "https://api.alpaca.markets/oauth/token",
             headers={"Content-Type": "application/x-www-form-urlencoded"},
             data=body,
@@ -127,7 +132,7 @@ class AlpacaService:
         endpoint = "/account"
         headers = {"Authorization": f"Bearer {oauth_payload.access_token}"}
 
-        rsp = await self._http_sess.get(f"{base_url}{endpoint}", headers=headers)
+        rsp = await self.get_http_session().get(f"{base_url}{endpoint}", headers=headers)
         rsp.raise_for_status()
         data = await rsp.json()
         account_id = data["account_number"]

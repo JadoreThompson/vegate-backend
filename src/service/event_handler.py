@@ -102,14 +102,14 @@ class OrderEventHandler:
                     side=order.side.value,
                     order_type=order.order_type.value,
                     quantity=order.quantity,
-                    filled_quantity=order.executed_quantity,
+                    filled_quantity=order.filled_quantity,
                     limit_price=order.limit_price,
                     stop_price=order.stop_price,
-                    avg_fill_price=order.filled_avg_price,
+                    avg_fill_price=order.avg_fill_price,
                     status=order.status.value,
                     submitted_at=order.submitted_at,
                     filled_at=order.executed_at,
-                    broker_order_id=order.order_id,
+                    broker_order_id=order.id,
                     deployment_id=deployment_id,
                     details=order.details,
                 )
@@ -183,7 +183,7 @@ class OrderEventHandler:
 
             if not success:
                 self._logger.warning(
-                    f"Order modification failed for order {order.order_id} in deployment {deployment_id}"
+                    f"Order modification failed for order {order.id} in deployment {deployment_id}"
                 )
                 return
 
@@ -192,7 +192,7 @@ class OrderEventHandler:
                 db_order = (
                     db_sess.query(Orders)
                     .filter(
-                        Orders.broker_order_id == order.order_id,
+                        Orders.broker_order_id == order.id,
                         Orders.deployment_id == deployment_id,
                     )
                     .first()
@@ -206,11 +206,11 @@ class OrderEventHandler:
                     db_order.status = order.status.value
                     db_sess.commit()
                     self._logger.info(
-                        f"Order modified: {order.order_id} for deployment {deployment_id}"
+                        f"Order modified: {order.id} for deployment {deployment_id}"
                     )
                 else:
                     self._logger.warning(
-                        f"Order not found for modification: {order.order_id} in deployment {deployment_id}"
+                        f"Order not found for modification: {order.id} in deployment {deployment_id}"
                     )
 
         except Exception as e:

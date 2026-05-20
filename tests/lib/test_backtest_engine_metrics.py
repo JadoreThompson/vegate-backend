@@ -18,7 +18,7 @@ from models import (
 
 
 def create_candle(
-        timestamp: int, open: float, high: float, low: float, close: float
+    timestamp: int, open: float, high: float, low: float, close: float
 ) -> MagicMock:
     candle = MagicMock()
     candle.timestamp = timestamp
@@ -336,7 +336,7 @@ class TestBacktestMetricsCalculation:
             metrics = engine.run()
 
         assert (
-                metrics.profit_factor == 2.0
+            metrics.profit_factor == 2.0
         ), f"Expected profit factor of 2.0 for 2 profit and 1 loss, got {metrics.profit_factor}"
 
     def test_profit_factor_with_losing_trade(self):
@@ -380,7 +380,7 @@ class TestBacktestMetricsCalculation:
             metrics = engine.run()
 
         assert (
-                metrics.profit_factor == 0.0
+            metrics.profit_factor == 0.0
         ), f"Expected profit factor of 0.0 for only losing trades, got {metrics.profit_factor}"
 
     def test_profit_factor_zero_with_no_trades(self):
@@ -432,7 +432,7 @@ class TestBacktestMetricsCalculation:
             metrics = engine.run()
 
         assert (
-                metrics.profit_factor == 0.0
+            metrics.profit_factor == 0.0
         ), f"Expected profit factor 0.0 with no trades, got {metrics.profit_factor}"
 
     def test_profit_factor_with_partially_filled_orders(self):
@@ -455,7 +455,7 @@ class TestBacktestMetricsCalculation:
                     )
                     # Simulate partial fill: half the quantity at half the cost
                     self._order.status = OrderStatus.PARTIALLY_FILLED
-                    self._order.executed_quantity = 1.0
+                    self._order.filled_quantity = 1.0
                 else:
                     sell_order = self.broker.place_order(
                         OrderRequest(

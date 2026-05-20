@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 class Strategy(Base):
     __tablename__ = "strategy"
-    __table_args__ = (UniqueConstraint("user_id", "name"),)
+    # __table_args__ = (UniqueConstraint("user_id", "name"),)
 
     strategy_id: Mapped[UUID] = uuid_pk()
     user_id: Mapped[UUID] = mapped_column(
@@ -31,7 +31,6 @@ class Strategy(Base):
     updated_at: Mapped[datetime] = datetime_tz(nullable=False, onupdate=get_datetime)
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
     code: Mapped[str] = mapped_column(Text, nullable=False)
-    metrics: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     # Relationships
     backtests: Mapped[list["Backtest"]] = relationship(

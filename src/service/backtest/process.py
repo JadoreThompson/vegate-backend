@@ -32,7 +32,6 @@ class ProcessBacktestService(BacktestService):
         self._max_concurrent_backtests = max_concurrent_backtests
 
     async def run(self, backtest_id: UUID) -> dict:
-        print("Hello world")
         if backtest_id in self._backtests and self._backtests[backtest_id].is_alive():
             return {"status": "already running"}
 

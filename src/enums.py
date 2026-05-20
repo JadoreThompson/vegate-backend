@@ -35,6 +35,8 @@ class BrokerType(str, Enum):
     """Supported broker platforms."""
 
     ALPACA = "alpaca"
+    TRADIER = "tradier"
+    CTRADER = "ctrader"
 
 
 class BacktestStatus(str, Enum):

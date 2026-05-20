@@ -10,7 +10,8 @@ from cli.commands import (
     ohlc_loader,
     http,
     oms,
-    monitor
+    monitor,
+    consumer,
 )
 
 
@@ -38,6 +39,7 @@ cli.add_command(ohlc_loader)
 cli.add_command(feed)
 cli.add_command(oms)
 cli.add_command(monitor)
+cli.add_command(consumer)
 
 
 if __name__ == "__main__":

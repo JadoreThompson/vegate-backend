@@ -1,6 +1,6 @@
-from datetime import datetime
 import logging
 import os
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import insert, update
@@ -12,20 +12,15 @@ from enums import BacktestStatus, BrokerType, Timeframe
 from infra.db import get_db_sess_sync
 from infra.db.model import (
     Backtest,
-    Orders,
     Strategy as StrategyEntity,
     BacktestOrder,
     BacktestMetrics,
     BacktestEquityCurve,
 )
-from models import (
-    BacktestMetrics as BacktestMetricsModel,
-    EquityCurvePoint)
-from service.event.publisher import BacktestEventPublisher, SyncEventPublisher
-from service.ohlc.feed.backtest.service import BacktestOHLCFeed
+from models import BacktestMetrics as BacktestMetricsModel, EquityCurvePoint
+from service.event.publisher import SyncEventPublisher
 from service.ohlc.feed.backtest.client import BacktestOHLCFeedClient
 from service.oms.broker_client.backtest import BacktestBrokerClient
-from strategy.model import StrategyConfig
 from strategy.strategy import Strategy
 from utils import get_datetime
 from .base import BaseRunner
@@ -83,7 +78,7 @@ class BacktestRunner(BaseRunner):
             self._update_backtest_status(BacktestStatus.FAILED)
 
     def _fetch_backtest_and_strategy(
-            self,
+        self,
     ) -> tuple[Backtest | None, StrategyEntity | None]:
         """Fetch backtest and strategy from database.
 
@@ -100,10 +95,10 @@ class BacktestRunner(BaseRunner):
 
             self._logger.info("Backtest object found")
 
-            db_strategy = db_sess.get(StrategyEntity, db_backtest.id)
+            db_strategy = db_sess.get(StrategyEntity, db_backtest.strategy_id)
             if db_strategy is None:
                 self._logger.error(
-                    f"Strategy for backtest {self._backtest_id} not found with ID: {db_backtest.id}"
+                    f"Strategy for backtest {self._backtest_id}"
                 )
                 db_backtest.status = BacktestStatus.FAILED.value
                 db_sess.commit()
@@ -193,7 +188,7 @@ class BacktestRunner(BaseRunner):
         n = len(equity_curve)
         if n > 5:
             indices = [0, n * 1 // 4, n * 2 // 4, n * 3 // 4, n - 1]
-            equity_curve = [equity_curve[i] for i in indices]
+            equity_curve = [equity_curve[i].model_dump(mode='json') for i in indices]
 
         # Update database
         with get_db_sess_sync() as db_sess:
@@ -214,11 +209,12 @@ class BacktestRunner(BaseRunner):
                     total_return_pct=result.total_return_pct,
                     profit_factor=result.profit_factor,
                     total_orders=result.total_orders,
+                    equity_curve=equity_curve
                 )
             )
 
             def parse_equity_curve_point(
-                    point: EquityCurvePoint, created_at: datetime
+                point: EquityCurvePoint, created_at: datetime
             ) -> dict:
                 data = point.model_dump()
                 data["backtest_id"] = self._backtest_id

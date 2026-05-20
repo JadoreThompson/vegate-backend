@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from models import OHLC
 from service.event.publisher import SyncEventPublisher
 from service.ohlc.feed.client import OHLCFeedClient
-from service.oms.broker_client import BrokerClient
+from service.oms.broker_client.base import BrokerClient
 from service.oms.client import OMSClient
 from strategy.model import StrategyConfig
 

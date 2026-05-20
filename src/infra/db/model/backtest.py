@@ -24,14 +24,19 @@ class Backtest(Base):
         ForeignKey("strategy.strategy_id", ondelete="CASCADE"),
         nullable=False,
     )
-    symbol: Mapped[str] = mapped_column(String, nullable=False)
+    # symbol: Mapped[str] = mapped_column(String, nullable=False)
+    instrument_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("instruments.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     # Broker is needed to know which data source to use for backtesting
-    broker: Mapped[BrokerType] = mapped_column(String, nullable=False)
+    # broker: Mapped[BrokerType] = mapped_column(String, nullable=False)
     starting_balance: Mapped[int] = mapped_column(Integer, nullable=False)
     start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     timeframe: Mapped[Timeframe] = mapped_column(String, nullable=False)
-    market_type: Mapped[MarketType] = mapped_column(String, nullable=False)
+    # market_type: Mapped[MarketType] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(
         String, nullable=False, default=BacktestStatus.PENDING.value
     )

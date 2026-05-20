@@ -6,7 +6,7 @@ from uuid import uuid4
 from datetime import datetime
 
 from api.routes.auth.service import AuthService
-from api.routes.strategy.service import StrategyService
+from api.routes.strategy.service import APIStrategyService
 from api.routes.strategy.models import (
     CreateStrategyRequest,
     UpdateStrategyRequest,
@@ -38,37 +38,41 @@ class MockStrategyService:
     async def create(self, request, user_id, db_sess):
         strategy_id = uuid4()
         self._created_strategies.append(strategy_id)
-        return type('obj', (object), {
-            'strategy_id': strategy_id,
-            'name': 'Mock Strategy',
-            'description': 'Mock description',
-            'prompt': request.description,
-            'code': 'class Strategy: pass',
-            'created_at': datetime.now(),
-            'updated_at': datetime.now(),
-        })()
+        return type(
+            "obj",
+            (object),
+            {
+                "strategy_id": strategy_id,
+                "name": "Mock Strategy",
+                "description": "Mock description",
+                "prompt": request.description,
+                "code": "class Strategy: pass",
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
+            },
+        )()
 
     async def get_strategy(self, id, user_id, db_sess):
         return None
 
     async def get_strategies(self, user_id, db_sess, *, page, limit):
         from api.models import PaginatedResponse
-        return PaginatedResponse(
-            page=page,
-            size=0,
-            has_next=False,
-            data=[]
-        )
+
+        return PaginatedResponse(page=page, size=0, has_next=False, data=[])
 
     async def update(self, request, id, user_id, db_sess):
-        return type('obj', (object), {
-            'strategy_id': id,
-            'name': 'Updated Strategy',
-            'description': 'Updated description',
-            'prompt': 'updated prompt',
-            'created_at': datetime.now(),
-            'updated_at': datetime.now(),
-        })()
+        return type(
+            "obj",
+            (object),
+            {
+                "strategy_id": id,
+                "name": "Updated Strategy",
+                "description": "Updated description",
+                "prompt": "updated prompt",
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
+            },
+        )()
 
     async def delete(self, id, user_id, db_sess):
         pass
@@ -85,8 +89,7 @@ def mock_strategy_service():
 @pytest.fixture
 def strategy_service_fixture(mock_strategy_service, monkeypatch):
     monkeypatch.setattr(
-        "api.routes.strategy.route.strategy_service",
-        mock_strategy_service
+        "api.routes.strategy.route.strategy_service", mock_strategy_service
     )
     yield mock_strategy_service
 
@@ -148,18 +151,26 @@ class TestGetStrategy:
         assert res.status_code == 404
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_get_strategy_returns_200(self, authenticated_client, mock_strategy_service):
+    async def test_get_strategy_returns_200(
+        self, authenticated_client, mock_strategy_service
+    ):
         strategy_id = uuid4()
 
-        mock_strategy_service.get_strategy = AsyncMock(return_value=type('obj', (object), {
-            'strategy_id': strategy_id,
-            'name': 'Test Strategy',
-            'description': 'Test description',
-            'code': 'class Strategy: pass',
-            'prompt': 'test prompt',
-            'created_at': datetime.now(),
-            'updated_at': datetime.now(),
-        })())
+        mock_strategy_service.get_strategy = AsyncMock(
+            return_value=type(
+                "obj",
+                (object),
+                {
+                    "strategy_id": strategy_id,
+                    "name": "Test Strategy",
+                    "description": "Test description",
+                    "code": "class Strategy: pass",
+                    "prompt": "test prompt",
+                    "created_at": datetime.now(),
+                    "updated_at": datetime.now(),
+                },
+            )()
+        )
 
         res = await authenticated_client.get(f"/strategy/{strategy_id}")
 
@@ -196,9 +207,7 @@ class TestUpdateStrategy:
             "description": "Updated description",
         }
 
-        res = await authenticated_client.patch(
-            f"/strategy/{strategy_id}", json=payload
-        )
+        res = await authenticated_client.patch(f"/strategy/{strategy_id}", json=payload)
 
         assert res.status_code == 200
         data = res.json()
@@ -214,9 +223,7 @@ class TestUpdateStrategy:
             "name": "abc",
         }
 
-        res = await authenticated_client.patch(
-            f"/strategy/{strategy_id}", json=payload
-        )
+        res = await authenticated_client.patch(f"/strategy/{strategy_id}", json=payload)
 
         assert res.status_code == 422
 
@@ -230,9 +237,7 @@ class TestUpdateStrategy:
             "description": "short",
         }
 
-        res = await authenticated_client.patch(
-            f"/strategy/{strategy_id}", json=payload
-        )
+        res = await authenticated_client.patch(f"/strategy/{strategy_id}", json=payload)
 
         assert res.status_code == 422
 
@@ -251,7 +256,9 @@ class TestDeleteStrategy:
     async def test_delete_strategy_not_found_returns_404(
         self, authenticated_client, mock_strategy_service
     ):
-        from api.routes.strategy.service import StrategyService as RealStrategyService
+        from api.routes.strategy.service import (
+            APIStrategyService as RealStrategyService,
+        )
 
         mock_strategy_service.update = AsyncMock(side_effect=Exception("not found"))
 

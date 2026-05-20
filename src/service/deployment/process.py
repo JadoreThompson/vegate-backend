@@ -5,13 +5,13 @@ from config import OHLC_FEED_HOST, OHLC_FEED_PORT, OMS_BASE_URL
 from infra.redis import REDIS_CLIENT_SYNC
 from service.deployment.base import DeploymentService
 from service.deployment.exception import DeploymentNotFoundException
-from service.event.publisher import SyncEventPublisher
+from service.event.publisher import EventPublisher, SyncEventPublisher
 from service.ohlc.feed.client import OHLCFeedClient
 from service.oms.client import OMSClient
 from strategy.service import StrategyDeploymentService
 
 
-def _run_strategy(deployment_id: UUID):
+def _run_strategy_deployment(deployment_id: UUID):
     ohlc_feed_client = OHLCFeedClient(host=OHLC_FEED_HOST, port=OHLC_FEED_PORT)
     oms_client = OMSClient(base_url=OMS_BASE_URL)
     event_publisher = SyncEventPublisher()
@@ -32,6 +32,12 @@ class ProcessDeploymentService(DeploymentService):
     def __init__(self):
         super().__init__()
         self._deployments: dict[UUID, Process] = {}
+        self._event_publisher: EventPublisher | None = None
+
+    def _get_event_publisher(self):
+        if self._event_publisher is None:
+            self._event_publisher = EventPublisher()
+        return self._event_publisher
 
     async def run(self, deployment_id: UUID):
         if deployment_id in self._deployments:
@@ -40,8 +46,8 @@ class ProcessDeploymentService(DeploymentService):
 
             self._deployments[deployment_id].kill()
             self._deployments[deployment_id].join(timeout=5)
-
-        p = Process(target=_run_strategy, args=(deployment_id,))
+        
+        p = Process(target=_run_strategy_deployment, args=(deployment_id,))
         p.start()
         self._deployments[deployment_id] = p
 

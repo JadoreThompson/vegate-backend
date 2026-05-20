@@ -37,4 +37,4 @@ class BacktestOrder(Base):
     details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     # Relationships
-    backtest: Mapped["Backtest | None"] = relationship(back_populates="orders")
+    backtest: Mapped["Backtest"] = relationship(back_populates="orders")

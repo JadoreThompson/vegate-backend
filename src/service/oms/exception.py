@@ -27,3 +27,14 @@ class OrderNotFoundException(Exception):
     @property
     def order_id(self) -> UUID:
         return self._order_id
+
+
+class InvalidSessionException(Exception):
+
+    def __init__(self, token: str):
+        self._token = token
+        super().__init__(f"Invalid session token '{token}'")
+
+    @property
+    def token(self):
+        return self._token

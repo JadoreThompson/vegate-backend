@@ -7,7 +7,7 @@ from models import Order
 from service.oms.broker_client.base import BrokerClient
 from service.oms.broker_client.model import OrderRequest
 from service.oms.client.exception import OMSClientException
-from service.oms.server.model import PlaceOrderRequest
+from service.oms.model import PlaceOrderRequest
 
 
 class OMSClient(BrokerClient):
@@ -20,8 +20,9 @@ class OMSClient(BrokerClient):
 
     def create_session(self, deployment_id: UUID) -> None:
         response = self._client.post(
-            f"{self._base_url}/session", headers={"Content-Type": "application/json"},
-            json={"deployment_id": str(deployment_id)}
+            f"{self._base_url}/session",
+            headers={"Content-Type": "application/json"},
+            json={"deployment_id": str(deployment_id)},
         )
         self._raise_for_status(response)
         self._token = response.json()["token"]
@@ -47,23 +48,31 @@ class OMSClient(BrokerClient):
         self._raise_for_status(response)
         return response.json()["equity"]
 
-    def place_order(self, order: OrderRequest, candle_ts: int) -> Order:
-        response = self._client.post(
-            f"{self._base_url}/orders",
-            json=PlaceOrderRequest(
-                order=order,
-                candle_ts=candle_ts,
-            ).model_dump(mode="json"),
+    def get_position(self, symbol):
+        response = self._client.get(
+            f"{self._base_url}/position?symbol={symbol}",
             headers=self._auth_header(),
         )
+        self._raise_for_status(response)
+        return response.json()["balance"]
+
+    def place_order(self, request: OrderRequest, candle_ts: int) -> Order:
+        response = self._client.post(
+            f"{self._base_url}/orders",
+            json=PlaceOrderRequest(order=request, candle_ts=candle_ts).model_dump(
+                mode="json"
+            ),
+            headers=self._auth_header(),
+        )
+
         self._raise_for_status(response)
         return Order.model_validate(response.json())
 
     def modify_order(
-            self,
-            order_id: UUID,
-            limit_price: float | None = None,
-            stop_price: float | None = None,
+        self,
+        order_id: UUID,
+        limit_price: float | None = None,
+        stop_price: float | None = None,
     ) -> Order:
         response = self._client.patch(
             f"{self._base_url}/orders/{order_id}",

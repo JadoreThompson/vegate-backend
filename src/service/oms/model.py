@@ -38,3 +38,6 @@ class BalanceResponse(BaseModel):
 
 class EquityResponse(BaseModel):
     equity: float
+
+class PositionResponse(BaseModel):
+    balance: float

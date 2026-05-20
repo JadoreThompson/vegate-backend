@@ -12,9 +12,9 @@ from api.routes.deployments.models import (
     StrategyDeploymentResponse,
     StrategyDeploymentMetricsResponse,
 )
-from api.routes.deployments.service import DeploymentService
+from api.routes.deployments.service import APIDeploymentsService
 from api.routes.markets.service import MarketsService
-from api.routes.markets.model import OHLCInfo
+from api.routes.markets.model import InstrumentInfo
 from enums import (
     BrokerType,
     MarketType,
@@ -46,7 +46,7 @@ def mock_deployment_runner():
 
 @pytest.fixture
 def deployment_service(mock_markets_service, mock_deployment_runner):
-    return DeploymentService(
+    return APIDeploymentsService(
         markets_service=mock_markets_service,
         deployment_service=mock_deployment_runner,
     )
@@ -78,7 +78,7 @@ class TestCreateDeployment:
         ):
             mock_db_sess = AsyncMock()
 
-            mock_info = MagicMock(spec=OHLCInfo)
+            mock_info = MagicMock(spec=InstrumentInfo)
             mock_markets_service.get_symbol_info = AsyncMock(return_value=mock_info)
 
             mock_deployment = MagicMock()
@@ -106,7 +106,7 @@ class TestCreateDeployment:
         ):
             mock_db_sess = AsyncMock()
 
-            mock_info = MagicMock(spec=OHLCInfo)
+            mock_info = MagicMock(spec=InstrumentInfo)
             mock_markets_service.get_symbol_info = AsyncMock(return_value=mock_info)
 
             request = CreateDeploymentRequest(

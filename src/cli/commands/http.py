@@ -21,5 +21,7 @@ def http():
 @http.command(name="run")
 def run():
     uvicorn.run(
-        "api.app:app", host="0.0.0.0" if IS_PRODUCTION else "localhost", port=8000
+        "api.app:app", 
+        host="0.0.0.0",# if IS_PRODUCTION else "localhost", 
+        port=8000
     )

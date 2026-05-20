@@ -118,7 +118,7 @@ class SocketConnection:
         )
 
 
-class MarketFeedServer:
+class OHLCFeedServer:
     """
     Asyncio TCP server that streams market data to internal services.
     """
@@ -157,7 +157,7 @@ class MarketFeedServer:
                 feed.timeframe,
             )
 
-    async def start(self) -> None:
+    async def run(self) -> None:
         """Start listening for incoming socket connections."""
         self._server = await asyncio.start_server(
             self._handle_client,

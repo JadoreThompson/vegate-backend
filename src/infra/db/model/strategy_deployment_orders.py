@@ -26,19 +26,19 @@ class StrategyDeploymentOrders(Base):
 
     symbol: Mapped[str] = mapped_column(String, nullable=False)
     quantity: Mapped[float] = mapped_column(Float, nullable=False)
-    filled_quantity: Mapped[float] = mapped_column(Float, nullable=False, default=text('0.0'))
-    notional: Mapped[float] = mapped_column(Float, nullable=False)
+    filled_quantity: Mapped[float] = mapped_column(Float, nullable=False)
+    notional: Mapped[float] = mapped_column(Float, nullable=True)
     order_type: Mapped[str] = mapped_column(String, nullable=False)
     side: Mapped[OrderSide] = mapped_column(String, nullable=False)
-    limit_price: Mapped[float] = mapped_column(Float, nullable=False)
-    stop_price: Mapped[float] = mapped_column(Float, nullable=False)
+    limit_price: Mapped[float] = mapped_column(Float, nullable=True)
+    stop_price: Mapped[float] = mapped_column(Float, nullable=True)
     avg_fill_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     candle_ts: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    status: Mapped[OrderStatus] = mapped_column(String, nullable=False, default=OrderStatus.PENDING)
+    status: Mapped[OrderStatus] = mapped_column(String, nullable=False)
     key: Mapped[str] = mapped_column(String, nullable=False)
 
     # Debug/audit payloads
-    broker_order_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    broker_order_id: Mapped[str] = mapped_column(String, nullable=True, index=True)
     request_payload: Mapped[dict] = mapped_column(JSON, nullable=False)
 
     created_at: Mapped[datetime] = datetime_tz()

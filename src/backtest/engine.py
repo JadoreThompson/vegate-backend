@@ -56,14 +56,6 @@ class BacktestEngine:
         last_log_count = 0
         log_interval = 100  # Log every 100 candles
 
-        self._equity_curve.append(
-            EquityCurvePoint(
-                timestamp=0,
-                equity=self._broker.get_equity(),
-                balance=self._broker.get_balance(),
-            )
-        )
-
         ohlc_feed_client: BacktestOHLCFeedClient = self._strategy.ohlc_feed_client
         self._broker.ohlc_feed_client = ohlc_feed_client
         tf_seconds = ohlc_feed_client.timeframe.get_seconds()
@@ -73,10 +65,20 @@ class BacktestEngine:
         low = None
         close = None
         volume = 0
+
         for candle in ohlc_feed_client.candles():
-            candle_count += 1
             if candle_count == 0:
                 start = candle.timestamp
+                self._equity_curve.append(
+                    EquityCurvePoint(
+                        timestamp=candle.timestamp,
+                        equity=self._broker.get_equity(),
+                        balance=self._broker.get_balance(),
+                    )
+                )
+
+            candle_count += 1
+
             self._broker.execute_pending_orders(candle)
 
             # self._strategy.on_candle(candle)
@@ -147,8 +149,8 @@ class BacktestEngine:
         realised_pnl = end_balance - self._config.starting_balance
         end_equity = self._broker.get_equity()
         total_return_pct = (
-                                   end_balance - self._config.starting_balance
-                           ) / self._config.starting_balance
+            end_balance - self._config.starting_balance
+        ) / self._config.starting_balance
 
         return BacktestMetrics(
             realised_pnl=realised_pnl,
@@ -175,13 +177,13 @@ class BacktestEngine:
                 value = order.notional
             else:
                 if order.order_type == OrderType.MARKET:
-                    price = order.filled_avg_price
+                    price = order.avg_fill_price
                 elif order.order_type == OrderType.LIMIT:
                     price = order.limit_price
                 else:
                     price = order.stop_price
 
-                value = price * order.executed_quantity
+                value = price * order.filled_quantity
 
             if order.side == OrderSide.BUY:
                 total_notional -= value
@@ -232,7 +234,7 @@ class BacktestEngine:
             )
 
     def _calculate_sharpe_from_equity_curve(
-            self, equity_curve: list[EquityCurvePoint], periods_per_year: float
+        self, equity_curve: list[EquityCurvePoint], periods_per_year: float
     ) -> float:
         """Calculate Sharpe ratio from equity curve points.
 
@@ -276,10 +278,10 @@ class BacktestEngine:
         return float(sharpe_ratio)
 
     def _calculate_sharpe_with_resampling(
-            self,
-            equity_curve: list[EquityCurvePoint],
-            period: timedelta,
-            periods_per_year: float,
+        self,
+        equity_curve: list[EquityCurvePoint],
+        period: timedelta,
+        periods_per_year: float,
     ) -> float:
         """Calculate Sharpe ratio with resampling to specific period.
 
@@ -319,8 +321,8 @@ class BacktestEngine:
                 # Move to next period
                 # Calculate how many periods we've crossed
                 periods_crossed = (
-                                          point_timestamp - current_period_start
-                                  ) // period_seconds
+                    point_timestamp - current_period_start
+                ) // period_seconds
                 current_period_start += periods_crossed * period_seconds
 
             last_added_point = point
@@ -358,22 +360,20 @@ class BacktestEngine:
             pos = positions[symbol]
 
             # Resolve the executed price
-            if order.filled_avg_price is not None:
-                price = order.filled_avg_price
+            if order.avg_fill_price is not None:
+                price = order.avg_fill_price
             elif order.order_type == OrderType.LIMIT:
                 price = order.limit_price
             elif order.order_type == OrderType.MARKET:
-                price = order.filled_avg_price  # best available
+                price = order.avg_fill_price  # best available
             else:
                 price = order.stop_price
 
             if price is None:
-                logger.warning(
-                    f"Order {order.order_id} has no resolvable price, skipping"
-                )
+                logger.warning(f"Order {order.id} has no resolvable price, skipping")
                 continue
 
-            qty = order.executed_quantity
+            qty = order.filled_quantity
 
             if order.side == OrderSide.BUY:
                 total_cost = pos["qty"] * pos["avg_price"] + qty * price

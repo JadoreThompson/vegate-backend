@@ -1,12 +1,17 @@
 from datetime import datetime
-from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 from api.shared.models import PerformanceMetrics
-from enums import BrokerType, StrategyDeploymentStatus, MarketType, Timeframe, OrderStatus
+from enums import (
+    BrokerType,
+    StrategyDeploymentStatus,
+    MarketType,
+    Timeframe,
+    OrderStatus,
+)
 from models import CustomBaseModel
 
 
@@ -18,7 +23,12 @@ class CreateDeploymentRequest(BaseModel):
     symbol: str = Field(min_length=1, max_length=10)
     timeframe: Timeframe
     market_type: MarketType
+    # Where to pull data from
     broker_type: BrokerType
+
+
+class CreateStrategyDeploymentResponse(CustomBaseModel):
+    id: UUID
 
 
 class StrategyDeploymentMetricsResponse(BaseModel):
@@ -49,6 +59,7 @@ class StrategyDeploymentDetailResponse(StrategyDeploymentResponse):
 
 class StrategyDeploymentOrderResponse(BaseModel):
     id: UUID
+    broker_order_id: UUID
     deployment_id: UUID
     symbol: str
     side: str

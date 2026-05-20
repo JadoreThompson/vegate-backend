@@ -14,6 +14,8 @@ from infra.db.model.ticks import Ticks
 from infra.db.model.ohlc import OHLC
 from infra.db.model.account_snapshots import AccountSnapshots
 from infra.db.model.event_outbox import EventOutbox
+from infra.db.model.instrument import Instrument
+from infra.db.model.deployment_event import DeploymentEvent
 
 __all__ = [
     "Base",

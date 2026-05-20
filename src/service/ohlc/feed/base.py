@@ -26,3 +26,11 @@ class OHLCFeed(ABC):
     @property
     @abstractmethod
     def market_type(self) -> MarketType: ...
+
+    @abstractmethod
+    async def run(self):
+        ...
+
+    @abstractmethod
+    async def stop(self):
+        ...

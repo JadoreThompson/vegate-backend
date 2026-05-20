@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 import aiohttp
-from sqlalchemy import and_, delete, insert, select
+from sqlalchemy import and_, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.models import PaginatedResponse
@@ -27,7 +27,12 @@ class _BrokerAccount:
 class BrokerConnectionsService:
 
     def __init__(self):
-        self._http_sess = aiohttp.ClientSession()
+        self._http_sess: aiohttp.ClientSession | None = None
+
+    def get_http_session(self):
+        if self._http_sess is None:
+            self._http_sess = aiohttp.ClientSession()
+        return self._http_sess
 
     async def create_broker_connection(
         self,
@@ -61,8 +66,8 @@ class BrokerConnectionsService:
         self, api_key: str, secret_key: str
     ) -> _BrokerAccount:
         url = "https://paper-api.alpaca.markets/v2/account"
-        headers = {"ALPACA-API-KEY-ID": api_key, "ALPACA-API-SECRET-KEY": secret_key}
-        rsp = await self._http_sess.get(url, headers=headers)
+        headers = {"APCA-API-KEY-ID": api_key, "APCA-API-SECRET-KEY": secret_key}
+        rsp = await self.get_http_session().get(url, headers=headers)
         if not rsp.ok:
             raise BrokerAccountFetchException(
                 "Failed to fetch account. Ensure the provided keys are correct"

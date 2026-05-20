@@ -1,13 +1,13 @@
 import asyncio
 import json
+import logging
 from uuid import UUID
 
-from aiokafka import AIOKafkaConsumer
 from redis.asyncio import Redis
 from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config import STRATEGY_DEPLOYMENT_EVENTS_KEY
+from config import REDIS_STRATEGY_HEARTBEAT_KEY_PREFIX, STRATEGY_DEPLOYMENT_EVENTS_KEY
 from enums import StrategyDeploymentStatus
 from events.deployment import DeploymentStatusChangedEvent, DeploymentEventType
 from infra.db.model.strategy_deployments import StrategyDeployments
@@ -22,7 +22,7 @@ class DeploymentMonitoringService:
         self,
         redis_client: Redis,
         event_publisher: EventPublisher,
-        heartbeat_prefix_key: str,
+        heartbeat_prefix_key: str = REDIS_STRATEGY_HEARTBEAT_KEY_PREFIX,
         monitor_interval: int = 15,
     ):
         self._redis_client = redis_client
@@ -34,6 +34,7 @@ class DeploymentMonitoringService:
         self._suspicious_deployments: set[UUID] = set()
         self._alive = False
         self._lock = asyncio.Lock()
+        self._logger = logging.getLogger(self.__class__.__name__)
 
     @property
     def monitor_interval(self):
@@ -63,14 +64,18 @@ class DeploymentMonitoringService:
 
     async def run(self):
         self._alive = True
-        res = await asyncio.gather(self._listen_loop(), self._monitor_loop(), return_exceptions=True)
+        res = await asyncio.gather(
+            self._listen_loop(), self._monitor_loop(), return_exceptions=True
+        )
         self._alive = False
         if res:
-            raise ExceptionGroup("", exceptions=res)
+            raise ExceptionGroup("", res)
 
     async def _listen_loop(self):
         self._kafka_consumer = AsyncKafkaConsumer(
-            STRATEGY_DEPLOYMENT_EVENTS_KEY, group_id="monitoring_group"
+            STRATEGY_DEPLOYMENT_EVENTS_KEY,
+            group_id="deployment_monitoring_group",
+            enable_auto_commit=False,
         )
 
         try:
@@ -83,15 +88,18 @@ class DeploymentMonitoringService:
                         and value.decode() == DeploymentEventType.DEPLOYMENT_STATUS
                     ):
                         event_data = json.loads(record.value)
-                        event_type = event_data["type"]
-                        if (
-                            event_type == DeploymentEventType.DEPLOYMENT_STATUS
-                            and event_data["status"] == StrategyDeploymentStatus.RUNNING
-                        ):
+                        if event_data["status"] == StrategyDeploymentStatus.RUNNING:
+                            try:
+                                deployment_id = UUID(event_data["deployment_id"])
+                            except ValueError:
+                                pass
+                            self._logger.info(
+                                f"Pushing deployment with id '{deployment_id}' to running deployments"
+                            )
                             async with self._lock:
-                                self._running_deployments.add(
-                                    UUID(event_data["deployment_id"])
-                                )
+                                self._running_deployments.add(deployment_id)
+
+                await self._kafka_consumer.commit()
         finally:
             await self._kafka_consumer.stop()
 
@@ -99,19 +107,20 @@ class DeploymentMonitoringService:
         try:
             while self._alive:
                 await asyncio.sleep(self._monitor_interval)
+                
                 if not self._alive:
                     break
-
+                
                 async with self._lock:
                     running_deployments = list(self._running_deployments)
                     suspicious_deployments = list(self._suspicious_deployments)
-
+                
                 async with self._redis_client.pipeline() as pl:
                     for id in running_deployments:
                         pl.get(f"{self._heartbeat_prefix_key}{id}")
                     for id in suspicious_deployments:
                         pl.get(f"{self._heartbeat_prefix_key}{id}")
-
+                    
                     results = await pl.execute()
 
                 to_suspicious = []
@@ -119,17 +128,24 @@ class DeploymentMonitoringService:
                 to_running = []
                 for i in range(len(results)):
                     res = results[i]
+                    self._logger.info(f"Result {i + 1} - {res}")
                     if i < len(running_deployments):
-                        if not res:
-                            to_suspicious.append(running_deployments[i])
-                        else:
-                            to_stopped.append(running_deployments[i])
-                    if i < len(suspicious_deployments):
-                        if not res:
-                            to_stopped.append(suspicious_deployments[i])
-                        else:
-                            to_running.append(suspicious_deployments[i])
+                        deployment_id = running_deployments[i]
 
+                        if not res:
+                            self._logger.info(f"Pushing deployment '{deployment_id}' to suspicious")
+                            to_suspicious.append(deployment_id)
+                    
+                    elif i < len(suspicious_deployments):
+                        deployment_id = suspicious_deployments[i]
+
+                        if not res:
+                            self._logger.info(f"Pushing deployment '{deployment_id}' to stopped")
+                            to_stopped.append(deployment_id)
+                        else:
+                            self._logger.info(f"Pushing deployment '{deployment_id}' to running")
+                            to_running.append(deployment_id)
+                
                 async with get_db_session() as db_sess:
                     if to_suspicious:
                         await self._set_status_suspicious(to_suspicious, db_sess)
@@ -139,13 +155,23 @@ class DeploymentMonitoringService:
                         await self._set_status_running(to_running, db_sess)
                     await db_sess.commit()
 
+                async with self._lock:
+                    for item in to_suspicious:
+                        self._running_deployments.discard(item)
+                        self._suspicious_deployments.add(item)
+                    for item in to_stopped:
+                        self._suspicious_deployments.discard(item)
+                    for item in to_running:
+                        self._suspicious_deployments.remove(item)
+                        self._running_deployments.add(item)
+
         except asyncio.CancelledError:
             pass
 
     async def _set_status_suspicious(
         self, deployment_ids: list[UUID], db_sess: AsyncSession
     ):
-        await db_sess.execute(
+        res = await db_sess.execute(
             update(StrategyDeployments)
             .where(
                 StrategyDeployments.deployment_id.in_(deployment_ids),
@@ -159,7 +185,7 @@ class DeploymentMonitoringService:
                 deployment_id=id, status=StrategyDeploymentStatus.SUSPICIOUS
             )
             await self._event_publisher.enqueue(
-                STRATEGY_DEPLOYMENT_EVENTS_KEY, event, db_sess
+                event, STRATEGY_DEPLOYMENT_EVENTS_KEY, db_sess
             )
 
     async def _set_status_stopped(
@@ -179,7 +205,7 @@ class DeploymentMonitoringService:
                 deployment_id=id, status=StrategyDeploymentStatus.STOPPED
             )
             await self._event_publisher.enqueue(
-                STRATEGY_DEPLOYMENT_EVENTS_KEY, event, db_sess
+                event, STRATEGY_DEPLOYMENT_EVENTS_KEY, db_sess
             )
 
     async def _set_status_running(
@@ -199,5 +225,5 @@ class DeploymentMonitoringService:
                 deployment_id=id, status=StrategyDeploymentStatus.RUNNING
             )
             await self._event_publisher.enqueue(
-                STRATEGY_DEPLOYMENT_EVENTS_KEY, event, db_sess
+                event, STRATEGY_DEPLOYMENT_EVENTS_KEY, db_sess
             )

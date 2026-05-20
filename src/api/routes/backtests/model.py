@@ -5,7 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from enums import BacktestStatus, BrokerType, MarketType, OrderStatus
-from models import CustomBaseModel
+from models import CustomBaseModel, EquityCurvePoint
 from enums import Timeframe
 
 
@@ -30,6 +30,7 @@ class BacktestMetricsResponse(BaseModel):
     total_return_pct: float
     profit_factor: float
     total_orders: int
+    equity_curve: list[EquityCurvePoint]
 
 
 class BacktestResponse(CustomBaseModel):

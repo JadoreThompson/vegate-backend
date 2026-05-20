@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import select, and_
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.models import PaginatedResponse
@@ -19,7 +19,7 @@ from api.routes.strategy.models import (
 from infra.db.model import Strategy
 
 
-class StrategyService:
+class APIStrategyService:
 
     def __init__(self):
         pass
@@ -27,8 +27,13 @@ class StrategyService:
     async def create(
         self, request: CreateStrategyRequest, user_id: UUID, db_sess: AsyncSession
     ) -> Strategy:
-        strategy_details = await self._generate_strategy_code(request.description)
-        await self._validate_strategy_code(strategy_details.code)
+        # strategy_details = await self._generate_strategy_code(request.description)
+        strategy_details = StrategyGenOutput(
+            name="Test Strategy",
+            description="A test strategy",
+            code="# print('Hello world')",
+        )
+        # await self._validate_strategy_code(strategy_details.code)
 
         new_strategy = Strategy(
             user_id=user_id,
@@ -61,18 +66,20 @@ class StrategyService:
         return True
 
     async def get_strategy(
-        self, id: UUID, user_id: UUID, db_sess: AsyncSession
+        self, strategy_id: UUID, user_id: UUID, db_sess: AsyncSession
     ) -> Strategy | None:
-        return await db_sess.scalar(
-            select(Strategy).where(
-                and_(Strategy.strategy_id == id, Strategy.user_id == user_id)
-            )
-        )
+        return await self.get_user_strategy(strategy_id, user_id, db_sess)
 
     async def get_strategies(
-        self, user_id: UUID, db_sess: AsyncSession, *, page: int, limit: int
+        self,
+        user_id: UUID,
+        db_sess: AsyncSession,
+        *,
+        page: int,
+        limit: int,
+        name: str | None = None,
     ) -> PaginatedResponse[StrategyResponse]:
-        result = await db_sess.execute(
+        stmt = (
             select(Strategy)
             .where(Strategy.user_id == user_id)
             .order_by(Strategy.created_at.desc())
@@ -80,12 +87,18 @@ class StrategyService:
             .limit(limit + 1)
         )
 
+        if name is not None:
+            stmt = stmt.where(Strategy.name.like(f"%{name}%"))
+
+        result = await db_sess.execute(stmt)
+
         strategies = [
             StrategyResponse(
                 id=strategy.strategy_id,
                 name=strategy.name,
                 description=strategy.description,
                 prompt=strategy.prompt,
+                code=strategy.code,
                 created_at=strategy.created_at,
                 updated_at=strategy.updated_at,
             )
@@ -102,11 +115,11 @@ class StrategyService:
     async def update(
         self,
         request: UpdateStrategyRequest,
-        id: UUID,
+        strategy_id: UUID,
         user_id: UUID,
         db_sess: AsyncSession,
     ) -> Strategy:
-        strategy = await self.get_user_strategy(id, user_id, db_sess)
+        strategy = await self.get_user_strategy(strategy_id, user_id, db_sess)
 
         if request.name is not None:
             strategy.name = request.name
@@ -116,16 +129,18 @@ class StrategyService:
 
         return strategy
 
-    async def delete(self, id: UUID, user_id: UUID, db_sess: AsyncSession) -> None:
-        strategy = await self.get_user_strategy(id, user_id, db_sess)
+    async def delete(
+        self, strategy_id: UUID, user_id: UUID, db_sess: AsyncSession
+    ) -> None:
+        strategy = await self.get_user_strategy(strategy_id, user_id, db_sess)
         await db_sess.delete(strategy)
 
     async def get_user_strategy(
-        self, id: UUID, user_id: UUID, db_sess: AsyncSession
+        self, strategy_id: UUID, user_id: UUID, db_sess: AsyncSession
     ) -> Strategy:
         strategy = await db_sess.scalar(
             select(Strategy).where(
-                and_(Strategy.strategy_id == id, Strategy.user_id == user_id)
+                Strategy.strategy_id == strategy_id, Strategy.user_id == user_id
             )
         )
         if strategy is None:

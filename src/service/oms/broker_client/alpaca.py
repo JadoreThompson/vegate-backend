@@ -28,8 +28,6 @@ from .base import BrokerClient
 class AlpacaBrokerClient(BrokerClient):
     """Alpaca broker implementation using alpaca-py library."""
 
-    supports_async: bool = True
-
     def __init__(
         self,
         api_key: str | None = None,
@@ -78,6 +76,12 @@ class AlpacaBrokerClient(BrokerClient):
 
     def get_equity(self):
         return float(self.client.get_account().equity)
+    
+    def get_position(self, symbol: str) -> float:
+        try:
+            return float(self.client.get_open_position(symbol.replace("/", "")).qty)
+        except APIError:
+            return 0.0
 
     def place_order(self, request: OrderRequest) -> Order:
         """Place an order on Alpaca.
@@ -324,7 +328,7 @@ class AlpacaBrokerClient(BrokerClient):
         """
         return Order(
             id=str(alpaca_order.id),
-            symbol=alpaca_order.symbol,
+            symbol=alpaca_order.symbol.replace("/", ""),
             quantity=float(alpaca_order.qty) if alpaca_order.qty else None,
             filled_quantity=float(alpaca_order.filled_qty),
             notional=float(alpaca_order.notional) if alpaca_order.notional else 0.0,

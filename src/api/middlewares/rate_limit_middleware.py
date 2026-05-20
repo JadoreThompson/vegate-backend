@@ -5,7 +5,7 @@ from starlette.types import ASGIApp, Scope, Receive, Send
 
 
 class RateLimitMiddleware:
-    def __init__(self, app: ASGIApp, limit: int = 100, window: int = 60):
+    def __init__(self, app: ASGIApp, limit: int = 1000, window: int = 60):
         self.app = app
         self.limit = limit
         self.window = window

@@ -3,7 +3,8 @@ from datetime import datetime, timedelta
 import json
 import logging
 from asyncio import iscoroutine
-from typing import Any, Callable
+from typing import Any, Awaitable, Callable
+from uuid import UUID
 
 from sqlalchemy import insert
 import websockets
@@ -41,6 +42,7 @@ class AlpacaOHLCFeed(OHLCFeed):
         self._start_date = start_date
 
         self._on_candle = None
+        self._instrument_id: UUID | None = None
         self._task: asyncio.Task | None = None
         self._name = f"{self.__class__.__name__}-{market_type}-{self._fmt_symbol}"
 
@@ -56,7 +58,8 @@ class AlpacaOHLCFeed(OHLCFeed):
 
     @property
     def symbol(self):
-        return self._fmt_symbol
+        # return self._fmt_symbol
+        return self._symbol
 
     @property
     def broker(self):
@@ -66,11 +69,7 @@ class AlpacaOHLCFeed(OHLCFeed):
     def timeframe(self):
         return self._timeframe
 
-    async def start(self) -> None:
-        self._task = asyncio.create_task(self.listen())
-
-    async def listen(self) -> None:
-
+    async def run(self) -> None:
         loader = AlpacaOHLCLoader(self._api_key, self._secret_key)
         result = await loader.load_candles(
             symbol=self._symbol,
@@ -79,6 +78,7 @@ class AlpacaOHLCFeed(OHLCFeed):
             start_date=self._start_date,
             end_date=get_datetime().date() + timedelta(days=1),
         )
+        self._instrument_id = loader.instrument_id
 
         url = (
             "wss://stream.data.alpaca.markets/v1beta3/crypto/eu-1"
@@ -119,11 +119,12 @@ class AlpacaOHLCFeed(OHLCFeed):
                         high=candle_data["h"],
                         low=candle_data["l"],
                         close=candle_data["c"],
-                        symbol=self._fmt_symbol,
+                        # symbol=self._fmt_symbol,
+                        symbol=self._symbol,
                         volume=candle_data["v"],
                         broker=BrokerType.ALPACA,
                         market_type=self._market_type,
-                        timestamp=datetime.fromisoformat(candle_data["t"]),
+                        timestamp=int(datetime.fromisoformat(candle_data["t"]).timestamp()),
                         timeframe=self._timeframe,
                     )
                     await self._persist_candle(candle)
@@ -146,16 +147,17 @@ class AlpacaOHLCFeed(OHLCFeed):
         async with get_db_session() as db_sess:
             await db_sess.execute(
                 insert(OHLC).values(
-                    source=BrokerType.ALPACA,
-                    symbol=candle.symbol,
-                    market_type=candle.market_type,
+                    # source=BrokerType.ALPACA,
+                    # symbol=candle.symbol,
+                    # market_type=candle.market_type,
+                    instrument_id=self._instrument_id,
                     open=candle.open,
                     high=candle.high,
                     low=candle.low,
                     close=candle.close,
                     volume=candle.volume,
                     timeframe=candle.timeframe,
-                    timestamp=int(candle.timestamp.timestamp()),
+                    timestamp=candle.timestamp,
                 )
             )
             await db_sess.commit()
@@ -169,5 +171,5 @@ class AlpacaOHLCFeed(OHLCFeed):
 
         return payload
 
-    def set_on_candle(self, func: Callable[[OHLC], Any]) -> None:
+    def set_on_candle(self, func: Callable[[OHLC], Any | Awaitable[Any]]) -> None:
         self._on_candle = func

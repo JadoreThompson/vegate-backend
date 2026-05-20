@@ -25,6 +25,9 @@ class BrokerClient(ABC):
     def get_equity(self): ...
 
     @abstractmethod
+    def get_position(self, symbol: str): ...
+
+    @abstractmethod
     def place_order(self, order_request: OrderRequest) -> Order:
         """Place an order.
 

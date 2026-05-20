@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta
+from uuid import UUID
 
 import aiohttp
 from alpaca.data.historical import StockHistoricalDataClient
@@ -10,6 +11,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from enums import BrokerType, MarketType, Timeframe
 from infra.db.model import OHLC
+from infra.db.model.instrument import Instrument
 from infra.db.utils import get_db_session
 from service.ohlc.loader.loader_config import OHLCLoaderConfig
 from service.ohlc.loader.logging.record import (
@@ -43,6 +45,11 @@ class AlpacaOHLCLoader(BaseOHLCLoader):
         self._http_sess: aiohttp.ClientSession | None = None
         self.client = StockHistoricalDataClient(api_key, secret_key)
         self._last_record: OHLCLogRecord | None = None
+        self._instrument_id: UUID | None = None
+
+    @property
+    def instrument_id(self):
+        return self._instrument_id
 
     def _get_walogger(self, symbol: str, timeframe: Timeframe) -> WALogger:
         if self._walogger is None:
@@ -61,6 +68,8 @@ class AlpacaOHLCLoader(BaseOHLCLoader):
                 config.end_date,
             )
 
+        self._instrument_id = await self._get_instrument_id(config)
+
         await load_candles()
 
         while True:
@@ -70,6 +79,33 @@ class AlpacaOHLCLoader(BaseOHLCLoader):
             await asyncio.sleep(config.poll_interval)
             await load_candles()
 
+    async def _get_instrument_id(self, symbol: str, market_type: MarketType) -> UUID:
+        # Fetches or creates instrument, returning it's id.
+        async with get_db_session() as db_sess:
+            instrument_id = await db_sess.scalar(
+                select(Instrument.id).where(
+                    Instrument.native_symbol == symbol,
+                    Instrument.market_type == market_type,
+                    Instrument.broker_type == BrokerType.ALPACA,
+                )
+            )
+
+            if instrument_id is not None:
+                return instrument_id
+
+            instrument_id = await db_sess.scalar(
+                insert(Instrument)
+                .values(
+                    symbol=symbol.replace("/", ""),
+                    native_symbol=symbol,
+                    market_type=market_type,
+                    broker_type=BrokerType.ALPACA,
+                )
+                .returning(Instrument.id)
+            )
+            await db_sess.commit()
+        return instrument_id
+
     async def load_candles(
         self,
         symbol: str,
@@ -78,6 +114,8 @@ class AlpacaOHLCLoader(BaseOHLCLoader):
         start_date: datetime,
         end_date: datetime,
     ) -> LoadResult:
+        if self._instrument_id is None:
+            self._instrument_id = await self._get_instrument_id(symbol, market_type)
         symbol = symbol.upper()
         fmt_symbol = self._format_symbol(symbol)
         walogger = self._get_walogger(symbol, timeframe)
@@ -118,16 +156,14 @@ class AlpacaOHLCLoader(BaseOHLCLoader):
 
                 records.append(
                     {
-                        "source": BrokerType.ALPACA,
-                        "symbol": fmt_symbol,
                         "open": bar["o"],
                         "high": bar["h"],
                         "low": bar["l"],
                         "close": bar["c"],
                         "timestamp": int(d.timestamp()),
                         "timeframe": timeframe,
-                        "market_type": market_type,
                         "volume": bar["v"],
+                        "instrument_id": self._instrument_id
                     }
                 )
 
@@ -139,10 +175,7 @@ class AlpacaOHLCLoader(BaseOHLCLoader):
 
                 res = await db_sess.execute(
                     select(func.count(OHLC.ohlc_id)).where(
-                        OHLC.source == BrokerType.ALPACA,
-                        OHLC.market_type == market_type,
-                        OHLC.symbol == fmt_symbol,
-                        OHLC.timeframe == timeframe,
+                        OHLC.instrument_id == self._instrument_id,
                         OHLC.timestamp.between(sdate, edate),
                     )
                 )
@@ -171,9 +204,10 @@ class AlpacaOHLCLoader(BaseOHLCLoader):
                     )
                     await db_sess.execute(
                         delete(OHLC).where(
-                            OHLC.source == BrokerType.ALPACA,
-                            OHLC.symbol == fmt_symbol,
-                            OHLC.market_type == market_type,
+                            # OHLC.source == BrokerType.ALPACA,
+                            # OHLC.symbol == fmt_symbol,
+                            # OHLC.market_type == market_type,
+                            OHLC.instrument_id == self._instrument_id,
                             OHLC.timeframe == timeframe,
                             OHLC.timestamp.between(sdate, edate),
                         )

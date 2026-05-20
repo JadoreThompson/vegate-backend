@@ -9,7 +9,7 @@ from sqlalchemy import delete
 from api.routes.auth.service import AuthService
 from api.routes.markets.service import MarketsService
 from api.routes.strategy.agents.strategy import StrategyGenOutput
-from api.routes.strategy.service import StrategyService
+from api.routes.strategy.service import APIStrategyService
 from api.routes.strategy.models import StrategyResponse
 from api.routes.util import seed_candles
 from enums import BacktestStatus
@@ -35,7 +35,7 @@ def auth_service(email_service, monkeypatch):
 
 @pytest.fixture
 def strategy_service():
-    return StrategyService()
+    return APIStrategyService()
 
 
 @pytest.fixture
@@ -73,14 +73,21 @@ def seed():
     seed_candles()
 
 
-async def create_strategy(client: AsyncClient, prompt: str = "Create a test strategy") -> StrategyResponse:
+async def create_strategy(
+    client: AsyncClient, prompt: str = "Create a test strategy"
+) -> StrategyResponse:
     from api.routes.strategy.route import strategy_service
 
     generate_strategy_code = strategy_service._generate_strategy_code
     validate_strategy_code = strategy_service._validate_strategy_code
     strategy_service._generate_strategy_code = AsyncMock(
-        return_value=StrategyGenOutput(name="Test strategy", description="A test strategy",
-                                       code="print('Hello Im a test strategy')", error=None))
+        return_value=StrategyGenOutput(
+            name="Test strategy",
+            description="A test strategy",
+            code="print('Hello Im a test strategy')",
+            error=None,
+        )
+    )
     strategy_service._validate_strategy_code = AsyncMock(return_value=True)
 
     rsp = await client.post("/strategy/", json={"description": prompt})
@@ -119,7 +126,7 @@ class TestCreateBacktest:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_create_backtest_missing_strategy_id_returns_422(
-            self, authenticated_client
+        self, authenticated_client
     ):
         payload = {
             "symbol": "AAPL",
@@ -137,7 +144,7 @@ class TestCreateBacktest:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_create_backtest_missing_symbol_returns_422(
-            self, authenticated_client
+        self, authenticated_client
     ):
         strategy_id = uuid4()
 
@@ -157,7 +164,7 @@ class TestCreateBacktest:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_create_backtest_invalid_balance_returns_422(
-            self, authenticated_client
+        self, authenticated_client
     ):
         strategy_id = uuid4()
 
@@ -178,7 +185,7 @@ class TestCreateBacktest:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_create_backtest_invalid_symbol_returns_404(
-            self, authenticated_client
+        self, authenticated_client
     ):
         strategy_id = uuid4()
 
@@ -199,7 +206,7 @@ class TestCreateBacktest:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_create_backtest_invalid_date_range_returns_400(
-            self, authenticated_client
+        self, authenticated_client
     ):
         strategy = await create_strategy(authenticated_client)
         strategy_id = strategy.id
@@ -221,7 +228,7 @@ class TestCreateBacktest:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_create_backtest_invalid_timeframe_returns_400(
-            self, authenticated_client
+        self, authenticated_client
     ):
         strategy = await create_strategy(authenticated_client)
         strategy_id = strategy.id
@@ -277,9 +284,7 @@ class TestGetBacktest:
         assert "metrics" in data
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_get_backtest_not_found_returns_404(
-            self, authenticated_client
-    ):
+    async def test_get_backtest_not_found_returns_404(self, authenticated_client):
         fake_id = uuid4()
         res = await authenticated_client.get(f"/backtests/{fake_id}")
 
@@ -292,7 +297,7 @@ class TestListBacktests:
     async def test_list_backtests_returns_200(self, authenticated_client):
         res = await authenticated_client.get("/backtests/")
         assert res.status_code == 200
-        assert len(res.json()['data']) == 0
+        assert len(res.json()["data"]) == 0
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_list_backtests_with_pagination(self, authenticated_client):
@@ -316,12 +321,14 @@ class TestListBacktests:
         assert res.status_code == 200
 
         data = res.json()
-        assert data['page'] == 1
-        assert data['size'] == 10
-        assert data['has_next'] == False
+        assert data["page"] == 1
+        assert data["size"] == 10
+        assert data["has_next"] == False
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_list_backtests_with_status_filter(self, authenticated_client, db_sess):
+    async def test_list_backtests_with_status_filter(
+        self, authenticated_client, db_sess
+    ):
         strategy = await create_strategy(authenticated_client)
 
         request = {
@@ -340,7 +347,7 @@ class TestListBacktests:
         for _ in range(10):
             rsp = await authenticated_client.post("/backtests/", json=request)
             assert rsp.status_code == 201, rsp.json()
-            backtest_ids.append(rsp.json()['id'])
+            backtest_ids.append(rsp.json()["id"])
 
         for i in range(5):
             backtest = await db_sess.get(Backtest, backtest_ids[i])
@@ -351,10 +358,12 @@ class TestListBacktests:
         assert rsp.status_code == 200
 
         data = rsp.json()
-        assert data['page'] == 1
-        assert data['size'] == 5
-        assert data['has_next'] == False
-        assert all(backtest['status'] == BacktestStatus.COMPLETED for backtest in data['data'])
+        assert data["page"] == 1
+        assert data["size"] == 5
+        assert data["has_next"] == False
+        assert all(
+            backtest["status"] == BacktestStatus.COMPLETED for backtest in data["data"]
+        )
 
 
 class TestDeleteBacktest:
@@ -377,7 +386,7 @@ class TestDeleteBacktest:
         rsp = await authenticated_client.post("/backtests/", json=request)
         assert rsp.status_code == 201, rsp.json()
 
-        backtest_id = rsp.json()['id']
+        backtest_id = rsp.json()["id"]
         backtest = await db_sess.get(Backtest, backtest_id)
         backtest.status = BacktestStatus.COMPLETED
         await db_sess.commit()
@@ -387,9 +396,7 @@ class TestDeleteBacktest:
         assert res.status_code == 204
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_delete_backtest_in_progress_returns_400(
-            self, authenticated_client
-    ):
+    async def test_delete_backtest_in_progress_returns_400(self, authenticated_client):
         strategy = await create_strategy(authenticated_client)
 
         request = {
@@ -424,7 +431,9 @@ class TestGetBacktestOrders:
         backtest_service._backtest_runner_service.run = run_backtest
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_get_backtest_orders_returns_200(self, authenticated_client, mock_run_backtest):
+    async def test_get_backtest_orders_returns_200(
+        self, authenticated_client, mock_run_backtest
+    ):
         payload = {
             "strategy_id": str(uuid4()),
             "symbol": "AAPL",
@@ -450,9 +459,7 @@ class TestGetBacktestOrders:
         assert "data" in data
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_get_backtest_orders_with_pagination(
-            self, authenticated_client
-    ):
+    async def test_get_backtest_orders_with_pagination(self, authenticated_client):
         backtest_id = uuid4()
 
         res = await authenticated_client.get(

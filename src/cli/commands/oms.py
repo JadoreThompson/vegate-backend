@@ -4,6 +4,8 @@ import time
 
 import click
 
+from infra.redis.client import REDIS_CLIENT
+from service.event.publisher import EventPublisher
 from service.oms.server.server import OMSServer
 from service.oms.service import OMSService
 
@@ -40,7 +42,7 @@ def oms_run(host, port, reload, workers, verbose):
     click.echo(f"Starting OMS server on {host}:{port}")
 
     try:
-        oms_service = OMSService()
+        oms_service = OMSService(redis_client=REDIS_CLIENT, event_publisher=EventPublisher())
         uvicorn_kw = {
             "host": host,
             "port": port,

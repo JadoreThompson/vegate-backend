@@ -2,6 +2,7 @@ from typing import Any, Callable, Type, TypeVar
 
 from fastapi import Depends, Request
 
+from api.lib.object_registry import ObjectRegistry
 from api.types import JWTPayload
 from config import COOKIE_ALIAS
 from infra.db import smaker
@@ -65,3 +66,9 @@ def CSVQuery(
 
 def depends_deployment_service() -> DeploymentService:
     return deployment_service
+
+
+def depends_class(typ: Type):
+    def _func():
+        return ObjectRegistry.get(typ)
+    return _func

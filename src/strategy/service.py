@@ -7,10 +7,16 @@ from uuid import UUID
 from redis import Redis
 from sqlalchemy import select
 
-from config import REDIS_STRATEGY_HEARTBEAT_KEY_PREFIX, SRC_PATH
-from enums import MarketType, Timeframe
+from config import (
+    REDIS_STRATEGY_HEARTBEAT_KEY_PREFIX,
+    SRC_PATH,
+    STRATEGY_DEPLOYMENT_EVENTS_KEY,
+)
+from enums import BrokerType, MarketType, StrategyDeploymentStatus, Timeframe
+from events.deployment import DeploymentStatusChangedEvent
 from infra.db.model import StrategyDeployments, Strategy as StrategyEntity
 from infra.db import get_db_sess_sync
+from infra.db.model.instrument import Instrument
 from service.event.publisher import SyncEventPublisher
 from service.ohlc.feed.client import OHLCFeedClient
 from service.oms.client import OMSClient
@@ -47,26 +53,28 @@ class StrategyDeploymentService:
     def setup(self):
         with get_db_sess_sync() as db_sess:
             res = db_sess.execute(
-                select(StrategyDeployments, StrategyEntity)
+                select(StrategyDeployments, StrategyEntity, Instrument)
+                .join(Instrument, Instrument.id == StrategyDeployments.instrument_id)
                 .join(
                     StrategyEntity,
                     StrategyDeployments.strategy_id == StrategyEntity.strategy_id,
                 )
                 .where(StrategyDeployments.deployment_id == self._deployment_id)
             )
-            data: tuple[StrategyDeployments, StrategyEntity] = res.first()
+            data: tuple[StrategyDeployments, StrategyEntity, Instrument] = res.first()
             if data is None:
                 raise ValueError(
                     f"Deployment with id '{self._deployment_id}' not found"
                 )
 
-        deployment, strategy = data
+        deployment, strategy, instrument = data
         if deployment is None:
             raise ValueError(f"Deployment with id '{self._deployment_id}' not found")
 
         strategy_config = StrategyConfig(
-            symbol=deployment.symbol,
-            market_type=MarketType(deployment.market_type),
+            symbol=instrument.native_symbol,
+            market_type=MarketType(instrument.market_type),
+            broker_type=BrokerType(instrument.broker_type),
             timeframe=Timeframe(deployment.timeframe),
         )
         self._write_code(strategy.code)
@@ -75,7 +83,16 @@ class StrategyDeploymentService:
     def run(self) -> None:
         try:
             self._alive = True
-            self._heartbeat_th = Thread(target=self._heartbeat_loop, name="HeartbeatLoop")
+            self._event_publisher.enqueue(
+                DeploymentStatusChangedEvent(
+                    deployment_id=self._deployment_id,
+                    status=StrategyDeploymentStatus.RUNNING,
+                ),
+                STRATEGY_DEPLOYMENT_EVENTS_KEY,
+            )
+            self._heartbeat_th = Thread(
+                target=self._heartbeat_loop, name="HeartbeatLoop"
+            )
             self._heartbeat_th.start()
 
             self._ohlc_feed_client.connect()
@@ -85,14 +102,24 @@ class StrategyDeploymentService:
             self._strategy.startup()
             for candle in self._ohlc_feed_client.candles():
                 self._strategy.on_candle(candle)
+        except KeyboardInterrupt:
+            pass
         finally:
             self._alive = False
+            self._event_publisher.enqueue(
+                DeploymentStatusChangedEvent(
+                    deployment_id=self._deployment_id,
+                    status=StrategyDeploymentStatus.STOPPED,
+                ),
+                STRATEGY_DEPLOYMENT_EVENTS_KEY,
+            )
+
             if self._heartbeat_th is not None and self._heartbeat_th.is_alive():
                 try:
                     self._heartbeat_th.join(timeout=self._heartbeat_interval + 1)
                 except TimeoutError:
                     self._logger.info("Heartbeat thread failed to stop")
-                
+
             self._strategy.shutdown()
             self._ohlc_feed_client.close()
             self._oms_client.disconnect()
@@ -123,6 +150,7 @@ class StrategyDeploymentService:
             if not self._alive:
                 break
             
+            self._logger.info("Setting heartbeat...")
             self._redis_client.set(
-                f"{self._heartbeat_key_prefix}{self._deployment_id}", True, ex=15
+                f"{self._heartbeat_key_prefix}{self._deployment_id}", 1, ex=15
             )

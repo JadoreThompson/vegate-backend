@@ -35,8 +35,11 @@ class BacktestBrokerClient(BrokerClient):
     def get_equity(self):
         self.equity = self._calculate_equity()
         return self.equity
+    
+    def get_position(self,symbol: str):
+        return self._asset_holdings.get(symbol, 0.0)
 
-    def place_order(self, request: OrderRequest, candle_ts) -> Order:
+    def place_order(self, request: OrderRequest, candle_ts: int) -> Order:
         """Place an order.
 
         Args:
@@ -93,16 +96,16 @@ class BacktestBrokerClient(BrokerClient):
         order = Order(
             symbol=order_request.symbol,
             quantity=order_request.quantity,
-            executed_quantity=0.0,
+            filled_quantity=0.0,
             notional=order_request.notional,
             order_type=order_request.order_type,
             side=order_request.side,
             limit_price=order_request.limit_price,
             stop_price=order_request.stop_price,
-            filled_avg_price=None,
+            avg_fill_price=None,
             executed_at=None,
             submitted_at=self.ohlc_feed_client.cur_candle.timestamp,
-            order_id=order_id,
+            id=order_id,
             status=OrderStatus.PLACED,
         )
 
@@ -149,16 +152,16 @@ class BacktestBrokerClient(BrokerClient):
         order = Order(
             symbol=order_request.symbol,
             quantity=order_request.quantity,
-            executed_quantity=0.0,
+            filled_quantity=0.0,
             notional=order_request.notional,
             order_type=order_request.order_type,
             side=order_request.side,
             limit_price=order_request.limit_price,
             stop_price=order_request.stop_price,
-            filled_avg_price=None,
+            avg_fill_price=None,
             executed_at=None,
             submitted_at=self.ohlc_feed_client.cur_candle.timestamp,
-            order_id=order_id,
+            id=order_id,
             status=OrderStatus.PLACED,
         )
 
@@ -195,22 +198,22 @@ class BacktestBrokerClient(BrokerClient):
                 order = Order(
                     symbol=request.symbol,
                     quantity=request.quantity,
-                    executed_quantity=0.0,
+                    filled_quantity=0.0,
                     notional=request.notional,
                     order_type=request.order_type,
                     side=request.side,
                     # price=order_request.price,
                     limit_price=request.limit_price,
                     stop_price=request.stop_price,
-                    filled_avg_price=None,
+                    avg_fill_price=None,
                     executed_at=None,
                     submitted_at=current_ts,
-                    order_id=order_id,
+                    id=order_id,
                     status=OrderStatus.REJECTED,
                 )
                 self._order_map[order_id] = order
                 raise BrokerClientException("Insufficient balance")
-            
+
         elif self._asset_holdings[request.symbol] < request.quantity:
             raise BrokerClientException("Insufficient asset holdings")
 
@@ -228,16 +231,16 @@ class BacktestBrokerClient(BrokerClient):
         order = Order(
             symbol=request.symbol,
             quantity=round(quantity, 2),
-            executed_quantity=round(quantity, 2),
+            filled_quantity=round(quantity, 2),
             notional=round(notional, 2),
             order_type=request.order_type,
             side=request.side,
             limit_price=request.limit_price,
             stop_price=request.stop_price,
-            filled_avg_price=price,
+            avg_fill_price=price,
             executed_at=current_ts,
             submitted_at=current_ts,
-            order_id=order_id,
+            id=order_id,
             status=OrderStatus.FILLED,
         )
 
@@ -246,10 +249,10 @@ class BacktestBrokerClient(BrokerClient):
         # Update balance using order_cost (which accounts for notional)
         if order.side == OrderSide.BUY:
             self.balance -= order_cost
-            self._asset_holdings[order.symbol] += order.executed_quantity
+            self._asset_holdings[order.symbol] += order.filled_quantity
         else:
             self.balance += order_cost
-            self._asset_holdings[order.symbol] -= order.executed_quantity
+            self._asset_holdings[order.symbol] -= order.filled_quantity
 
         return order
 
@@ -315,17 +318,17 @@ class BacktestBrokerClient(BrokerClient):
 
                 # Sufficient balance - fill order
                 order.status = OrderStatus.FILLED
-                order.executed_quantity = order.quantity
-                order.filled_avg_price = execution_price
+                order.filled_quantity = order.quantity
+                order.avg_fill_price = execution_price
                 order.executed_at = current_ts
 
                 # Update balance
                 if order.side == OrderSide.BUY:
                     self.balance -= order_cost
-                    self._asset_holdings[order.symbol] += order.executed_quantity
+                    self._asset_holdings[order.symbol] += order.filled_quantity
                 else:
                     self.balance += order_cost
-                    self._asset_holdings[order.symbol] -= order.executed_quantity
+                    self._asset_holdings[order.symbol] -= order.filled_quantity
 
                 orders_to_remove.append(order)
 
@@ -432,9 +435,9 @@ class BacktestBrokerClient(BrokerClient):
         for order in list(self._order_map.values()):
             if order.status == OrderStatus.FILLED:
                 if order.side == OrderSide.BUY:
-                    total_quantity += order.executed_quantity
+                    total_quantity += order.filled_quantity
                 else:
-                    total_quantity -= order.executed_quantity
+                    total_quantity -= order.filled_quantity
 
         holdings_value = total_quantity * cur_price
         return self.balance + holdings_value
