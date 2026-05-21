@@ -119,7 +119,6 @@ class OHLCFeedClient:
         )
 
     def candles(self) -> Generator[OHLCModel, None, None]:
-
         if self._subscribe_payload is None:
             raise RuntimeError("Call subscribe() before iterating candles()")
 
@@ -147,7 +146,6 @@ class OHLCFeedClient:
             if not self._reconnect:
                 break
 
-            attempts += 1
 
             if (
                 self._reconnect_attempts
@@ -157,6 +155,8 @@ class OHLCFeedClient:
                     "Exhausted reconnection attempts"
                 )
                 break
+            
+            attempts += 1
 
             self._logger.info(
                 "Reconnecting in %.1fs (attempt %d)...",
