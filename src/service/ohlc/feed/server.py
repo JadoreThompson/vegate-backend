@@ -6,7 +6,10 @@ import logging
 from collections import defaultdict
 from typing import ClassVar
 
+from sqlalchemy import select
+
 from enums import BrokerType, MarketType, Timeframe
+from infra.db.model.instrument import Instrument
 from infra.db.model.ohlc import OHLC
 from infra.db.utils import get_db_session
 from models import OHLC as OHLCModel
@@ -225,7 +228,7 @@ class OHLCFeedServer:
                 try:
                     payload = json.loads(raw.decode())
                 except json.JSONDecodeError as exc:
-                    writer.write(_err(f"Invalid JSON: {exc}"))
+                    writer.write(_err(f"Invalid JSON"))
                     await writer.drain()
                     continue
 
@@ -392,20 +395,22 @@ class OHLCFeedServer:
             conn.timeframe,
         )
 
-    async def _fetch_ohlc(
-        self,
-        start: int,
-        conn: SocketConnection,
-    ) -> list[OHLC]:
-        async with get_db_session() as db_sess:
-            from sqlalchemy import select as sa_select
+    async def _fetch_ohlc(self, start: int, conn: SocketConnection) -> list[OHLC]:
+        squery = (
+            select(Instrument.id)
+            .where(
+                Instrument.symbol == conn.symbol,
+                Instrument.market_type == conn.market_type,
+                Instrument.broker_type == conn.broker,
+            )
+            .subquery()
+        )
 
+        async with get_db_session() as db_sess:
             res = await db_sess.execute(
-                sa_select(OHLC)
+                select(OHLC)
                 .where(
-                    OHLC.symbol == conn.symbol,
-                    OHLC.market_type == conn.market_type,
-                    OHLC.source == conn.broker,
+                    OHLC.instrument_id == squery.c.id,
                     OHLC.timeframe == conn.timeframe,
                     OHLC.timestamp >= start,
                 )
