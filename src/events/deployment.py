@@ -60,7 +60,7 @@ class DeploymentCancelOrderSubmitted(_DeploymentEvent):
         DeploymentEventType.DEPLOYMENT_CANCEL_ORDER_SUBMITTED
     )
     order_id: UUID
-    broker_order_id: UUID
+    broker_order_id: str
 
 
 class DeploymentModifyOrderSubmitted(_DeploymentEvent):
@@ -68,9 +68,9 @@ class DeploymentModifyOrderSubmitted(_DeploymentEvent):
         DeploymentEventType.DEPLOYMENT_MODIFY_ORDER_SUBMITTED
     )
     order_id: UUID
-    broker_order_id: UUID
-    limit_price: float
-    stop_price: float
+    broker_order_id: str
+    limit_price: float | None = None
+    stop_price: float | None = None
 
 
 class DeploymentOrderRejected(_DeploymentEvent):
@@ -85,7 +85,7 @@ class DeploymentOrderAcknowledged(_DeploymentEvent):
         DeploymentEventType.DEPLOYMENT_ORDER_ACKNOWLEDGED
     )
     order: Order
-    broker_order_id: UUID
+    broker_order_id: str
 
 
 DeploymentEventT = (

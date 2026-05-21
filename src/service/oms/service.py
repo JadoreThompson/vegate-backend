@@ -113,7 +113,7 @@ class OMSService:
                 raise InvalidSessionException(token)
 
             payload = json.loads(data)
-            deployment_id = payload["deployment_id"]
+            deployment_id = UUID(payload["deployment_id"])
 
             await self.create_session(deployment_id, token)
 
