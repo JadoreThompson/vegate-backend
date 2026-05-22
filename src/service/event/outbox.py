@@ -29,15 +29,16 @@ class OutboxService:
         interval: int,
         batch_size: int,
         event_publisher: EventPublisher,
+        timeout: int = 5,
     ):
         self.interval = interval
         self.batch_size = batch_size
+        self.timeout = timeout
         self._event_publisher = event_publisher
 
         self._logger = logging.getLogger(self.__class__.__name__)
 
     async def run(self):
-
         self._logger.info(
             "Starting outbox service (interval=%ss, batch_size=%s)",
             self.interval,
@@ -45,14 +46,13 @@ class OutboxService:
         )
 
         while True:
-
             try:
                 await asyncio.sleep(self.interval)
 
                 events = await self._fetch_events()
 
                 if not events:
-                    self._logger.debug("No pending outbox events found")
+                    self._logger.info("No pending outbox events found")
                     continue
 
                 self._logger.info("Processing %s outbox events", len(events))
@@ -108,7 +108,7 @@ class OutboxService:
                 )
 
     async def _fetch_events(self):
-        self._logger.debug(
+        self._logger.info(
             "Fetching pending outbox events (batch_size=%s)", self.batch_size
         )
 
@@ -123,13 +123,13 @@ class OutboxService:
                         ]
                     )
                 )
-                .order_by(EventOutbox.created_at.asc())
+                .order_by(EventOutbox.timestamp.asc())
                 .limit(self.batch_size)
             )
 
             events = res.scalars().all()
 
-            self._logger.debug("Fetched %s outbox events", len(events))
+            self._logger.info("Fetched %s outbox events", len(events))
 
             return events
 
@@ -137,14 +137,16 @@ class OutboxService:
         try:
             event = self._parse_event(raw_event)
 
-            self._logger.debug(
+            self._logger.info(
                 "Publishing event " "(outbox_id=%s, event_id=%s, type=%s)",
                 outbox_id,
                 event.id,
                 event.type,
             )
 
-            await self._event_publisher.publish(event)
+            await asyncio.wait_for(
+                self._event_publisher.publish(event), timeout=self.timeout
+            )
 
             self._logger.info(
                 "Successfully published event " "(outbox_id=%s, event_id=%s, type=%s)",
@@ -154,10 +156,8 @@ class OutboxService:
             )
 
             return outbox_id, True
-
         except Exception:
-
-            self._logger.exception(
+            self._logger.warning(
                 "Failed to publish outbox event " "(outbox_id=%s, raw_type=%s)",
                 outbox_id,
                 raw_event.get("type"),
@@ -172,39 +172,38 @@ class OutboxService:
         """
         Bulk update statuses in a single query.
         """
-
         if not event_id_status:
             return
 
-        self._logger.debug("Updating %s outbox event statuses", len(event_id_status))
+        self._logger.info("Updating %s outbox event statuses", len(event_id_status))
 
         ids = [event_id for event_id, _ in event_id_status]
-        status_map = {event_id: status for event_id, status in event_id_status}
 
         stmt = (
             update(EventOutbox)
             .where(EventOutbox.id.in_(ids))
             .values(
                 status=case(
-                    status_map,
-                    value=EventOutbox.id,
+                    *[
+                        (EventOutbox.id == event_id, status)
+                        for event_id, status in event_id_status
+                    ],
+                    else_=EventOutbox.status,
                 )
             )
         )
 
         async with get_db_session() as db_sess:
-
             await db_sess.execute(stmt)
             await db_sess.commit()
 
         completed = sum(
             1 for _, status in event_id_status if status == EventStatus.COMPLETED
         )
-
         failed = sum(1 for _, status in event_id_status if status == EventStatus.FAILED)
 
         self._logger.info(
-            ("Updated outbox statuses " "(completed=%s, failed=%s)"), completed, failed
+            "Updated outbox statuses (completed=%s, failed=%s)", completed, failed
         )
 
     def _parse_event(self, raw_event: dict) -> BaseEvent:
@@ -212,7 +211,7 @@ class OutboxService:
 
         event_type = raw_event["type"]
 
-        self._logger.debug(
+        self._logger.info(
             "Parsing event type '%s'",
             event_type,
         )
@@ -221,7 +220,7 @@ class OutboxService:
             if DeploymentEventType not in cls._DESERIALISERS:
                 self._logger.info("Initialising deployment event deserialiser")
                 cls._DESERIALISERS[DeploymentEventType] = DeploymentEventDeserialiser()
-                
+
             deserialiser = cls._DESERIALISERS[DeploymentEventType]
 
         else:

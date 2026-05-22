@@ -23,6 +23,7 @@ class OutboxEventPublisher(EventPublisher):
     async def _persist_event(self, event: BaseEvent, db_sess: AsyncSession):
         await db_sess.execute(
             insert(EventOutbox).values(
+                id=event.id,
                 type=event.type,
                 payload=event.model_dump(mode="json"),
                 timestamp=event.timestamp,

@@ -1,17 +1,19 @@
 import sys
+
 import click
 
 from cli.commands import (
     backtest,
-    strategy,
+    consumer,
     db,
     events,
     feed,
-    ohlc_loader,
     http,
-    oms,
     monitor,
-    consumer,
+    ohlc_loader,
+    oms,
+    outbox,
+    strategy,
 )
 
 
@@ -31,15 +33,16 @@ def cli(ctx, version):
 
 
 cli.add_command(backtest)
-cli.add_command(strategy)
+cli.add_command(consumer)
 cli.add_command(db)
 cli.add_command(events)
-cli.add_command(http)
-cli.add_command(ohlc_loader)
 cli.add_command(feed)
-cli.add_command(oms)
+cli.add_command(http)
 cli.add_command(monitor)
-cli.add_command(consumer)
+cli.add_command(ohlc_loader)
+cli.add_command(oms)
+cli.add_command(outbox)
+cli.add_command(strategy)
 
 
 if __name__ == "__main__":
