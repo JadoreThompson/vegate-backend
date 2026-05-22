@@ -20,6 +20,10 @@ class UpdateStrategyCodeRequest(BaseModel):
     code: str = Field(min_length=20)
 
 
+class StrategyCodeResponse(BaseModel):
+    code: str
+
+
 class StrategyResponse(CustomBaseModel):
     id: UUID
     name: str

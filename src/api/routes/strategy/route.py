@@ -11,6 +11,7 @@ from api.routes.deployments.models import StrategyDeploymentResponse
 from api.routes.deployments.service import APIDeploymentsService
 from api.routes.strategy.models import (
     CreateStrategyRequest,
+    StrategyCodeResponse,
     StrategyResponse,
     UpdateStrategyRequest,
 )
@@ -140,6 +141,18 @@ async def update_strategy(
     )
 
 
+@router.get("/{strategy_id}/code", response_model=StrategyCodeResponse)
+async def get_strategy_code(
+    strategy_id: UUID,
+    jwt: JWTPayload = Depends(depends_jwt()),
+    db_sess: AsyncSession = Depends(depends_db_sess),
+    strategy_service: APIStrategyService = Depends(depends_class(APIStrategyService)),
+):
+    """Get the code of a strategy."""
+    strategy = await strategy_service.get_user_strategy(strategy_id, jwt.sub, db_sess)
+    return StrategyCodeResponse(code=strategy.code)
+
+
 @router.patch("/{strategy_id}/code")
 async def update_strategy_code(
     strategy_id: UUID,
@@ -150,14 +163,20 @@ async def update_strategy_code(
     code: str | None = Form(None),
 ):
     if file is not None and code is not None:
-        raise HTTPException(status_code=400, detail="Provide either a file or code, not both")
+        raise HTTPException(
+            status_code=400, detail="Provide either a file or code, not both"
+        )
 
     if file is None and code is None:
-        raise HTTPException(status_code=400, detail="Provide either a file (.py) or code")
+        raise HTTPException(
+            status_code=400, detail="Provide either a file (.py) or code"
+        )
 
     if file is not None:
         if not file.filename.endswith(".py"):
-            raise HTTPException(status_code=400, detail="File must have a .py extension")
+            raise HTTPException(
+                status_code=400, detail="File must have a .py extension"
+            )
         code = (await file.read()).decode()
 
     strategy = await strategy_service.update_code(strategy_id, jwt.sub, code, db_sess)
