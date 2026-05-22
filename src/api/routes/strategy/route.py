@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import depends_class, depends_db_sess, depends_jwt
@@ -138,6 +138,30 @@ async def update_strategy(
         created_at=strategy.created_at,
         updated_at=strategy.updated_at,
     )
+
+
+@router.patch("/{strategy_id}/code")
+async def update_strategy_code(
+    strategy_id: UUID,
+    jwt: JWTPayload = Depends(depends_jwt()),
+    db_sess: AsyncSession = Depends(depends_db_sess),
+    strategy_service: APIStrategyService = Depends(depends_class(APIStrategyService)),
+    file: UploadFile | None = File(None),
+    code: str | None = Form(None),
+):
+    if file is not None and code is not None:
+        raise HTTPException(status_code=400, detail="Provide either a file or code, not both")
+
+    if file is None and code is None:
+        raise HTTPException(status_code=400, detail="Provide either a file (.py) or code")
+
+    if file is not None:
+        if not file.filename.endswith(".py"):
+            raise HTTPException(status_code=400, detail="File must have a .py extension")
+        code = (await file.read()).decode()
+
+    strategy = await strategy_service.update_code(strategy_id, jwt.sub, code, db_sess)
+    await db_sess.commit()
 
 
 @router.delete("/{strategy_id}", status_code=204)

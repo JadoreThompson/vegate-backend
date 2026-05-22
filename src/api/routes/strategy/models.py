@@ -16,6 +16,9 @@ class UpdateStrategyRequest(BaseModel):
     name: str | None = Field(None, min_length=5, max_length=20)
     description: str | None = Field(None, min_length=10, max_length=250)
 
+class UpdateStrategyCodeRequest(BaseModel):
+    code: str = Field(min_length=20)
+
 
 class StrategyResponse(CustomBaseModel):
     id: UUID

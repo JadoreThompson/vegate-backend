@@ -1,8 +1,8 @@
-from collections import defaultdict
 import logging
 import os
 import sys
 import yaml
+from collections import defaultdict
 from urllib.parse import quote
 
 import stripe
@@ -111,6 +111,12 @@ ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
 ALPACA_OAUTH_CLIENT_ID = os.getenv("ALPACA_OAUTH_CLIENT_ID")
 ALPACA_OAUTH_SECRET_KEY = os.getenv("ALPACA_OAUTH_SECRET_KEY")
 ALPACA_OAUTH_REDIRECT_URI = "http://localhost:8000/brokers/alpaca/oauth/callback"
+
+# AWS
+AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+AWS_ENDPOINT = os.getenv("AWS_ENDPOINT")
+
 
 # Railway
 RAILWAY_API_KEY = os.getenv("RAILWAY_API_KEY")

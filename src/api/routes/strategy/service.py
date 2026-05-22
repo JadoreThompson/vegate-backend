@@ -113,6 +113,7 @@ class APIStrategyService:
             data=strategies[:limit],
         )
 
+
     async def update(
         self,
         request: UpdateStrategyRequest,
@@ -128,6 +129,17 @@ class APIStrategyService:
         if request.description is not None:
             strategy.description = request.description
 
+        return strategy
+
+    async def update_code(
+        self,
+        strategy_id: UUID,
+        user_id: UUID,
+        code: str,
+        db_sess: AsyncSession,
+    ) -> Strategy:
+        strategy = await self.get_user_strategy(strategy_id, user_id, db_sess)
+        strategy.code = code
         return strategy
 
     async def delete(
