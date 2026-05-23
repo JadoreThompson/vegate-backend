@@ -6,28 +6,19 @@ from uuid import uuid4
 
 from sqlalchemy import delete
 
-from api.routes.markets.exception import SymbolNotFoundException
-from api.routes.markets.model import InstrumentInfo
-from api.routes.markets.service import MarketsService
-from enums import BrokerType, MarketType, Timeframe
-from infra.db.model import OHLC
-from infra.db.model.instrument import Instrument
-from infra.db.utils import get_db_session, get_db_sess_sync
+from module.broker.enums import BrokerType
+from module.markets.enums import MarketType, Timeframe
+from module.markets.exception import SymbolNotFoundException
+from module.markets.model import OHLC, Instrument
+from module.markets.schema import InstrumentInfo
+from module.markets.service import MarketsService
+from core.db import get_db_session, get_db_sess_sync
 from api.routes.util import seed_candles
 
 
 @pytest.fixture
 def markets_service():
     return MarketsService()
-
-
-@pytest.fixture(scope="module", autouse=True)
-def clear_tables():
-    yield
-    with get_db_sess_sync() as db_sess:
-        db_sess.execute(delete(OHLC))
-        db_sess.execute(delete(Instrument))
-        db_sess.commit()
 
 
 @pytest_asyncio.fixture(loop_scope="session")

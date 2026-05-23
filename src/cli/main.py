@@ -2,19 +2,16 @@ import sys
 
 import click
 
-from cli.commands import (
-    backtest,
-    consumer,
-    db,
-    events,
-    feed,
-    http,
-    monitor,
-    ohlc_loader,
-    oms,
-    outbox,
-    strategy,
-)
+from cli.command.backtest import backtest
+from cli.command.consumer import consumer
+from cli.command.db import db
+from cli.command.feed import feed
+from cli.command.http import http
+from cli.command.monitor import monitor
+from cli.command.ohlc_loader import ohlc_loader
+from cli.command.oms import oms
+from cli.command.outbox import outbox
+from cli.command.strategy import strategy
 
 
 @click.group(invoke_without_command=True)
@@ -35,7 +32,6 @@ def cli(ctx, version):
 cli.add_command(backtest)
 cli.add_command(consumer)
 cli.add_command(db)
-cli.add_command(events)
 cli.add_command(feed)
 cli.add_command(http)
 cli.add_command(monitor)
@@ -43,7 +39,3 @@ cli.add_command(ohlc_loader)
 cli.add_command(oms)
 cli.add_command(outbox)
 cli.add_command(strategy)
-
-
-if __name__ == "__main__":
-    cli()

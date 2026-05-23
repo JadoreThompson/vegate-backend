@@ -7,7 +7,7 @@ from httpx import AsyncClient, ASGITransport
 
 @pytest_asyncio.fixture(loop_scope="session")
 async def client():
-    from api.app import app
+    from module.api.app import app
 
     async with LifespanManager(app=app):
         async with AsyncClient(
@@ -18,14 +18,17 @@ async def client():
 
 @pytest_asyncio.fixture(loop_scope="session")
 async def authenticated_client(client, faker):
-    from api.routes.auth.route import auth_service
+    from module.api.app import app
+    from module.auth import AuthService
+
+    auth_service = app.state.object_registry.get(AuthService)
 
     auth_service._email_service = AsyncMock()
 
     code = "TOKEN"
     auth_service.gen_verification_code = MagicMock(return_value=code)
 
-    username = faker.user_name()
+    username = faker.user_name() + faker.last_name()
     register_payload = {
         "username": username,
         "email": f"{username}@email.com",

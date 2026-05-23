@@ -3,10 +3,11 @@ from datetime import datetime, UTC
 from sqlalchemy import insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from enums import BrokerType, Timeframe, MarketType
-from infra.db import get_db_session, get_db_sess_sync
-from infra.db.model import User, OHLC
-from infra.db.model.instrument import Instrument
+from module.broker.enums import BrokerType
+from module.markets.enums import MarketType, Timeframe
+from core.db import get_db_sess_sync, get_db_session
+from module.markets.model import OHLC, Instrument
+from module.user.model import User
 
 
 async def create_user(username: str) -> User:
@@ -47,7 +48,7 @@ def seed_candles():
                 )
                 .returning(Instrument.id)
             )
-
+            print("Instrument id:", instrument_id)
             if instrument_id is None:
                 continue
 
@@ -70,5 +71,5 @@ def seed_candles():
             ]
             db_sess.add_all(candles)
 
-        db_sess.flush()
+        # db_sess.flush()
         db_sess.commit()

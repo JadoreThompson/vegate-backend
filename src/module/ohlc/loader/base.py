@@ -1,0 +1,2 @@
+class OHLCLoader:
+    pass

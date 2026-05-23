@@ -6,29 +6,26 @@ from uuid import uuid4
 from unittest.mock import AsyncMock, MagicMock, patch
 from sqlalchemy import delete, insert, select
 
-from api.routes.deployments.exception import DeploymentNotFoundException
-from api.routes.deployments.models import (
+from module.broker.enums import BrokerType, OrderStatus
+from module.broker_connections import BrokerConnectionsService
+from module.deployment.enums import StrategyDeploymentStatus
+from module.deployment.exception import DeploymentNotFoundException
+from module.deployment.executor.base import DeploymentExecutor
+from module.deployment.model import StrategyDeployments, StrategyDeploymentMetrics
+from module.deployment.schema import (
     CreateDeploymentRequest,
     StrategyDeploymentResponse,
     StrategyDeploymentMetricsResponse,
 )
-from api.routes.deployments.service import APIDeploymentsService
-from api.routes.markets.service import MarketsService
-from api.routes.markets.model import InstrumentInfo
-from enums import (
-    BrokerType,
-    MarketType,
-    StrategyDeploymentStatus,
-    Timeframe,
-    OrderStatus,
-)
-from infra.db.model import Strategy, StrategyDeployments
-from infra.db.model.broker_connections import BrokerConnections
-from infra.db.model.instrument import Instrument
-from infra.db.model.strategy_deployment_metrics import StrategyDeploymentMetrics
-from infra.db.model.user import User
-from infra.db.utils import get_db_sess_sync, get_db_session
-from service.deployment import DeploymentService as IDeploymentService
+from module.deployment.service import DeploymentsService
+from module.markets.enums import MarketType, Timeframe
+from module.markets.model import Instrument
+from module.markets.schema import InstrumentInfo
+from module.markets.service import MarketsService
+from module.strategy.model import Strategy
+from module.broker_connections.model import BrokerConnections
+from module.user.model import User
+from core.db import get_db_sess_sync, get_db_session
 from api.routes.util import create_user, seed_candles
 
 
@@ -38,18 +35,27 @@ def mock_markets_service():
 
 
 @pytest.fixture
-def mock_deployment_runner():
-    service = MagicMock(spec=IDeploymentService)
+def mock_deployment_executor():
+    service = MagicMock(spec=DeploymentExecutor)
     service.run = AsyncMock()
     service.stop = AsyncMock()
     return service
 
 
 @pytest.fixture
-def deployment_service(mock_markets_service, mock_deployment_runner):
-    return APIDeploymentsService(
+def mock_broker_connections_service():
+    service = MagicMock(spec=BrokerConnectionsService)
+    return service
+
+
+@pytest.fixture
+def deployment_service(
+    mock_markets_service, mock_deployment_executor, mock_broker_connections_service
+):
+    return DeploymentsService(
         markets_service=mock_markets_service,
-        deployment_service=mock_deployment_runner,
+        deployment_executor=mock_deployment_executor,
+        broker_connections_service=mock_broker_connections_service,
     )
 
 
@@ -80,9 +86,9 @@ class TestCreateDeployment:
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_create_success_runs_deployment(
-            self, deployment_service, mock_markets_service, mock_deployment_runner
+            self, deployment_service, mock_markets_service, mock_deployment_executor
         ):
-            mock_db_sess = AsyncMock()
+            mock_db_sess = MagicMock()
 
             mock_info = MagicMock(spec=InstrumentInfo)
             mock_info.id = uuid4()
@@ -105,7 +111,7 @@ class TestCreateDeployment:
             await deployment_service.create(request, mock_db_sess)
 
             mock_db_sess.add.assert_called_once()
-            mock_deployment_runner.run.assert_awaited_once()
+            mock_deployment_executor.run.assert_awaited_once()
 
 
 class TestGetDeployment:
@@ -300,7 +306,7 @@ class TestStopDeployment:
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_stop_already_stopped_does_not_call_runner(
-            self, deployment_service, mock_deployment_runner
+            self, deployment_service, mock_deployment_executor
         ):
             mock_db_sess = AsyncMock()
 
@@ -310,11 +316,11 @@ class TestStopDeployment:
 
             await deployment_service.stop(uuid4(), uuid4(), mock_db_sess)
 
-            mock_deployment_runner.stop.assert_not_awaited()
+            mock_deployment_executor.stop.assert_not_awaited()
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_stop_already_stop_requested_does_not_call_runner(
-            self, deployment_service, mock_deployment_runner
+            self, deployment_service, mock_deployment_executor
         ):
             mock_db_sess = AsyncMock()
 
@@ -324,11 +330,11 @@ class TestStopDeployment:
 
             await deployment_service.stop(uuid4(), uuid4(), mock_db_sess)
 
-            mock_deployment_runner.stop.assert_not_awaited()
+            mock_deployment_executor.stop.assert_not_awaited()
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_stop_running_deployment_calls_runner(
-            self, deployment_service, mock_deployment_runner
+            self, deployment_service, mock_deployment_executor
         ):
             mock_db_sess = AsyncMock()
 
@@ -340,11 +346,11 @@ class TestStopDeployment:
 
             await deployment_service.stop(deployment_id, uuid4(), mock_db_sess)
 
-            mock_deployment_runner.stop.assert_awaited_once_with(deployment_id)
+            mock_deployment_executor.stop.assert_awaited_once_with(deployment_id)
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_stop_pending_deployment_calls_runner(
-            self, deployment_service, mock_deployment_runner
+            self, deployment_service, mock_deployment_executor
         ):
             mock_db_sess = AsyncMock()
 
@@ -356,7 +362,7 @@ class TestStopDeployment:
 
             await deployment_service.stop(deployment_id, uuid4(), mock_db_sess)
 
-            mock_deployment_runner.stop.assert_awaited_once_with(deployment_id)
+            mock_deployment_executor.stop.assert_awaited_once_with(deployment_id)
 
 
 class TestGetOrders:

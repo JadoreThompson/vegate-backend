@@ -6,12 +6,12 @@ import pytest
 import pytest_asyncio
 
 from config import REDIS_STRATEGY_DEPLOYMENT_HEARTBEAT_KEY_PREFIX
-from enums import StrategyDeploymentStatus
-from events.deployment import DeploymentEventType, DeploymentStatusChangedEvent
-from infra.redis.client import REDIS_CLIENT
-from service.monitoring.deployment.service import DeploymentMonitoringService
+from module.deployment.enums import StrategyDeploymentStatus
+from module.deployment.event.event import DeploymentEventType, DeploymentStatusChangedEvent
+from core.redis import REDIS_CLIENT
+from module.deployment.monitor import DeploymentMonitoringService
 
-MODULE_PATH = "service.monitoring.deployment.service"
+MODULE_PATH = "module.deployment.monitor"
 
 
 @pytest.fixture

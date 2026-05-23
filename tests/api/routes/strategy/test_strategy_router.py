@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from api.routes.strategy.service import APIStrategyService
-from infra.db.model.strategy import Strategy
+from module.strategy import StrategyService
+from module.strategy.model import Strategy
 
 # TODO: Implement agents and run tests
 
@@ -51,9 +51,9 @@ class TestGetStrategy:
     async def test_get_strategy_returns_200(self, authenticated_client):
         strategy_id = uuid4()
 
-        from api.app import app
+        from module.api.app import app
 
-        strategy_service = app.state.object_registry.get(APIStrategyService)
+        strategy_service = app.state.object_registry.get(StrategyService)
 
         strategy_service.get_strategy = AsyncMock(
             return_value=Strategy(
@@ -152,9 +152,9 @@ class TestDeleteStrategy:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_delete_strategy_not_found_returns_404(self, authenticated_client):
-        from api.app import app
+        from module.api.app import app
 
-        strategy_service = app.state.object_registry.get(APIStrategyService)
+        strategy_service = app.state.object_registry.get(StrategyService)
         strategy_service.update = AsyncMock(side_effect=Exception("not found"))
 
         fake_id = uuid4()

@@ -2,7 +2,8 @@ import asyncio
 from datetime import datetime, timedelta
 
 from config import ALPACA_API_KEY, ALPACA_SECRET_KEY, CONFIG_YAML
-from enums import BrokerType, MarketType, Timeframe
+from module.broker.enums import BrokerType
+from module.markets.enums import MarketType, Timeframe
 from runners.base import BaseRunner
 from service.ohlc.feed.alpaca.service import AlpacaOHLCFeed
 from service.ohlc.feed.base import OHLCFeed

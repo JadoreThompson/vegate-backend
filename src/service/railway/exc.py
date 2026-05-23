@@ -1,2 +1,0 @@
-class RailwayError(Exception):
-    pass

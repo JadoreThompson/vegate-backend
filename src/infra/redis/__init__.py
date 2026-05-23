@@ -1,3 +1,0 @@
-from .client import REDIS_CLIENT, REDIS_CLIENT_SYNC
-
-__all__ = ["REDIS_CLIENT", "REDIS_CLIENT_SYNC"]

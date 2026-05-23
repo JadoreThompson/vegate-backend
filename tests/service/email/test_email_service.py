@@ -1,6 +1,6 @@
 import pytest
 from config import CUSTOMER_SUPPORT_EMAIL
-from service.email.brevo import BrevoEmailService
+from module.email.brevo import BrevoEmailService
 
 
 class TestBrevoEmailService:

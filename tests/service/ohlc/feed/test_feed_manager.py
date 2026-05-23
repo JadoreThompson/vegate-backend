@@ -3,9 +3,10 @@ import pytest
 import pytest_asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from enums import BrokerType, MarketType, Timeframe
-from service.ohlc.feed.base import OHLCFeed
-from service.ohlc.feed.manager import FeedManager
+from module.broker.enums import BrokerType
+from module.markets.enums import MarketType, Timeframe
+from module.markets.feed.base import OHLCFeed
+from module.markets.feed.manager import FeedManager
 
 
 @pytest.fixture

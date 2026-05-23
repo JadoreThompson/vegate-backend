@@ -1,0 +1,274 @@
+import logging
+import os
+from uuid import UUID
+
+from sqlalchemy import insert, update
+
+from config import SRC_PATH
+# from enums import BacktestStatus, BrokerType, Timeframe
+from module.backtest.enums import BacktestStatus
+from module.broker.enums import BrokerType
+from module.markets.enums import Timeframe
+
+from core.db import get_db_sess_sync
+from module.event_bus import SyncEventPublisher
+# from module.markets.model import Instrument
+# from module.strategy import Strategy, BaseStrategy
+from module.markets.model import Instrument
+from module.strategy.model import Strategy
+from module.strategy.strategy import BaseStrategy
+from .broker_client import BacktestBrokerClient
+from .engine import BacktestEngine, BacktestConfig
+from .model import Backtest, BacktestMetrics, BacktestOrder
+from .ohlc_feed_client import BacktestOHLCFeedClient
+from .schema import EquityCurvePoint, BacktestMetricsSchema
+from util import get_datetime
+
+
+class BacktestRunner:
+    """Performs a backtest for a given backtest_id."""
+
+    def __init__(self, backtest_id: UUID):
+        self._backtest_id = backtest_id
+        self._logger = logging.getLogger(type(self).__name__)
+
+    def run(self) -> None:
+        """The main entry point for the backtest process."""
+        self._logger.info(f"Starting BacktestRunner for ID '{self._backtest_id}'")
+
+        try:
+            self._update_backtest_status(BacktestStatus.IN_PROGRESS)
+
+            with get_db_sess_sync() as db_sess:
+                db_backtest = db_sess.get(Backtest, self._backtest_id)
+                if db_backtest is None:
+                    self._logger.error(
+                        f"Backtest object not found for ID: {self._backtest_id}"
+                    )
+                    return
+
+                if db_backtest.status != BacktestStatus.PENDING:
+                    self._logger.info(
+                        "Backtest status is not pending. Aborting backtest"
+                    )
+                    return
+
+                self._logger.info("Backtest object found")
+                db_sess.expunge(db_backtest)
+
+                db_strategy = db_sess.get(Strategy, db_backtest.strategy_id)
+                if db_strategy is None:
+                    self._logger.error(f"Strategy for backtest {self._backtest_id}")
+                    return
+
+                self._logger.info("Strategy object found")
+                db_sess.expunge(db_strategy)
+
+                instrument = db_sess.get(Instrument, db_backtest.instrument_id)
+                db_sess.expunge(instrument)
+
+            # Create backtest configuration
+            bt_config = BacktestConfig(
+                start_date=db_backtest.start_date,
+                end_date=db_backtest.end_date,
+                symbol=instrument.symbol,
+                market_type=instrument.market_type,
+                starting_balance=db_backtest.starting_balance,
+                timeframe=Timeframe(db_backtest.timeframe),
+                broker=BrokerType(instrument.broker_type),
+            )
+
+            # Create broker and run backtest
+            self._write_strategy_code(db_strategy.code)
+
+            strategy = self._load_user_strategy(bt_config)
+            bt_engine = BacktestEngine(strategy=strategy, config=bt_config)
+            result = bt_engine.run()
+            self._logger.info(f"Backtest {self._backtest_id} completed")
+
+            # Store results to database
+            self._logger.info("Storing results...")
+            self._store_results(result)
+            self._logger.info("Finished storing results")
+
+        except Exception as e:
+            self._logger.error(
+                f"An error occurred handling backtest {self._backtest_id}", exc_info=e
+            )
+            self._update_backtest_status(BacktestStatus.FAILED)
+
+    def _fetch_backtest_and_strategy(
+        self,
+    ) -> tuple[Backtest | None, Strategy | None, Instrument | None]:
+        # """Fetch backtest and strategy from database.
+
+        # Returns:
+        #     Tuple of (db_backtest, db_strategy) or (None, None) if not found
+        # """
+        # with get_db_sess_sync() as db_sess:
+        #     db_backtest = db_sess.get(Backtest, self._backtest_id)
+        #     if db_backtest is None:
+        #         self._logger.error(
+        #             f"Backtest object not found for ID: {self._backtest_id}"
+        #         )
+        #         return None, None, None
+
+        #     self._logger.info("Backtest object found")
+
+        #     db_strategy = db_sess.get(Strategy, db_backtest.strategy_id)
+        #     if db_strategy is None:
+        #         self._logger.error(f"Strategy for backtest {self._backtest_id}")
+        #         db_backtest.status = BacktestStatus.FAILED.value
+        #         db_sess.commit()
+        #         return None, None, None
+
+        #     instrument = db_sess.get(Instrument, db_backtest.instrument_id)
+        #     db_sess.expunge(instrument)
+
+        #     self._logger.info("Strategy object found")
+
+        #     # Expunge objects from session to use outside of context
+        #     db_sess.expunge(db_backtest)
+        #     db_sess.expunge(db_strategy)
+
+        # return db_backtest, db_strategy, instrument
+        pass
+
+    def _write_strategy_code(self, code: str) -> None:
+        """Write strategy code to user_strategy.py file.
+
+        Args:
+            code: Strategy code to write
+        """
+        temp_strategy_path = os.path.join(SRC_PATH, "user_strategy.py")
+        with open(temp_strategy_path, "w") as f:
+            f.write(code)
+        self._logger.info(f"Strategy code written to {temp_strategy_path}")
+
+    # def _load_strategy(self, name: str, broker: BacktestBroker) -> BaseStrategy:
+    def _load_user_strategy(self, config: BacktestConfig) -> BaseStrategy:
+        """Load and instantiate strategy from user_strategy.py.
+
+        Returns:
+            Strategy instance
+        """
+        from user_strategy import UserStrategy  # type: ignore
+
+        ohlc_feed_client = BacktestOHLCFeedClient(
+            start=int(config.start_date.timestamp()),
+            end=int(config.end_date.timestamp()),
+        )
+        backtest_broker = BacktestBrokerClient(starting_balance=config.starting_balance)
+        event_publisher = SyncEventPublisher()
+
+        return UserStrategy(
+            config=config,
+            ohlc_feed_client=ohlc_feed_client,
+            oms_client=backtest_broker,
+            event_publisher=event_publisher,
+        )
+
+    def _create_backtest_config(self, db_backtest: Backtest) -> BacktestConfig:
+        """Create backtest configuration from database backtest.
+
+        Args:
+            db_backtest: Database backtest object
+
+        Returns:
+            BacktestConfig instance
+        """
+
+        return BacktestConfig(
+            start_date=db_backtest.start_date,
+            end_date=db_backtest.end_date,
+            symbol=db_backtest.symbol,
+            starting_balance=db_backtest.starting_balance,
+            timeframe=Timeframe(db_backtest.timeframe),
+            broker=BrokerType(db_backtest.broker),
+        )
+
+    def _store_results(self, result: BacktestMetricsSchema) -> None:
+        """Store backtest results to database.
+
+        Args:
+            result: BacktestMetricsSchema result
+            db_backtest: Database backtest object
+            bt_config: BacktestConfig used
+        """
+        # Prepare order records
+        records = []
+        for order in result.orders:
+            o = order.model_dump(mode="json")
+            o["backtest_id"] = self._backtest_id
+            o["filled_quantity"] = o["executed_quantity"]
+            o["avg_fill_price"] = o["filled_avg_price"]
+            o["filled_at"] = o["executed_at"]
+            records.append(o)
+
+        # Downsample equity curve if too large
+        equity_curve = result.equity_curve
+        n = len(equity_curve)
+        if n > 5:
+            indices = [0, n * 1 // 4, n * 2 // 4, n * 3 // 4, n - 1]
+            equity_curve = [equity_curve[i].model_dump(mode="json") for i in indices]
+
+        # Update database
+        with get_db_sess_sync() as db_sess:
+            if records:
+                db_sess.execute(insert(BacktestOrder), records)
+
+            db_sess.execute(
+                update(Backtest)
+                .where(Backtest.id == self._backtest_id)
+                .values(status=BacktestStatus.COMPLETED)
+            )
+
+            db_sess.execute(
+                insert(BacktestMetrics).values(
+                    backtest_id=self._backtest_id,
+                    realised_pnl=result.realised_pnl,
+                    unrealised_pnl=result.unrealised_pnl,
+                    total_return_pct=result.total_return_pct,
+                    profit_factor=result.profit_factor,
+                    total_orders=result.total_orders,
+                    equity_curve=equity_curve,
+                )
+            )
+
+            # def parse_equity_curve_point(
+            #     point: EquityCurvePoint, created_at: datetime
+            # ) -> dict:
+            #     data = point.model_dump()
+            #     data["backtest_id"] = self._backtest_id
+            #     data["timestamp"] = data["timestamp"].timestamp()
+            #     data["created_at"] = created_at
+            #     return data
+
+            # created_at = get_datetime()
+            # db_sess.execute(
+            #     insert(BacktestEquityCurve),
+            #     [
+            #         parse_equity_curve_point(point, created_at)
+            #         for point in result.equity_curve
+            #     ],
+            # )
+
+            db_sess.commit()
+            self._logger.info(f"Metrics updated for backtest {self._backtest_id}")
+
+    def _update_backtest_status(self, status: BacktestStatus) -> None:
+        """Update backtest status in database.
+
+        Args:
+            status: BacktestStatus to set
+        """
+        with get_db_sess_sync() as db_sess:
+            db_sess.execute(
+                update(Backtest)
+                .where(
+                    Backtest.id == self._backtest_id,
+                    Backtest.status != BacktestStatus.COMPLETED,
+                )
+                .values(status=status.value)
+            )
+            db_sess.commit()

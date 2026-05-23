@@ -1,0 +1,112 @@
+import logging
+from typing import Generator
+
+from sqlalchemy import select
+
+from core.db import get_db_sess_sync
+# from enums import BrokerType, MarketType, Timeframe
+# from module.markets.model import Instrument, OHLC
+# from module.markets.schema import OHLC as OHLCSchema
+from module.broker.enums import BrokerType
+from module.markets.enums import MarketType, Timeframe
+from module.markets.model import Instrument, OHLC
+from module.markets.schema import OHLC as OHLCSchema
+from module.markets.feed import OHLCFeedClient
+
+
+class BacktestOHLCFeedClient(OHLCFeedClient):
+
+    def __init__(self, start: int, end: int):
+        super().__init__()
+        self._market_type = None
+        self._symbol = None
+        self._timeframe = None
+        self._broker_type = None
+        self._start = start
+        self._end = end
+        self._cur_candle: OHLCSchema | None = None
+        self._name = self.__class__.__name__
+        self._logger = logging.getLogger(self._name)
+
+    @property
+    def timeframe(self):
+        return self._timeframe
+
+    @property
+    def cur_candle(self) -> OHLCSchema:
+        return self._cur_candle
+
+    @property
+    def start(self):
+        return self._start
+
+    def subscribe(
+        self,
+        symbol: str,
+        market_type: MarketType,
+        broker: BrokerType,
+        timeframe: Timeframe,
+        start: int | None = None,
+    ) -> None:
+        self._symbol = symbol
+        self._market_type = market_type
+        self._broker_type = broker
+        self._timeframe = timeframe
+        if start is not None:
+            self._start = max(self._start, start)
+
+        self._name = (
+            f"{self.__class__.__name__}-"
+            f"{market_type.value}-{symbol}-{timeframe.value}"
+        )
+
+        self._logger = logging.getLogger(self._name)
+
+        self._logger.info(
+            "Subscribed to backtest feed: "
+            "symbol=%s market_type=%s broker=%s timeframe=%s start=%s",
+            symbol,
+            market_type,
+            broker,
+            timeframe,
+            start,
+        )
+
+    def candles(self) -> Generator[OHLCSchema, None, None]:
+        with get_db_sess_sync() as db_sess:
+            squery = (
+                select(Instrument.id)
+                .where(
+                    Instrument.symbol == self._symbol,
+                    Instrument.market_type == self._market_type,
+                    Instrument.broker_type == self._broker_type,
+                )
+                .subquery()
+            )
+            rows = db_sess.scalars(
+                select(OHLC, Instrument)
+                .where(
+                    Instrument.id == squery.c.id,
+                    OHLC.timeframe == Timeframe.m1,
+                    OHLC.timestamp >= self._start,
+                    OHLC.timestamp <= self._end,
+                )
+                .order_by(OHLC.timestamp.asc())
+            )
+
+            for row in rows.yield_per(1000):
+                candle = OHLCSchema(
+                    open=float(row.open),
+                    high=float(row.high),
+                    low=float(row.low),
+                    close=float(row.close),
+                    volume=float(row.volume),
+                    symbol=self._symbol,
+                    broker=self._broker_type,
+                    market_type=self._market_type,
+                    timeframe=row.timeframe,
+                    timestamp=row.timestamp,
+                )
+                self._cur_candle = candle
+
+                yield candle

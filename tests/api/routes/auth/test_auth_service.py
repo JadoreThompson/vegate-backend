@@ -6,11 +6,19 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest_asyncio
 from sqlalchemy import delete
 
-from api.routes.auth.exception import (
-    UserAlreadyExistsException,
-    UserDoesNotExistException,
+from core.db import get_db_sess_sync, get_db_session
+from core.redis import REDIS_CLIENT
+from config import (
+    REDIS_CHANGE_EMAIL_KEY_PREFIX,
+    REDIS_CHANGE_PASSWORD_KEY_PREFIX,
+    REDIS_CHANGE_USERNAME_KEY_PREFIX,
+    REDIS_PASSWORD_RESET_EXPIRY_SECS,
+    REDIS_PASSWORD_RESET_TOKEN_KEY_PREFIX,
+    VERIFICATION_CODE_EXPIRY_SECS,
 )
-from api.routes.auth.models import (
+from module.auth import AuthService
+from module.auth.exception import UserAlreadyExistsException, UserDoesNotExistException
+from module.auth.schema import (
     ChangeEmailRequest,
     ChangePasswordRequest,
     ChangeUsernameRequest,
@@ -20,18 +28,7 @@ from api.routes.auth.models import (
     ResetPasswordResponse,
     VerificationCode,
 )
-from api.routes.auth.service import AuthService
-from config import (
-    REDIS_CHANGE_EMAIL_KEY_PREFIX,
-    REDIS_CHANGE_PASSWORD_KEY_PREFIX,
-    REDIS_CHANGE_USERNAME_KEY_PREFIX,
-    REDIS_PASSWORD_RESET_EXPIRY_SECS,
-    REDIS_PASSWORD_RESET_TOKEN_KEY_PREFIX,
-    VERIFICATION_CODE_EXPIRY_SECS,
-)
-from infra.db.model.user import User
-from infra.db.utils import get_db_sess_sync, get_db_session
-from infra.redis.client import REDIS_CLIENT
+from module.user.model import User
 
 
 @pytest.fixture
@@ -40,13 +37,14 @@ def redis_client():
 
 
 @pytest.fixture
-def email_service():
-    return MagicMock()
+def auth_service(redis_client):
+    return AuthService(email_service_cls=MagicMock, redis_client=redis_client)
 
 
 @pytest.fixture
-def auth_service(email_service, redis_client):
-    return AuthService(email_service=email_service, redis_client=redis_client)
+def email_service(auth_service):
+    email_service = auth_service._email_service
+    return email_service
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -133,8 +131,8 @@ class TestRegisterUser:
             auth_service._send_verification_code = mock_send_verification_code
 
             request = RegisterUserRequest(
-                username="test-user",
-                email="test-user@email.com",
+                username="test-user2",
+                email="test-user2@email.com",
                 password="PAssword1@@1",
             )
             user = await auth_service.register_user(request, db_sess)
@@ -1041,4 +1039,4 @@ class TestRequestResetPassword:
             assert redis_args.kwargs["ex"] == REDIS_PASSWORD_RESET_EXPIRY_SECS
 
             email_args = email_service.send_email.await_args.args
-            assert "reset-password" in email_args[1]
+            assert "Reset Your Password" in email_args[1]

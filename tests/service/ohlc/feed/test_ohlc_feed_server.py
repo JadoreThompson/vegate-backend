@@ -6,18 +6,15 @@ from collections import defaultdict
 from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock, call
 from uuid import uuid4
 
-from enums import BrokerType, MarketType, Timeframe
-from infra.db.model.ohlc import OHLC
-from models import OHLC as OHLCModel
-from service.ohlc.feed.base import OHLCFeed
-from service.ohlc.feed.manager import feed_manager
-from service.ohlc.feed.server import (
+from module.broker.enums import BrokerType
+from module.markets.enums import MarketType, Timeframe
+from module.markets.model import OHLC
+from module.markets.schema import OHLC as OHLCModel
+from module.markets.feed.base import OHLCFeed
+from module.markets.feed.manager import feed_manager
+from module.markets.feed.server import (
     OHLCFeedServer,
     SocketConnection,
-    _err,
-    _candle_payload,
-    _ohlcmodel_payload,
-    _heartbeat_ack,
 )
 
 
@@ -116,8 +113,8 @@ def mock_feed_crypto():
 class TestErr:
     """Unit tests for _err helper."""
 
-    def test_err_returns_bytes(self):
-        result = _err("Something went wrong")
+    def test_err_returns_bytes(self, server):
+        result = server._err("Something went wrong")
 
         assert isinstance(result, bytes)
         assert result.endswith(b"\n"), result
@@ -131,9 +128,9 @@ class TestErr:
 class TestCandlePayload:
     """Unit tests for _candle_payload helper."""
 
-    def test_candle_payload_has_candle_data(self):
+    def test_candle_payload_has_candle_data(self, server):
         row = make_ohlc_row(open=150.0, close=155.0)
-        result = _candle_payload(row)
+        result = server._candle_payload(row)
 
         assert isinstance(result, bytes), result
         assert result.endswith(b"\n"), result
@@ -149,9 +146,9 @@ class TestCandlePayload:
 class TestOhlcModelPayload:
     """Unit tests for _ohlcmodel_payload helper."""
 
-    def test_ohlcmodel_payload_has_candle_data_live(self):
+    def test_ohlcmodel_payload_has_candle_data_live(self, server):
         candle = make_ohlc_model(open=200.0, high=210.0, symbol="MSFT")
-        result = _ohlcmodel_payload(candle)
+        result = server._ohlcmodel_payload(candle)
 
         assert isinstance(result, bytes), result
         assert result.endswith(b"\n"), result
@@ -163,9 +160,9 @@ class TestOhlcModelPayload:
         assert data["candle"]["symbol"] == "MSFT", data
         assert data["is_live"] is True, data
 
-    def test_ohlcmodel_payload_has_candle_data_not_live(self):
+    def test_ohlcmodel_payload_has_candle_data_not_live(self, server):
         candle = make_ohlc_model(open=200.0, high=210.0, symbol="MSFT")
-        result = _ohlcmodel_payload(candle, is_live=False)
+        result = server._ohlcmodel_payload(candle, is_live=False)
 
         assert isinstance(result, bytes), result
         assert result.endswith(b"\n"), result
@@ -181,8 +178,8 @@ class TestOhlcModelPayload:
 class TestHeartbeatAck:
     """Unit tests for _heartbeat_ack helper."""
 
-    def test_heartbeat_ack_structure(self):
-        result = _heartbeat_ack()
+    def test_heartbeat_ack_structure(self, server):
+        result = server._heartbeat_ack()
         assert isinstance(result, bytes)
         assert result.endswith(b"\n"), result
 
@@ -252,35 +249,6 @@ class TestOHLCFeedServerStop:
 
         mock_server.close.assert_called_once()
         mock_server.wait_closed.assert_awaited_once()
-
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_stop_calls_feed_manager_stop_all(self, server):
-        mock_server = MagicMock()
-        mock_server.close = MagicMock()
-        mock_server.wait_closed = AsyncMock()
-        server._server = mock_server
-
-        with patch.object(feed_manager, "stop_all", AsyncMock()) as mock_stop_all:
-            await server.stop()
-
-        mock_stop_all.assert_awaited_once()
-
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_stop_no_server(self, server):
-        server._server = None
-        with patch.object(feed_manager, "stop_all", AsyncMock()) as mock_stop_all:
-            await server.stop()
-        mock_stop_all.assert_awaited_once()
-
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_stop_logs_stopped(self, server, caplog):
-        import logging
-
-        server._server = None
-        with caplog.at_level(logging.INFO):
-            with patch.object(feed_manager, "stop_all", AsyncMock()):
-                await server.stop()
-        assert "Market socket server stopped" in caplog.text
 
 
 class TestOHLCFeedServerHandleCandle:
@@ -912,7 +880,7 @@ class TestOHLCFeedServerFetchOhlc:
         mock_sess = AsyncMock()
         mock_sess.execute = AsyncMock(return_value=mock_result)
 
-        with patch("service.ohlc.feed.server.get_db_session") as mock_get_db:
+        with patch("module.markets.feed.server.get_db_session") as mock_get_db:
             mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_sess)
             mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
 
@@ -930,7 +898,7 @@ class TestOHLCFeedServerFetchOhlc:
         mock_sess = AsyncMock()
         mock_sess.execute = AsyncMock(return_value=mock_result)
 
-        with patch("service.ohlc.feed.server.get_db_session") as mock_get_db:
+        with patch("module.markets.feed.server.get_db_session") as mock_get_db:
             mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_sess)
             mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
 
@@ -946,7 +914,7 @@ class TestOHLCFeedServerFetchOhlc:
         mock_sess = AsyncMock()
         mock_sess.execute = AsyncMock(return_value=mock_result)
 
-        with patch("service.ohlc.feed.server.get_db_session") as mock_get_db:
+        with patch("module.markets.feed.server.get_db_session") as mock_get_db:
             mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_sess)
             mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
 

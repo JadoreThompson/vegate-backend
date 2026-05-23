@@ -1,0 +1,2 @@
+class AlpacaOHLCFeedException(Exception):
+    pass

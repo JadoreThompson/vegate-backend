@@ -6,28 +6,17 @@ from uuid import uuid4
 
 from sqlalchemy import delete, select, insert
 
-from enums import BrokerType, MarketType, Timeframe
-from infra.db.model import OHLC
-from infra.db.model.instrument import Instrument
-from infra.db.utils import get_db_sess_sync, get_db_session
-from models import OHLC as OHLCModel
-from service.ohlc.feed.backtest.client import BacktestOHLCFeedClient
+from module.broker.enums import BrokerType
+from module.markets.enums import MarketType, Timeframe
+from module.markets.model import OHLC, Instrument
+from core.db import get_db_sess_sync, get_db_session
+from module.markets.schema import OHLC as OHLCModel
+from module.backtest.ohlc_feed_client import BacktestOHLCFeedClient
 
 
 @pytest.fixture
 def backtest_client():
     return BacktestOHLCFeedClient(start=1000, end=2000)
-
-
-@pytest.fixture(scope="module", autouse=True)
-def clear_tables():
-    yield
-    with get_db_sess_sync() as db_sess:
-        db_sess.execute(delete(OHLC))
-        db_sess.execute(
-            delete(Instrument).where(Instrument.broker_type == BrokerType.ALPACA)
-        )
-        db_sess.commit()
 
 
 class TestInit:
@@ -191,7 +180,7 @@ class TestCandles:
         backtest_client._broker_type = BrokerType.ALPACA
         backtest_client._timeframe = Timeframe.m1
 
-        with patch("service.ohlc.feed.backtest.client.get_db_sess_sync") as mock_get_db:
+        with patch("module.backtest.ohlc_feed_client.get_db_sess_sync") as mock_get_db:
             mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
             mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
 
@@ -240,7 +229,7 @@ class TestCandles:
         backtest_client._broker_type = BrokerType.ALPACA
         backtest_client._timeframe = Timeframe.m1
 
-        with patch("service.ohlc.feed.backtest.client.get_db_sess_sync") as mock_get_db:
+        with patch("module.backtest.ohlc_feed_client.get_db_sess_sync") as mock_get_db:
             mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
             mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
 
@@ -265,7 +254,7 @@ class TestCandles:
         backtest_client._broker_type = BrokerType.ALPACA
         backtest_client._timeframe = Timeframe.m1
 
-        with patch("service.ohlc.feed.backtest.client.get_db_sess_sync") as mock_get_db:
+        with patch("module.backtest.ohlc_feed_client.get_db_sess_sync") as mock_get_db:
             mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
             mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
 
@@ -285,7 +274,7 @@ class TestCandles:
         backtest_client._broker_type = BrokerType.ALPACA
         backtest_client._timeframe = Timeframe.H1
 
-        with patch("service.ohlc.feed.backtest.client.get_db_sess_sync") as mock_get_db:
+        with patch("module.backtest.ohlc_feed_client.get_db_sess_sync") as mock_get_db:
             mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
             mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
 
@@ -315,7 +304,7 @@ class TestCandles:
         backtest_client._broker_type = BrokerType.ALPACA
         backtest_client._timeframe = Timeframe.m1
 
-        with patch("service.ohlc.feed.backtest.client.get_db_sess_sync") as mock_get_db:
+        with patch("module.backtest.ohlc_feed_client.get_db_sess_sync") as mock_get_db:
             mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
             mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
 
@@ -348,7 +337,7 @@ class TestCandles:
         backtest_client._start = 1400
         backtest_client._end = 1600
 
-        with patch("service.ohlc.feed.backtest.client.get_db_sess_sync") as mock_get_db:
+        with patch("module.backtest.ohlc_feed_client.get_db_sess_sync") as mock_get_db:
             mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
             mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
 
@@ -387,7 +376,7 @@ class TestCandles:
         backtest_client._broker_type = BrokerType.ALPACA
         backtest_client._timeframe = Timeframe.m1
 
-        with patch("service.ohlc.feed.backtest.client.get_db_sess_sync") as mock_get_db:
+        with patch("module.backtest.ohlc_feed_client.get_db_sess_sync") as mock_get_db:
             mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
             mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
 
@@ -421,7 +410,7 @@ class TestCandles:
         backtest_client._broker_type = BrokerType.ALPACA
         backtest_client._timeframe = Timeframe.m1
 
-        with patch("service.ohlc.feed.backtest.client.get_db_sess_sync") as mock_get_db:
+        with patch("module.backtest.ohlc_feed_client.get_db_sess_sync") as mock_get_db:
             mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
             mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
 
@@ -451,7 +440,7 @@ class TestCandles:
         backtest_client._broker_type = BrokerType.ALPACA
         backtest_client._timeframe = Timeframe.m1
 
-        with patch("service.ohlc.feed.backtest.client.get_db_sess_sync") as mock_get_db:
+        with patch("module.backtest.ohlc_feed_client.get_db_sess_sync") as mock_get_db:
             mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
             mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
 

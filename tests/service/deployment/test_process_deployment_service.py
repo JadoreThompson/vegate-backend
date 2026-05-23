@@ -3,16 +3,16 @@ from uuid import UUID
 
 import pytest
 
-from service.deployment.exception import DeploymentNotFoundException
-from service.deployment.process import ProcessDeploymentService
+from module.deployment.exception import DeploymentNotFoundException
+from module.deployment.executor import ProcessDeploymentExecutor
 
 BACKTEST_ID = UUID("11111111-1111-1111-1111-111111111111")
 DEPLOYMENT_ID = UUID("22222222-2222-2222-2222-222222222222")
-
+PROCESS_PATCH_TARGET = "module.deployment.executor.process.Process"
 
 @pytest.fixture
 def service():
-    return ProcessDeploymentService()
+    return ProcessDeploymentExecutor()
 
 
 @pytest.fixture
@@ -26,7 +26,7 @@ class TestDeployDeployment:
 
     @pytest.mark.asyncio
     async def test_deploy_deployment_starts_process(self, service, mock_process):
-        with patch("service.deployment.process.Process") as MockProcessClass:
+        with patch(PROCESS_PATCH_TARGET) as MockProcessClass:
             MockProcessClass.return_value = mock_process
 
             result = await service.run(BACKTEST_ID)
@@ -38,7 +38,7 @@ class TestDeployDeployment:
     async def test_deploy_deployment_already_running_returns_already_running(
         self, service, mock_process
     ):
-        with patch("service.deployment.process.Process") as MockProcessClass:
+        with patch(PROCESS_PATCH_TARGET) as MockProcessClass:
             MockProcessClass.return_value = mock_process
             mock_process.start()
 
@@ -52,7 +52,7 @@ class TestStopDeployment:
     async def test_stop_deployment_terminates_running_process(
         self, service, mock_process
     ):
-        with patch("service.deployment.process.Process") as MockProcessClass:
+        with patch(PROCESS_PATCH_TARGET) as MockProcessClass:
             MockProcessClass.return_value = mock_process
 
             await service.run(DEPLOYMENT_ID)
@@ -70,7 +70,7 @@ class TestStopDeployment:
     async def test_stop_deployment_already_terminated_returns_not_running(
         self, service, mock_process
     ):
-        with patch("service.deployment.process.Process") as MockProcessClass:
+        with patch(PROCESS_PATCH_TARGET) as MockProcessClass:
             MockProcessClass.return_value = mock_process
 
             await service.run(DEPLOYMENT_ID)
@@ -82,7 +82,7 @@ class TestDeployStrategy:
 
     @pytest.mark.asyncio
     async def test_run_starts_process(self, service, mock_process):
-        with patch("service.deployment.process.Process") as MockProcessClass:
+        with patch(PROCESS_PATCH_TARGET) as MockProcessClass:
             MockProcessClass.return_value = mock_process
 
             result = await service.run(DEPLOYMENT_ID)
@@ -94,7 +94,7 @@ class TestDeployStrategy:
     async def test_run_already_running_returns_already_running(
         self, service, mock_process
     ):
-        with patch("service.deployment.process.Process") as MockProcessClass:
+        with patch(PROCESS_PATCH_TARGET) as MockProcessClass:
             MockProcessClass.return_value = mock_process
             mock_process.start()
 
@@ -107,7 +107,7 @@ class TestStopStrategy:
     async def test_stop_strategy_terminates_running_process(
         self, service, mock_process
     ):
-        with patch("service.deployment.process.Process") as MockProcessClass:
+        with patch(PROCESS_PATCH_TARGET) as MockProcessClass:
             MockProcessClass.return_value = mock_process
 
             await service.run(DEPLOYMENT_ID)
@@ -125,7 +125,7 @@ class TestStopStrategy:
     async def test_stop_strategy_already_terminated_returns_not_running(
         self, service, mock_process
     ):
-        with patch("service.deployment.process.Process") as MockProcessClass:
+        with patch(PROCESS_PATCH_TARGET) as MockProcessClass:
             MockProcessClass.return_value = mock_process
 
             await service.run(DEPLOYMENT_ID)
@@ -139,7 +139,7 @@ class TestStopAll:
     async def test_stop_all_terminates_all_running_processes(
         self, service, mock_process
     ):
-        with patch("service.deployment.process.Process") as MockProcessClass:
+        with patch(PROCESS_PATCH_TARGET) as MockProcessClass:
             MockProcessClass.return_value = mock_process
 
             await service.run(DEPLOYMENT_ID)

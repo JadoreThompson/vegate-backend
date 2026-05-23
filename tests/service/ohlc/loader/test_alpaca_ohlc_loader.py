@@ -7,27 +7,16 @@ from uuid import uuid4
 import aiohttp
 from sqlalchemy import delete, select, func
 
-from enums import BrokerType, MarketType, Timeframe
-from infra.db.model import OHLC
-from infra.db.model.instrument import Instrument
-from infra.db.utils import get_db_session, get_db_sess_sync
-from service.ohlc.loader.alpaca import AlpacaOHLCLoader
+from module.broker.enums import BrokerType
+from module.markets.enums import MarketType, Timeframe
+from module.markets.model import OHLC, Instrument
+from core.db import get_db_session, get_db_sess_sync
+from module.markets.loader.alpaca import AlpacaOHLCLoader
 
 
 @pytest.fixture
 def alpaca_loader():
     return AlpacaOHLCLoader(api_key="test-api-key", secret_key="test-secret-key")
-
-
-@pytest.fixture(scope="module", autouse=True)
-def clear_tables():
-    yield
-    with get_db_sess_sync() as db_sess:
-        db_sess.execute(delete(OHLC))
-        db_sess.execute(
-            delete(Instrument).where(Instrument.broker_type == BrokerType.ALPACA)
-        )
-        db_sess.commit()
 
 
 @pytest_asyncio.fixture(loop_scope="session")

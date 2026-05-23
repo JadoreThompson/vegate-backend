@@ -2,31 +2,20 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
-from api.routes.auth.service import AuthService
-from api.routes.broker_connections.service import (
-    _BrokerAccount,
-)
-from infra.redis.client import REDIS_CLIENT
+from module.auth import AuthService
+from module.broker_connections.service import _BrokerAccount
+from core.redis import REDIS_CLIENT
 
 
 @pytest.fixture
-def mock_broker_service(monkeypatch):
-    broker_connections_service = MagicMock()
-    monkeypatch.setattr(
-        "api.routes.broker_connections.route.broker_connections_service",
-        broker_connections_service,
-    )
+def broker_connections_service():
+    from module.api.app import app
+    from module.api.object_registry import ObjectRegistry
+    from module.broker_connections import BrokerConnectionsService
 
-    return broker_connections_service
-
-
-# @pytest.fixture
-# def broker_service_fixture(mock_broker_service, monkeypatch):
-# monkeypatch.setattr(
-#     "api.routes.broker_connections.route.broker_connections_service",
-#     mock_broker_service,
-# )
-#     yield mock_broker_service
+    object_registry: ObjectRegistry = app.state.object_registry
+    service = object_registry.get(BrokerConnectionsService)
+    return service
 
 
 class TestCreateBrokerConnection:
@@ -43,8 +32,7 @@ class TestCreateBrokerConnection:
         assert res.status_code == 401, res.json()
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_create_broker_connection_returns_200(self, authenticated_client):
-        from api.routes.broker_connections.route import broker_connections_service
+    async def test_create_broker_connection_returns_200(self, authenticated_client, broker_connections_service):
 
         broker_connections_service._fetch_alpaca_account_id = AsyncMock(
             return_value=_BrokerAccount(id="mock-account-id", number="mock-number")
@@ -105,9 +93,7 @@ class TestListBrokerConnections:
         assert "has_next" in data
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_list_broker_connections_with_pagination(self, authenticated_client):
-        from api.routes.broker_connections.route import broker_connections_service
-
+    async def test_list_broker_connections_with_pagination(self, authenticated_client, broker_connections_service):
         for i in range(15):
             broker_connections_service._fetch_alpaca_account_id = AsyncMock(
                 return_value=_BrokerAccount(
@@ -133,10 +119,8 @@ class TestListBrokerConnections:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_list_broker_connections_with_pagination_second_page(
-        self, authenticated_client
+        self, authenticated_client, broker_connections_service
     ):
-        from api.routes.broker_connections.route import broker_connections_service
-
         for i in range(15):
             broker_connections_service._fetch_alpaca_account_id = AsyncMock(
                 return_value=_BrokerAccount(
@@ -162,10 +146,8 @@ class TestListBrokerConnections:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_list_broker_connections_with_pagination_first_page(
-        self, authenticated_client
+        self, authenticated_client, broker_connections_service
     ):
-        from api.routes.broker_connections.route import broker_connections_service
-
         for i in range(10):
             broker_connections_service._fetch_alpaca_account_id = AsyncMock(
                 return_value=_BrokerAccount(
@@ -210,9 +192,7 @@ class TestDeleteBrokerConnection:
         assert res.status_code == 401, res.json()
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_delete_broker_connection_returns_204(self, authenticated_client):
-        from api.routes.broker_connections.route import broker_connections_service
-
+    async def test_delete_broker_connection_returns_204(self, authenticated_client, broker_connections_service):
         broker_connections_service._fetch_alpaca_account_id = AsyncMock(
             return_value=_BrokerAccount(id="mock-account-id", number="mock-number")
         )
@@ -235,9 +215,9 @@ class TestDeleteBrokerConnection:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_delete_broker_connection_not_found_returns_404(
-        self, authenticated_client, mock_broker_service
+        self, authenticated_client, broker_connections_service
     ):
-        mock_broker_service.delete_broker_connection = AsyncMock(return_value=False)
+        broker_connections_service.delete_broker_connection = AsyncMock(return_value=False)
 
         fake_id = uuid4()
         res = await authenticated_client.delete(f"/broker-connections/{fake_id}")

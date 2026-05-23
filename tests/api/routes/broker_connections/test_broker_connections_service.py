@@ -6,21 +6,17 @@ from uuid import uuid4
 from unittest.mock import AsyncMock, MagicMock, patch
 from sqlalchemy import delete, insert
 
-from api.routes.broker_connections.model import (
-    CreateBrokerConnectionRequest,
-)
-from api.routes.broker_connections.service import (
-    BrokerConnectionsService,
-    _BrokerAccount,
-)
-from api.routes.broker_connections.exception import (
+from core.db import get_db_sess_sync, get_db_session
+from module.broker.enums import BrokerType
+from module.broker_connections import BrokerConnectionsService
+from module.broker_connections.exception import (
     BrokerAccountFetchException,
     BrokerConnectionNotFoundException,
 )
-from enums import BrokerType
-from infra.db.model.broker_connections import BrokerConnections
-from infra.db.model.user import User
-from infra.db.utils import get_db_sess_sync, get_db_session
+from module.broker_connections.model import BrokerConnections
+from module.broker_connections.schema import CreateBrokerConnectionRequest
+from module.broker_connections.service import _BrokerAccount
+from module.user.model import User
 
 
 @pytest_asyncio.fixture(loop_scope="session")

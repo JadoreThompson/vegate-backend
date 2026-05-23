@@ -2,18 +2,20 @@ import pytest
 import pytest_asyncio
 from faker import Faker
 
-from infra.db.client import DB_ENGINE_SYNC
-from infra.db.model.base import Base
+from core.db import Base
+from core.db.client import DB_ENGINE_SYNC
 
 
 @pytest.fixture(scope="session", autouse=True)
 def setup():
-    Base.metadata.drop_all(bind=DB_ENGINE_SYNC)
-    Base.metadata.create_all(bind=DB_ENGINE_SYNC)
+    from sqlalchemy import text
+
+    with DB_ENGINE_SYNC.begin() as conn:
+        conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+        conn.execute(text("CREATE SCHEMA public"))
+        Base.metadata.create_all(bind=conn)
 
     yield
-
-    Base.metadata.drop_all(bind=DB_ENGINE_SYNC)
 
 
 @pytest.fixture()

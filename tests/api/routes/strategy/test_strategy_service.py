@@ -5,22 +5,23 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import delete
 
-from api.routes.strategy.models import CreateStrategyRequest, UpdateStrategyRequest
-from api.routes.strategy.service import APIStrategyService
-from api.routes.strategy.exception import (
-    StrategyGenerationError,
+from module.strategy.schema import CreateStrategyRequest, UpdateStrategyRequest
+from module.strategy import StrategyService
+from module.strategy.agents.strategy_gen import StrategyGenOutput
+from module.strategy.exception import (
+    StrategyCreationError,
     StrategyValidationException,
     StrategyNotFoundException,
+    StrategyGenerationError,
 )
-from api.routes.strategy.agents.strategy import StrategyGenOutput
+from module.strategy.model import Strategy
 from api.routes.util import create_user
-from infra.db.model.strategy import Strategy
-from infra.db.utils import get_db_sess_sync, get_db_session
+from core.db import get_db_sess_sync, get_db_session
 
 
 @pytest.fixture
 def strategy_service():
-    return APIStrategyService()
+    return StrategyService()
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -290,7 +291,8 @@ class TestGenerateStrategy:
         @pytest.mark.asyncio(loop_scope="session")
         async def test_generate_strategy_code_with_error_raises(self, strategy_service):
             with patch(
-                "api.routes.strategy.service.strategy_gen_agent.run"
+                # "api.routes.strategy.service.strategy_gen_agent.run"
+                "module.strategy.service.strategy_gen_agent.run"
             ) as mock_run:
                 mock_result = MagicMock()
                 mock_result.output = StrategyGenOutput(
@@ -303,9 +305,7 @@ class TestGenerateStrategy:
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_generate_strategy_code_success(self, strategy_service):
-            with patch(
-                "api.routes.strategy.service.strategy_gen_agent.run"
-            ) as mock_run:
+            with patch("module.strategy.service.strategy_gen_agent.run") as mock_run:
                 mock_result = MagicMock()
                 mock_result.output = StrategyGenOutput(
                     name="Generated Strategy",

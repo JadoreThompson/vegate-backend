@@ -7,46 +7,36 @@ import pytest_asyncio
 from sqlalchemy import delete
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from api.routes.backtests.exception import (
-    BacktestInProgressError,
+from api.routes.util import create_user
+from core.db import get_db_sess_sync, get_db_session
+from module.backtest.enums import BacktestStatus
+from module.broker.enums import BrokerType, OrderSide, OrderStatus, OrderType
+from module.markets.enums import MarketType, Timeframe
+from module.backtest import BacktestsService
+from module.backtest.model import Backtest, BacktestMetrics, BacktestOrder
+from module.backtest.exception import (
+    BacktestInProgressException,
     BacktestNotFoundException,
 )
-from api.routes.backtests.model import BacktestResponse, CreateBacktestRequest
-from api.routes.backtests.service import APIBacktestsService
-from api.routes.broker_connections.test_broker_connections_service import create_user
-from api.routes.markets.exception import SymbolNotFoundException
-from api.routes.markets.model import InstrumentInfo
-from api.routes.strategy.exception import StrategyNotFoundException
-from api.routes.strategy.service import APIStrategyService
-from enums import (
-    BacktestStatus,
-    BrokerType,
-    MarketType,
-    OrderSide,
-    OrderStatus,
-    OrderType,
-    Timeframe,
-)
-from infra.db.model import (
-    Backtest,
-    BacktestMetrics,
-    BacktestOrder,
-    Strategy,
-)
-from infra.db.model.instrument import Instrument
-from infra.db.utils import get_db_session, get_db_sess_sync
+from module.backtest.schema import BacktestResponse, CreateBacktestRequest
+from module.markets.exception import SymbolNotFoundException
+from module.markets.schema import InstrumentInfo
+from module.markets.model import Instrument
+from module.strategy.exception import StrategyNotFoundException
+from module.strategy import StrategyService
+from module.strategy.model import Strategy
 
 
 @pytest.fixture
 def mock_strategy_service():
-    return MagicMock(spec=APIStrategyService)
+    return MagicMock(spec=StrategyService)
 
 
 @pytest.fixture
-def mock_backtest_runner_service():
+def mock_backtest_executor():
     service = AsyncMock()
-    service.run_backtest = AsyncMock()
-    service.stop_backtest = AsyncMock()
+    service.run = AsyncMock()
+    service.stop = AsyncMock()
     return service
 
 
@@ -58,11 +48,11 @@ def mock_markets_service():
 
 @pytest.fixture
 def backtest_service(
-    mock_strategy_service, mock_backtest_runner_service, mock_markets_service
+    mock_strategy_service, mock_backtest_executor, mock_markets_service
 ):
-    return APIBacktestsService(
+    return BacktestsService(
         strategy_service=mock_strategy_service,
-        backtest_service=mock_backtest_runner_service,
+        backtest_executor=mock_backtest_executor,
         markets_service=mock_markets_service,
     )
 
@@ -146,7 +136,7 @@ class TestCreateBacktest:
             self,
             backtest_service,
             mock_strategy_service,
-            mock_backtest_runner_service,
+            mock_backtest_executor,
             mock_markets_service,
         ):
             mock_db_sess = AsyncMock()
@@ -161,7 +151,7 @@ class TestCreateBacktest:
             mock_db_sess.flush = AsyncMock()
             mock_db_sess.refresh = AsyncMock()
 
-            mock_backtest_runner_service.run_backtest = AsyncMock()
+            mock_backtest_executor.run_backtest = AsyncMock()
 
             request = CreateBacktestRequest(
                 strategy_id=uuid4(),
@@ -191,7 +181,7 @@ class TestCreateBacktest:
 
             assert result is not None
             mock_db_sess.add.assert_called_once()
-            mock_backtest_runner_service.run.assert_called_once()
+            mock_backtest_executor.run.assert_called_once()
 
 
 class TestGetBacktest:
@@ -306,7 +296,7 @@ class TestDeleteBacktest:
             mock_backtest.status = BacktestStatus.IN_PROGRESS
             mock_db_sess.scalar.return_value = mock_backtest
 
-            with pytest.raises(BacktestInProgressError):
+            with pytest.raises(BacktestInProgressException):
                 await backtest_service.delete(uuid4(), uuid4(), mock_db_sess)
 
         @pytest.mark.asyncio(loop_scope="session")
@@ -422,7 +412,7 @@ class TestIntegrationTests:
         self,
         backtest_service,
         mock_strategy_service,
-        mock_backtest_runner_service,
+        mock_backtest_executor,
         db_sess,
         instrument_id,
     ):
@@ -468,7 +458,7 @@ class TestIntegrationTests:
         self,
         backtest_service,
         mock_strategy_service,
-        mock_backtest_runner_service,
+        mock_backtest_executor,
         db_sess,
         instrument_id,
     ):

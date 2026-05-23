@@ -8,11 +8,12 @@ from unittest.mock import MagicMock, patch, PropertyMock, call
 
 import pytest
 
-from enums import BrokerType, MarketType, Timeframe
-from models import OHLC as OHLCModel
-from service.ohlc.feed.client import (
+from module.broker.enums import BrokerType
+from module.markets.enums import MarketType, Timeframe
+from module.markets.schema import OHLC as OHLCSchema
+from module.markets.feed.client import (
     OHLCFeedClient,
-    OHLCFeedSocketError,
+    OHLCFeedSocketException,
 )
 
 
@@ -39,7 +40,7 @@ def make_server_frame(**kwargs) -> dict:
     return defaults
 
 
-def make_ohlc_model(**kwargs) -> OHLCModel:
+def make_ohlc_model(**kwargs) -> OHLCSchema:
     defaults = {
         "open": 100.0,
         "high": 105.0,
@@ -53,7 +54,7 @@ def make_ohlc_model(**kwargs) -> OHLCModel:
         "market_type": MarketType.STOCKS,
     }
     defaults.update(kwargs)
-    return OHLCModel(**defaults)
+    return OHLCSchema(**defaults)
 
 
 @pytest.fixture
@@ -328,7 +329,7 @@ class TestParseCandle:
         frame = make_server_frame()
         result = client._parse_candle(frame)
 
-        assert isinstance(result, OHLCModel), result
+        assert isinstance(result, OHLCSchema), result
         assert result.open == 100.0
         assert result.high == 105.0
         assert result.low == 99.0
@@ -391,7 +392,7 @@ class TestReadLoop:
         candles = list(client._read_loop())
 
         assert len(candles) == 1
-        assert isinstance(candles[0], OHLCModel)
+        assert isinstance(candles[0], OHLCSchema)
         assert candles[0].symbol == "AAPL"
 
     def test_read_loop_heartbeat_ack_skipped(self, client):
@@ -411,7 +412,7 @@ class TestReadLoop:
             (json.dumps({"type": "error", "message": "bad request"}) + "\n").encode(),
         ]
 
-        with pytest.raises(OHLCFeedSocketError, match="bad request"):
+        with pytest.raises(OHLCFeedSocketException, match="bad request"):
             list(client._read_loop())
 
     def test_read_loop_error_default_message(self, client):
@@ -420,7 +421,7 @@ class TestReadLoop:
             (json.dumps({"type": "error"}) + "\n").encode(),
         ]
 
-        with pytest.raises(OHLCFeedSocketError, match="unknown server error"):
+        with pytest.raises(OHLCFeedSocketException, match="unknown server error"):
             list(client._read_loop())
 
     def test_read_loop_replay_sends_ack(self, client):
@@ -633,9 +634,9 @@ class TestCandles:
         client._subscribe_payload = {"type": "subscribe"}
 
         with patch.object(client, "_read_loop") as mock_read_loop:
-            mock_read_loop.side_effect = OHLCFeedSocketError("server error")
+            mock_read_loop.side_effect = OHLCFeedSocketException("server error")
 
-            with pytest.raises(OHLCFeedSocketError, match="server error"):
+            with pytest.raises(OHLCFeedSocketException, match="server error"):
                 list(client.candles())
 
     def test_candles_exhausts_attempts(self, client_limited_reconnect):
@@ -703,7 +704,7 @@ class TestIntegration:
 
             # Simulate EOF after one candle
             mock_reader.readline.side_effect = [
-                (json.dumps(frame) + "\\n").encode(),
+                (json.dumps(frame) + "\n").encode(),
                 b"",
             ]
 

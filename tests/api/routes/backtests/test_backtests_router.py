@@ -6,19 +6,19 @@ import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy import delete
 
-from api.lib.object_registry import ObjectRegistry
-from api.routes.auth.service import AuthService
-from api.routes.backtests.service import APIBacktestsService
-from api.routes.markets.service import MarketsService
-from api.routes.strategy.agents.strategy import StrategyGenOutput
-from api.routes.strategy.models import StrategyResponse
-from api.routes.strategy.service import APIStrategyService
 from api.routes.util import seed_candles
-from enums import BacktestStatus
-from infra.db import get_db_session, get_db_sess_sync
-from infra.db.model import Backtest, OHLC
-from infra.redis.client import REDIS_CLIENT
-from service.backtest.base import BacktestService
+from core.db import get_db_sess_sync, get_db_session
+from core.redis import REDIS_CLIENT
+from module.backtest.enums import BacktestStatus
+from module.api.object_registry import ObjectRegistry
+from module.auth import AuthService
+from module.backtest import BacktestsService
+from module.backtest.model import Backtest
+from module.markets import MarketsService
+from module.markets.model import OHLC
+from module.strategy import StrategyService
+from module.strategy.agents.strategy_gen import StrategyGenOutput
+from module.strategy.schema import StrategyResponse
 
 
 @pytest.fixture
@@ -37,7 +37,7 @@ def auth_service(email_service, monkeypatch):
 
 @pytest.fixture
 def strategy_service():
-    return APIStrategyService()
+    return StrategyService()
 
 
 @pytest.fixture
@@ -55,7 +55,6 @@ async def db_sess():
 def clear_table():
     yield
     with get_db_sess_sync() as db_sess:
-        db_sess.execute(delete(OHLC))
         db_sess.execute(delete(Backtest))
         db_sess.commit()
 
@@ -68,11 +67,11 @@ def seed():
 async def create_strategy(
     client: AsyncClient, prompt: str = "Create a test strategy"
 ) -> StrategyResponse:
-    from api.app import app
+    from module.api.app import app
 
     object_registry = app.state.object_registry
 
-    strategy_service = object_registry.get(APIStrategyService)
+    strategy_service = object_registry.get(StrategyService)
     generate_strategy_code = strategy_service._generate_strategy_code
     validate_strategy_code = strategy_service._validate_strategy_code
     strategy_service._generate_strategy_code = AsyncMock(
@@ -102,10 +101,10 @@ class TestCreateBacktest:
         strategy = await create_strategy(authenticated_client)
         strategy_id = strategy.id
 
-        from api.app import app
+        from module.api.app import app
 
-        api_backtests_service = app.state.object_registry.get(APIBacktestsService)
-        api_backtests_service._backtest_runner_service.run = AsyncMock()
+        backtests_service = app.state.object_registry.get(BacktestsService)
+        backtests_service._backtest_executor.run = AsyncMock()
 
         payload = {
             "strategy_id": str(strategy_id),
@@ -256,10 +255,10 @@ class TestGetBacktest:
         strategy = await create_strategy(authenticated_client)
         strategy_id = strategy.id
 
-        from api.app import app
+        from module.api.app import app
 
-        api_backtests_service = app.state.object_registry.get(APIBacktestsService)
-        api_backtests_service._backtest_runner_service.run = AsyncMock()
+        api_backtests_service = app.state.object_registry.get(BacktestsService)
+        api_backtests_service._backtest_executor.run = AsyncMock()
 
         payload = {
             "strategy_id": str(strategy_id),
@@ -305,10 +304,10 @@ class TestListBacktests:
     async def test_list_backtests_with_pagination(self, authenticated_client):
         strategy = await create_strategy(authenticated_client)
 
-        from api.app import app
+        from module.api.app import app
 
-        api_backtests_service = app.state.object_registry.get(APIBacktestsService)
-        api_backtests_service._backtest_runner_service.run = AsyncMock()
+        api_backtests_service = app.state.object_registry.get(BacktestsService)
+        api_backtests_service._backtest_executor.run = AsyncMock()
 
         seed_candles()
 
@@ -340,10 +339,10 @@ class TestListBacktests:
     ):
         strategy = await create_strategy(authenticated_client)
 
-        from api.app import app
+        from module.api.app import app
 
-        api_backtests_service = app.state.object_registry.get(APIBacktestsService)
-        api_backtests_service._backtest_runner_service.run = AsyncMock()
+        api_backtests_service = app.state.object_registry.get(BacktestsService)
+        api_backtests_service._backtest_executor.run = AsyncMock()
 
         request = {
             "strategy_id": str(strategy.id),
@@ -386,10 +385,10 @@ class TestDeleteBacktest:
     async def test_delete_backtest_returns_204(self, authenticated_client, db_sess):
         strategy = await create_strategy(authenticated_client)
 
-        from api.app import app
+        from module.api.app import app
 
-        api_backtests_service = app.state.object_registry.get(APIBacktestsService)
-        api_backtests_service._backtest_runner_service.run = AsyncMock()
+        api_backtests_service = app.state.object_registry.get(BacktestsService)
+        api_backtests_service._backtest_executor.run = AsyncMock()
 
         request = {
             "strategy_id": str(strategy.id),
@@ -418,10 +417,10 @@ class TestDeleteBacktest:
     async def test_delete_backtest_in_progress_returns_400(self, authenticated_client):
         strategy = await create_strategy(authenticated_client)
 
-        from api.app import app
+        from module.api.app import app
 
-        api_backtests_service = app.state.object_registry.get(APIBacktestsService)
-        api_backtests_service._backtest_runner_service.run = AsyncMock()
+        api_backtests_service = app.state.object_registry.get(BacktestsService)
+        api_backtests_service._backtest_executor.run = AsyncMock()
 
         request = {
             "strategy_id": str(strategy.id),
@@ -445,16 +444,16 @@ class TestDeleteBacktest:
 class TestGetBacktestOrders:
 
     @pytest.fixture
-    def mock_run_backtest(self):
-        from api.app import app
+    def mock_backtest_executor_run(self):
+        from module.api.app import app
 
         object_registry: ObjectRegistry = app.state.object_registry
-        backtest_service = object_registry.get(BacktestService, subclass=True)
-        backtest_service.run = AsyncMock()
+        backtest_service = object_registry.get(BacktestsService)
+        backtest_service._backtest_executor.run = AsyncMock()
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_get_backtest_orders_returns_200(
-        self, authenticated_client, mock_run_backtest
+        self, authenticated_client, mock_backtest_executor_run
     ):
         strategy = await create_strategy(authenticated_client)
 

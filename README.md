@@ -224,7 +224,7 @@ The backtesting engine simulates strategy execution against historical data:
 
 ```python
 from engine.backtesting import BacktestEngine, BacktestConfig
-from enums import Timeframe
+from module.markets.enums import Timeframe
 from datetime import date
 
 config = BacktestConfig(
@@ -248,7 +248,7 @@ print(f"Max Drawdown: {result.max_drawdown:.2f}%")
 All strategies inherit from [`BaseStrategy`](src/lib/strategy.py):
 
 ```python
-from enums import orderType, OrderSide
+from module.broker.enums import orderType, OrderSide
 from lib.strategy import BaseStrategy
 from models import OHLC, OrderRequest
 

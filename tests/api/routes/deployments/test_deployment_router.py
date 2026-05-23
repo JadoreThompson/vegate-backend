@@ -5,23 +5,23 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import delete
 
-from api.routes.deployments.service import APIDeploymentsService
-from api.routes.strategy.agents.strategy import StrategyGenOutput
-from api.routes.strategy.models import StrategyResponse
-from api.routes.strategy.service import APIStrategyService
+from module.deployment import DeploymentsService
+from module.deployment.model import StrategyDeployments
+from module.strategy import StrategyService
+from module.strategy.schema import StrategyResponse
+from module.strategy.agents.strategy_gen import StrategyGenOutput
 from api.routes.util import seed_candles
-from enums import StrategyDeploymentStatus
-from infra.db import get_db_session, get_db_sess_sync
-from infra.db.model import StrategyDeployments
-from infra.db.model.broker_connections import BrokerConnections
-from enums import BrokerType
+from module.deployment.enums import StrategyDeploymentStatus
+from core.db import get_db_sess_sync, get_db_session
+from module.broker_connections.model import BrokerConnections
+from module.broker.enums import BrokerType
 
 
 async def create_strategy(client, prompt: str = "Create a test strategy") -> StrategyResponse:
-    from api.app import app
+    from module.api.app import app
 
     object_registry = app.state.object_registry
-    strategy_service = object_registry.get(APIStrategyService)
+    strategy_service = object_registry.get(StrategyService)
 
     generate_strategy_code = strategy_service._generate_strategy_code
     validate_strategy_code = strategy_service._validate_strategy_code
@@ -47,8 +47,13 @@ async def create_strategy(client, prompt: str = "Create a test strategy") -> Str
 
 
 async def create_broker_connection(client) -> str:
-    from api.routes.broker_connections.route import broker_connections_service
-    from api.routes.broker_connections.service import _BrokerAccount
+    from module.api.app import app
+    from module.api.object_registry import ObjectRegistry
+    from module.broker_connections import BrokerConnectionsService
+    from module.broker_connections.service import _BrokerAccount
+
+    object_registry: ObjectRegistry = app.state.object_registry
+    broker_connections_service = object_registry.get(BrokerConnectionsService)
 
     broker_connections_service._fetch_alpaca_account_id = AsyncMock(
         return_value=_BrokerAccount(id="mock-account-id", number="mock-account-number")
@@ -85,13 +90,13 @@ async def db_sess():
 
 
 def _mock_deployment_runner():
-    from api.app import app
+    from module.api.app import app
 
-    deployments_service: APIDeploymentsService = app.state.object_registry.get(
-        APIDeploymentsService
+    deployments_service: DeploymentsService = app.state.object_registry.get(
+        DeploymentsService
     )
-    deployments_service._deployment_service.run = AsyncMock()
-    deployments_service._deployment_service.stop = AsyncMock()
+    deployments_service._deployment_executor.run = AsyncMock()
+    deployments_service._deployment_executor.stop = AsyncMock()
 
 
 class TestCreateDeployment:

@@ -8,8 +8,8 @@ from uuid import uuid4, UUID
 from sqlalchemy import select
 
 from config import OMS_SESSION_PREFIX, STRATEGY_DEPLOYMENT_EVENTS_KEY
-from enums import BrokerType, OrderSide, OrderStatus, OrderType
-from events.deployment import (
+from module.broker.enums import BrokerType, OrderSide, OrderStatus, OrderType
+from module.deployment.event.event import (
     DeploymentCancelOrderSubmitted,
     DeploymentEventType,
     DeploymentModifyOrderSubmitted,
@@ -17,25 +17,24 @@ from events.deployment import (
     DeploymentOrderRejected,
     DeploymentOrderSubmitted,
 )
-from infra.db.model.broker_connections import BrokerConnections
-from infra.db.model.strategy import Strategy
-from infra.db.model.strategy_deployment_orders import StrategyDeploymentOrders
-from infra.db.model.strategy_deployments import StrategyDeployments
-from infra.db.model.user import User
-from infra.db.utils import get_db_session
-from service.event.publisher import EventPublisher
-from service.oms.broker_client.alpaca import AlpacaBrokerClient
-from service.oms.broker_client.base import BrokerClient
-from service.oms.broker_client.exception import BrokerClientException
-from service.oms.broker_client.model import Order, OrderRequest
-from service.oms.exception import (
+from module.broker_connections.model import BrokerConnections
+from module.strategy.model import Strategy
+from module.deployment.model import StrategyDeploymentOrders, StrategyDeployments
+from module.user.model import User
+from core.db import get_db_session
+from module.event_bus.publisher.publisher import EventPublisher
+from module.broker.client.alpaca import AlpacaBrokerClient
+from module.broker.client.base import BrokerClient
+from module.broker.client.exception import BrokerClientException
+from module.broker.schema import Order, OrderRequest
+from module.deployment.oms.exception import (
     BrokerConnectionDoesNotExistException,
     DuplicateOrderException,
     InvalidSessionException,
     OrderNotFoundException,
 )
-from service.oms.model import PlaceOrderRequest
-from service.oms.service import OMSService, Session
+from module.deployment.oms.schema import PlaceOrderRequest
+from module.deployment.oms.service import OMSService, Session
 
 
 def make_order(**kwargs) -> Order:
@@ -182,7 +181,7 @@ class TestCreateSession:
         mock_db_sess = AsyncMock()
         mock_db_sess.execute = AsyncMock(return_value=mock_result)
 
-        with patch("service.oms.service.get_db_session") as mock_get_db:
+        with patch("module.deployment.oms.service.get_db_session") as mock_get_db:
             mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_db_sess)
             mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
 
@@ -207,7 +206,7 @@ class TestCreateSession:
         mock_db_sess = AsyncMock()
         mock_db_sess.execute = AsyncMock(return_value=mock_result)
 
-        with patch("service.oms.service.get_db_session") as mock_get_db:
+        with patch("module.deployment.oms.service.get_db_session") as mock_get_db:
             mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_db_sess)
             mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
 
@@ -231,7 +230,7 @@ class TestCreateSession:
         mock_db_sess = AsyncMock()
         mock_db_sess.execute = AsyncMock(return_value=mock_result)
 
-        with patch("service.oms.service.get_db_session") as mock_get_db:
+        with patch("module.deployment.oms.service.get_db_session") as mock_get_db:
             mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_db_sess)
             mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
 
@@ -262,7 +261,7 @@ class TestCreateSession:
         mock_db_sess = AsyncMock()
         mock_db_sess.execute = AsyncMock(return_value=mock_result)
 
-        with patch("service.oms.service.get_db_session") as mock_get_db:
+        with patch("module.deployment.oms.service.get_db_session") as mock_get_db:
             mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_db_sess)
             mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
 
@@ -342,7 +341,7 @@ class TestGetSession:
         mock_db_sess = AsyncMock()
         mock_db_sess.execute = AsyncMock(return_value=mock_result)
 
-        with patch("service.oms.service.get_db_session") as mock_get_db:
+        with patch("module.deployment.oms.service.get_db_session") as mock_get_db:
             mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_db_sess)
             mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
 
@@ -432,7 +431,7 @@ class TestPlaceOrder:
                 mock_db_sess.execute = AsyncMock()
                 mock_db_sess.commit = AsyncMock()
 
-                with patch("service.oms.service.get_db_session") as mock_get_db:
+                with patch("module.deployment.oms.service.get_db_session") as mock_get_db:
                     mock_get_db.return_value.__aenter__ = AsyncMock(
                         return_value=mock_db_sess
                     )
@@ -469,7 +468,7 @@ class TestPlaceOrder:
                 mock_db_sess.execute = AsyncMock()
                 mock_db_sess.commit = AsyncMock()
 
-                with patch("service.oms.service.get_db_session") as mock_get_db:
+                with patch("module.deployment.oms.service.get_db_session") as mock_get_db:
                     mock_get_db.return_value.__aenter__ = AsyncMock(
                         return_value=mock_db_sess
                     )
@@ -509,7 +508,7 @@ class TestModifyOrder:
             mock_db_sess.execute = AsyncMock()
             mock_db_sess.commit = AsyncMock()
 
-            with patch("service.oms.service.get_db_session") as mock_get_db:
+            with patch("module.deployment.oms.service.get_db_session") as mock_get_db:
                 mock_get_db.return_value.__aenter__ = AsyncMock(
                     return_value=mock_db_sess
                 )
@@ -545,7 +544,7 @@ class TestModifyOrder:
             mock_db_sess.execute = AsyncMock()
             mock_db_sess.commit = AsyncMock()
 
-            with patch("service.oms.service.get_db_session") as mock_get_db:
+            with patch("module.deployment.oms.service.get_db_session") as mock_get_db:
                 mock_get_db.return_value.__aenter__ = AsyncMock(
                     return_value=mock_db_sess
                 )
@@ -581,7 +580,7 @@ class TestCancelOrder:
             mock_db_sess.execute = AsyncMock()
             mock_db_sess.commit = AsyncMock()
 
-            with patch("service.oms.service.get_db_session") as mock_get_db:
+            with patch("module.deployment.oms.service.get_db_session") as mock_get_db:
                 mock_get_db.return_value.__aenter__ = AsyncMock(
                     return_value=mock_db_sess
                 )
@@ -612,7 +611,7 @@ class TestCancelOrder:
             mock_db_sess.execute = AsyncMock()
             mock_db_sess.commit = AsyncMock()
 
-            with patch("service.oms.service.get_db_session") as mock_get_db:
+            with patch("module.deployment.oms.service.get_db_session") as mock_get_db:
                 mock_get_db.return_value.__aenter__ = AsyncMock(
                     return_value=mock_db_sess
                 )
@@ -679,7 +678,7 @@ class TestCancelAllOrders:
         mock_db_sess.execute = AsyncMock(return_value=mock_result)
         mock_db_sess.commit = AsyncMock()
 
-        with patch("service.oms.service.get_db_session") as mock_get_db:
+        with patch("module.deployment.oms.service.get_db_session") as mock_get_db:
             mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_db_sess)
             mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
 
@@ -701,7 +700,7 @@ class TestCancelAllOrders:
         )
         mock_db_sess.execute = AsyncMock(return_value=mock_result)
 
-        with patch("service.oms.service.get_db_session") as mock_get_db:
+        with patch("module.deployment.oms.service.get_db_session") as mock_get_db:
             mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_db_sess)
             mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
 
@@ -730,7 +729,7 @@ class TestGetOrders:
         mock_result.all = MagicMock(return_value=[(internal_id, broker_order_id)])
         mock_db_sess.execute = AsyncMock(return_value=mock_result)
 
-        with patch("service.oms.service.get_db_session") as mock_get_db:
+        with patch("module.deployment.oms.service.get_db_session") as mock_get_db:
             mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_db_sess)
             mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
 
@@ -771,7 +770,7 @@ class TestBuildBrokerClient:
         user_id = uuid4()
 
         with patch(
-            "service.oms.service.EncryptionService.decrypt",
+            "module.broker_connections.oauth.encryption.EncryptionService.decrypt",
             return_value=json.dumps(
                 {
                     "access_token": "oauth-token-123",
@@ -862,7 +861,7 @@ class TestGetBrokerOrderId:
         mock_result.scalar = MagicMock(return_value=broker_order_id)
         mock_db_sess.execute = AsyncMock(return_value=mock_result)
 
-        with patch("service.oms.service.get_db_session") as mock_get_db:
+        with patch("module.deployment.oms.service.get_db_session") as mock_get_db:
             mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_db_sess)
             mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
 
@@ -879,7 +878,7 @@ class TestGetBrokerOrderId:
         mock_result.scalar = MagicMock(return_value=None)
         mock_db_sess.execute = AsyncMock(return_value=mock_result)
 
-        with patch("service.oms.service.get_db_session") as mock_get_db:
+        with patch("module.deployment.oms.service.get_db_session") as mock_get_db:
             mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_db_sess)
             mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
 

@@ -2,21 +2,11 @@ import pytest
 import pytest_asyncio
 from httpx import AsyncClient
 
-from api.routes.markets.service import MarketsService
 from api.routes.util import seed_candles
-from infra.db import get_db_sess_sync
-from infra.db.model import OHLC
-from infra.db.model.instrument import Instrument
+from core.db import get_db_sess_sync
+from module.markets.model import OHLC, Instrument
+from module.markets.service import MarketsService
 from sqlalchemy import delete
-
-
-@pytest.fixture(scope="module", autouse=True)
-def clear_table():
-    yield
-    with get_db_sess_sync() as db_sess:
-        db_sess.execute(delete(OHLC))
-        db_sess.execute(delete(Instrument))
-        db_sess.commit()
 
 
 @pytest_asyncio.fixture(scope="module", autouse=True)

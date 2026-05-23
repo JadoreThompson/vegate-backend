@@ -3,8 +3,11 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from unittest.mock import AsyncMock, MagicMock
 
-from api.routes.auth.service import AuthService
-from infra.redis.client import REDIS_CLIENT
+
+from core.db.session import get_db_sess_sync
+from module.api.object_registry import ObjectRegistry
+from module.auth import AuthService
+from core.redis import REDIS_CLIENT
 
 
 @pytest.fixture
@@ -13,22 +16,25 @@ def email_service():
     service.send_email = AsyncMock(return_value=None)
     return service
 
-
 @pytest.fixture
-def auth_service(email_service, monkeypatch):
-    service = AuthService(email_service=email_service, redis_client=REDIS_CLIENT)
-    monkeypatch.setattr("api.routes.auth.route.auth_service", service)
-    yield service
+def auth_service():
+    from module.api.app import app
+
+    object_registry: ObjectRegistry = app.state.object_registry
+    service = object_registry.get(AuthService)
+    return service
 
 
-@pytest_asyncio.fixture
-async def client(auth_service):
-    from api.app import app
+@pytest.fixture(scope="module", autouse=True)
+def clear_tables():
+    yield
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as ac:
-        yield ac
+    from sqlalchemy import delete
+    from module.user.model import User
+
+    with get_db_sess_sync() as db_sess:
+        db_sess.execute(delete(User))
+        db_sess.commit()
 
 
 class TestRegisterEndpoint:
@@ -227,9 +233,7 @@ class TestLogoutEndpoint:
 class TestChangeUsernameRequestEndpoint:
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_change_username_request_returns_201(self, client):
-        from api.routes.auth.route import auth_service
-
+    async def test_change_username_request_returns_201(self, client, auth_service):
         verification_code = "ABC123"
         auth_service.gen_verification_code = MagicMock(return_value=verification_code)
 
@@ -248,9 +252,9 @@ class TestChangeUsernameRequestEndpoint:
         assert res.status_code == 201, res.json()
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_change_username_request_duplicate_returns_400(self, client):
-        from api.routes.auth.route import auth_service
-
+    async def test_change_username_request_duplicate_returns_400(
+        self, client, auth_service
+    ):
         verification_code = "ABC123"
         auth_service.gen_verification_code = MagicMock(return_value=verification_code)
 
@@ -286,9 +290,7 @@ class TestChangeUsernameRequestEndpoint:
 class TestChangeUsernameEndpoint:
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_change_username_invalid_code_returns_400(self, client):
-        from api.routes.auth.route import auth_service
-
+    async def test_change_username_invalid_code_returns_400(self, client, auth_service):
         verification_code = "ABC123"
         auth_service.gen_verification_code = MagicMock(return_value=verification_code)
 
@@ -307,12 +309,12 @@ class TestChangeUsernameEndpoint:
         assert res.status_code == 400
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_change_username_valid_code_returns_200(self, client):
-        from api.routes.auth.route import auth_service
-
+    async def test_change_username_valid_code_returns_200(self, client, auth_service):
         verification_code = "ABC123"
         change_username_code = "change-username-code"
-        auth_service.gen_verification_code = MagicMock(side_effect=[verification_code, change_username_code])
+        auth_service.gen_verification_code = MagicMock(
+            side_effect=[verification_code, change_username_code]
+        )
 
         register_payload = {
             "username": "changeuser4-user",
@@ -321,7 +323,7 @@ class TestChangeUsernameEndpoint:
         }
         await client.post("/auth/register", json=register_payload)
 
-        res=  await client.post("/auth/verify-email", json={"code": verification_code})
+        res = await client.post("/auth/verify-email", json={"code": verification_code})
         assert res.status_code == 200, res.json()
 
         await client.post(
@@ -352,9 +354,7 @@ class TestChangeUsernameEndpoint:
 class TestChangePasswordRequestEndpoint:
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_change_password_request_returns_201(self, client):
-        from api.routes.auth.route import auth_service
-
+    async def test_change_password_request_returns_201(self, client, auth_service):
         verification_code = "ABC123"
         auth_service.gen_verification_code = MagicMock(return_value=verification_code)
 
@@ -373,9 +373,9 @@ class TestChangePasswordRequestEndpoint:
         assert res.status_code == 201
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_change_password_request_invalid_password_returns_422(self, client):
-        from api.routes.auth.route import auth_service
-
+    async def test_change_password_request_invalid_password_returns_422(
+        self, client, auth_service
+    ):
         verification_code = "ABC123"
         auth_service.gen_verification_code = MagicMock(return_value=verification_code)
 
@@ -407,12 +407,11 @@ class TestChangePasswordRequestEndpoint:
 
         assert res.status_code == 401, res.json()
 
+
 class TestChangePasswordEndpoint:
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_change_password_invalid_code_returns_400(self, client):
-        from api.routes.auth.route import auth_service
-
+    async def test_change_password_invalid_code_returns_400(self, client, auth_service):
         verification_code = "ABC123"
         auth_service.gen_verification_code = MagicMock(return_value=verification_code)
 
@@ -448,9 +447,7 @@ class TestChangePasswordEndpoint:
 class TestChangeEmailRequestEndpoint:
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_change_email_request_returns_202(self, client):
-        from api.routes.auth.route import auth_service
-
+    async def test_change_email_request_returns_202(self, client, auth_service):
         verification_code = "ABC123"
         auth_service.gen_verification_code = MagicMock(return_value=verification_code)
 
@@ -486,9 +483,7 @@ class TestChangeEmailRequestEndpoint:
 class TestChangeEmailEndpoint:
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_change_email_invalid_code_returns_400(self, client):
-        from api.routes.auth.route import auth_service
-
+    async def test_change_email_invalid_code_returns_400(self, client, auth_service):
         verification_code = "ABC123"
         auth_service.gen_verification_code = MagicMock(return_value=verification_code)
 
