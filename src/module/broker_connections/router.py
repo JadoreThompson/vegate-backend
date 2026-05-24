@@ -125,22 +125,13 @@ async def get_oauth_url(jwt: JWTPayload = Depends(depends_jwt())):
     return GetOauthUrlResponse(url=url)
 
 
-@router.get("/alpaca/oauth/callback")
+@router.get("/alpaca/oauth/callback", status_code=201)
 async def oauth_callback(
     code: str | None = None,
     state: str | None = None,
-    error: str | None = None,
     jwt: JWTPayload = Depends(depends_jwt()),
     db_sess: AsyncSession = Depends(depends_db_sess),
 ):
-    params = [("broker", BrokerType.ALPACA.value)]
-    if code is not None:
-        await alpaca_oauth_service.handle_oauth_callback(code, state, jwt.sub, db_sess)
-    else:
-        params.append(("error", error))
-
-    query_params = "&".join(f"{k}={v}" for k, v in params)
-
-    return RedirectResponse(
-        f"{SCHEME}://{FRONTEND_SUB_DOMAIN}{FRONTEND_DOMAIN}/brokers/oauth?{query_params}"
-    )
+    if code is None or state is None:
+        raise HTTPException(status_code=400, detail="Code and state must be provided.")
+    await alpaca_oauth_service.handle_oauth_callback(code, state, jwt.sub, db_sess)

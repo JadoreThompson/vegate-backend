@@ -138,7 +138,8 @@ class AlpacaOauthService:
         )
         rsp.raise_for_status()
         data = await rsp.json()
-        account_id = data["account_number"]
+        account_id = data["id"]
+        account_number = data["account_number"]
 
         # Persisting
         existing_conn = await db_sess.scalar(
@@ -154,6 +155,7 @@ class AlpacaOauthService:
                     broker=BrokerType.ALPACA,
                     oauth_payload=encrypted_payload,
                     broker_account_id=account_id,
+                    broker_account_number=account_number,
                 )
             )
         await db_sess.commit()
