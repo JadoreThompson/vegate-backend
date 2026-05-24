@@ -1,11 +1,10 @@
 import asyncio
-import json
 import logging
 from uuid import UUID
 
 from redis.asyncio import Redis as AsyncRedis
 from sqlalchemy import or_, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.dialects.postgresql import insert
 
 from config import (
     REDIS_STRATEGY_DEPLOYMENT_HEARTBEAT_KEY_PREFIX,
@@ -16,27 +15,30 @@ from core.kafka import AsyncKafkaConsumer
 from module.deployment.enums import StrategyDeploymentStatus
 from module.event_bus import EventPublisher
 from .event import DeploymentStatusChangedEvent, DeploymentEventType
-from .model import StrategyDeployments
+from .event.deserialiser import DeploymentEventDeserialiser
+from .model import StrategyDeployments, DeploymentEvent
 
 
-class DeploymentMonitoringService:
+class DeploymentEventMonitorService:
     """
-    On an interval basis, checks the heartbeat for strategy deployments.
-    Transitioning their status from running to suspicious to stopped.
+    Consumes strategy deployment events, persists them to the DB,
+    and monitors deployment heartbeats to transition statuses.
     """
 
     def __init__(
         self,
+        deserialiser: DeploymentEventDeserialiser,
         redis_client: AsyncRedis,
         event_publisher: EventPublisher,
         heartbeat_prefix_key: str = REDIS_STRATEGY_DEPLOYMENT_HEARTBEAT_KEY_PREFIX,
         monitor_interval: int = 15,
     ):
+        self._deserialiser = deserialiser
         self._redis_client = redis_client
-        self._kafka_consumer: AsyncKafkaConsumer | None = None
         self._event_publisher = event_publisher
         self._heartbeat_prefix_key = heartbeat_prefix_key
         self._monitor_interval = monitor_interval
+        self._kafka_consumer: AsyncKafkaConsumer | None = None
         self._running_deployments: set[UUID] = set()
         self._suspicious_deployments: set[UUID] = set()
         self._alive = False
@@ -46,6 +48,10 @@ class DeploymentMonitoringService:
     @property
     def monitor_interval(self):
         return self._monitor_interval
+
+    async def stop(self):
+        if self._kafka_consumer:
+            await self._kafka_consumer.stop()
 
     def setup(self):
         with get_db_sess_sync() as db_sess:
@@ -60,7 +66,6 @@ class DeploymentMonitoringService:
                     )
                 )
             )
-
             data = res.all()
 
         for id, status in data:
@@ -78,10 +83,38 @@ class DeploymentMonitoringService:
         if res:
             raise ExceptionGroup("", res)
 
+    async def _persist(self, event) -> None:
+        async with get_db_session() as session:
+            deployment = await session.get(StrategyDeployments, event.deployment_id)
+            if deployment is None:
+                self._logger.info(f"Deployment with id '{event.deployment_id}' not found.")
+                return
+
+            await session.execute(
+                insert(DeploymentEvent)
+                .values(
+                    id=event.id,
+                    deployment_id=event.deployment_id,
+                    event_type=event.type,
+                    payload=event.model_dump(mode="json"),
+                    timestamp=event.timestamp,
+                )
+                .on_conflict_do_nothing(index_elements=["id"])
+            )
+
+            if event.type == DeploymentEventType.DEPLOYMENT_STATUS:
+                await session.execute(
+                    update(StrategyDeployments)
+                    .where(StrategyDeployments.deployment_id == event.deployment_id)
+                    .values(status=event.status)
+                )
+
+            await session.commit()
+
     async def _listen_loop(self):
         self._kafka_consumer = AsyncKafkaConsumer(
             STRATEGY_DEPLOYMENT_EVENTS_KEY,
-            group_id="deployment_monitoring_group",
+            group_id="deployment_event_monitor_group",
             enable_auto_commit=False,
         )
 
@@ -89,22 +122,16 @@ class DeploymentMonitoringService:
             await self._kafka_consumer.start()
 
             async for record in self._kafka_consumer:
-                for key, value in record.headers:
-                    if (
-                        key == "event_type"
-                        and value.decode() == DeploymentEventType.DEPLOYMENT_STATUS
-                    ):
-                        event_data = json.loads(record.value)
-                        if event_data["status"] == StrategyDeploymentStatus.RUNNING:
-                            try:
-                                deployment_id = UUID(event_data["deployment_id"])
-                            except ValueError:
-                                pass
-                            self._logger.info(
-                                f"Pushing deployment with id '{deployment_id}' to running deployments"
-                            )
-                            async with self._lock:
-                                self._running_deployments.add(deployment_id)
+                event = self._deserialiser.deserialise_json(record.value)
+                await self._persist(event)
+
+                if event.type == DeploymentEventType.DEPLOYMENT_STATUS:
+                    if event.status == StrategyDeploymentStatus.RUNNING:
+                        self._logger.info(
+                            f"Pushing deployment with id '{event.deployment_id}' to running deployments"
+                        )
+                        async with self._lock:
+                            self._running_deployments.add(event.deployment_id)
 
                 await self._kafka_consumer.commit()
         finally:
@@ -122,6 +149,9 @@ class DeploymentMonitoringService:
                     running_deployments = list(self._running_deployments)
                     suspicious_deployments = list(self._suspicious_deployments)
 
+                if not running_deployments and not suspicious_deployments:
+                    continue
+
                 async with self._redis_client.pipeline() as pl:
                     for id in running_deployments:
                         pl.get(f"{self._heartbeat_prefix_key}{id}")
@@ -138,16 +168,13 @@ class DeploymentMonitoringService:
                     self._logger.info(f"Result {i + 1} - {res}")
                     if i < len(running_deployments):
                         deployment_id = running_deployments[i]
-
                         if not res:
                             self._logger.info(
                                 f"Pushing deployment '{deployment_id}' to suspicious"
                             )
                             to_suspicious.append(deployment_id)
-
                     elif i < len(suspicious_deployments):
                         deployment_id = suspicious_deployments[i]
-
                         if not res:
                             self._logger.info(
                                 f"Pushing deployment '{deployment_id}' to stopped"
@@ -159,14 +186,21 @@ class DeploymentMonitoringService:
                             )
                             to_running.append(deployment_id)
 
-                async with get_db_session() as db_sess:
-                    if to_suspicious:
-                        await self._set_status_suspicious(to_suspicious, db_sess)
-                    if to_stopped:
-                        await self._set_status_stopped(to_stopped, db_sess)
-                    if to_running:
-                        await self._set_status_running(to_running, db_sess)
-                    await db_sess.commit()
+                for id in to_suspicious:
+                    event = DeploymentStatusChangedEvent(
+                        deployment_id=id, status=StrategyDeploymentStatus.SUSPICIOUS
+                    )
+                    await self._event_publisher.enqueue(event)
+                for id in to_stopped:
+                    event = DeploymentStatusChangedEvent(
+                        deployment_id=id, status=StrategyDeploymentStatus.STOPPED
+                    )
+                    await self._event_publisher.enqueue(event)
+                for id in to_running:
+                    event = DeploymentStatusChangedEvent(
+                        deployment_id=id, status=StrategyDeploymentStatus.RUNNING
+                    )
+                    await self._event_publisher.enqueue(event)
 
                 async with self._lock:
                     for item in to_suspicious:
@@ -175,68 +209,8 @@ class DeploymentMonitoringService:
                     for item in to_stopped:
                         self._suspicious_deployments.discard(item)
                     for item in to_running:
-                        self._suspicious_deployments.remove(item)
+                        self._suspicious_deployments.discard(item)
                         self._running_deployments.add(item)
 
         except asyncio.CancelledError:
             pass
-
-    async def _set_status_suspicious(
-        self, deployment_ids: list[UUID], db_sess: AsyncSession
-    ):
-        res = await db_sess.execute(
-            update(StrategyDeployments)
-            .where(
-                StrategyDeployments.deployment_id.in_(deployment_ids),
-                StrategyDeployments.status == StrategyDeploymentStatus.RUNNING,
-            )
-            .values(status=StrategyDeploymentStatus.SUSPICIOUS)
-        )
-
-        for id in deployment_ids:
-            event = DeploymentStatusChangedEvent(
-                deployment_id=id, status=StrategyDeploymentStatus.SUSPICIOUS
-            )
-            await self._event_publisher.enqueue(
-                event, STRATEGY_DEPLOYMENT_EVENTS_KEY, db_sess
-            )
-
-    async def _set_status_stopped(
-        self, deployment_ids: list[UUID], db_sess: AsyncSession
-    ):
-        await db_sess.execute(
-            update(StrategyDeployments)
-            .where(
-                StrategyDeployments.deployment_id.in_(deployment_ids),
-                StrategyDeployments.status == StrategyDeploymentStatus.SUSPICIOUS,
-            )
-            .values(status=StrategyDeploymentStatus.STOPPED)
-        )
-
-        for id in deployment_ids:
-            event = DeploymentStatusChangedEvent(
-                deployment_id=id, status=StrategyDeploymentStatus.STOPPED
-            )
-            await self._event_publisher.enqueue(
-                event, STRATEGY_DEPLOYMENT_EVENTS_KEY, db_sess
-            )
-
-    async def _set_status_running(
-        self, deployment_ids: list[UUID], db_sess: AsyncSession
-    ):
-        await db_sess.execute(
-            update(StrategyDeployments)
-            .where(
-                StrategyDeployments.deployment_id.in_(deployment_ids),
-                StrategyDeployments.status != StrategyDeploymentStatus.RUNNING,
-            )
-            .values(status=StrategyDeploymentStatus.RUNNING)
-        )
-
-        for id in deployment_ids:
-            event = DeploymentStatusChangedEvent(
-                deployment_id=id, status=StrategyDeploymentStatus.RUNNING
-            )
-            await self._event_publisher.enqueue(
-                event, STRATEGY_DEPLOYMENT_EVENTS_KEY, db_sess
-            )

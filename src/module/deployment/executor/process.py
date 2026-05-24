@@ -7,7 +7,7 @@ from module.event_bus import EventPublisher, SyncEventPublisher
 from module.markets.feed import OHLCFeedClient
 from .base import DeploymentExecutor
 from ..exception import DeploymentNotFoundException
-from ..manager import StrategyDeploymentService
+from ..runner import StrategyDeploymentRunner
 from ..oms import OMSClient
 
 
@@ -16,15 +16,14 @@ def _run_strategy_deployment(deployment_id: UUID):
     oms_client = OMSClient(base_url=OMS_BASE_URL)
     event_publisher = SyncEventPublisher()
 
-    sds = StrategyDeploymentService(
+    runner = StrategyDeploymentRunner(
         deployment_id=deployment_id,
         ohlc_feed_client=ohlc_feed_client,
         oms_client=oms_client,
         event_publisher=event_publisher,
         redis_client=REDIS_CLIENT_SYNC,
     )
-    sds.setup()
-    sds.run()
+    runner.run()
 
 
 class ProcessDeploymentExecutor(DeploymentExecutor):

@@ -7,9 +7,10 @@ import pytest_asyncio
 
 from config import REDIS_STRATEGY_DEPLOYMENT_HEARTBEAT_KEY_PREFIX
 from module.deployment.enums import StrategyDeploymentStatus
+from module.deployment.event.deserialiser import DeploymentEventDeserialiser
 from module.deployment.event.event import DeploymentEventType, DeploymentStatusChangedEvent
 from core.redis import REDIS_CLIENT
-from module.deployment.monitor import DeploymentMonitoringService
+from module.deployment.monitor import DeploymentEventMonitorService
 
 MODULE_PATH = "module.deployment.monitor"
 
@@ -40,6 +41,7 @@ def mock_db_sess():
         mock_db_sess = MagicMock()
         mock_db_sess.execute = AsyncMock()
         mock_db_sess.commit = AsyncMock()
+        mock_db_sess.get = AsyncMock(return_value=MagicMock())
 
         mock_context_manager = MagicMock()
         mock_context_manager.__aenter__.return_value = mock_db_sess
@@ -51,8 +53,16 @@ def mock_db_sess():
 
 
 @pytest.fixture
-def deployment_monitoring_service(mock_event_publisher, mock_kafka_consumer):
-    service = DeploymentMonitoringService(
+def deserialiser():
+    return DeploymentEventDeserialiser()
+
+
+@pytest.fixture
+def deployment_monitoring_service(
+    mock_event_publisher, mock_kafka_consumer, deserialiser
+):
+    service = DeploymentEventMonitorService(
+        deserialiser=deserialiser,
         redis_client=REDIS_CLIENT,
         event_publisher=mock_event_publisher,
         monitor_interval=5,
@@ -117,7 +127,7 @@ async def test_consume_events_and_watches_deployment(
     assert event.status == StrategyDeploymentStatus.STOPPED
 
     assert mock_db_sess.execute.call_count == 2
-    assert mock_db_sess.commit.call_count >= 2
+    assert mock_db_sess.commit.call_count == 1
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -220,4 +230,4 @@ async def test_changes_status_from_suspicious_to_running(
     assert event.status == StrategyDeploymentStatus.RUNNING
 
     assert mock_db_sess.execute.call_count == 2
-    assert mock_db_sess.commit.call_count >= 2
+    assert mock_db_sess.commit.call_count == 1

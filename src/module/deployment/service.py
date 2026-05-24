@@ -71,6 +71,10 @@ class DeploymentsService:
             StrategyDeploymentStatus.STOPPED,
         }:
             return
+        
+        if deployment.status == StrategyDeploymentStatus.PENDING:
+            deployment.status = StrategyDeploymentStatus.STOPPED
+            return
 
         deployment.status = StrategyDeploymentStatus.STOP_REQUESTED
 

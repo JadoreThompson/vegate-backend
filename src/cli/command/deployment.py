@@ -6,7 +6,7 @@ import click
 from core.redis import REDIS_CLIENT_SYNC
 from module.event_bus import SyncEventPublisher
 from module.markets.feed import OHLCFeedClient
-from module.deployment.manager import StrategyDeploymentService
+from module.deployment.runner import StrategyDeploymentRunner
 from module.deployment.oms import OMSClient
 
 logger = logging.getLogger("commands.deployment")
@@ -37,12 +37,11 @@ def run(deployment_id, ohlc_feed_host, ohlc_feed_port, oms_base_url, verbose):
     oms_client = OMSClient(base_url=oms_base_url)
     event_publisher = SyncEventPublisher()
 
-    sds = StrategyDeploymentService(
+    runner = StrategyDeploymentRunner(
         deployment_id=deployment_id,
         ohlc_feed_client=ohlc_feed_client,
         oms_client=oms_client,
         event_publisher=event_publisher,
         redis_client=REDIS_CLIENT_SYNC,
     )
-    sds.setup()
-    sds.run()
+    runner.run()
