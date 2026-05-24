@@ -4,7 +4,6 @@ import sys
 import yaml
 from urllib.parse import quote
 
-import stripe
 from dotenv import load_dotenv
 
 # Paths
@@ -95,12 +94,6 @@ LLM_API_KEY = os.getenv("LLM_API_KEY")
 CUSTOMER_SUPPORT_EMAIL = os.getenv("CUSTOMER_SUPPORT_EMAIL")
 BREVO_API_KEY = os.getenv("BREVO_API_KEY")
 
-# Stripe
-STRIPE_API_KEY = os.getenv("STRIPE_API_KEY")
-STRIPE_PRICING_PRO_WEBHOOOK_SECRET = os.getenv("STRIPE_PRICING_PRO_WEBHOOOK_SECRET")
-STRIPE_PRICING_PRO_PRICE_ID = os.getenv("STRIPE_PRICING_PRO_PRICE_ID")
-stripe.api_key = STRIPE_API_KEY
-
 # Alpaca
 ALPACA_API_KEY = os.getenv("ALPACA_API_KEY")
 ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
@@ -121,7 +114,6 @@ RAILWAY_SERVICE_IMAGE = os.getenv("RAILWAY_SERVICE_IMAGE")
 RAILWAY_ENVIRONMENT_ID = os.getenv("RAILWAY_ENVIRONMENT_ID")
 
 # OHLC
-OHLC_LOG_FOLDER = os.getenv("OHLC_LOG_FOLDER", "ohlc_loader_logs")
 OHLC_FEED_HOST = os.getenv("OHLC_FEED_HOST", "localhost")
 OHLC_FEED_PORT = int(os.getenv("OHLC_FEED_PORT", "8001"))
 
@@ -144,7 +136,3 @@ handler.setFormatter(
 )
 logger.addHandler(handler)
 del logger
-
-stripe_logger = logging.getLogger("stripe")
-stripe_logger.setLevel(logging.CRITICAL)
-del stripe_logger

@@ -18,6 +18,20 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from infra.db.model import Base
 from core.db import Base
+from core.db import Base
+from module.user.model import User
+from module.strategy.model import Strategy
+from module.markets.model import Instrument, OHLC
+from module.deployment.model import (
+    StrategyDeployments,
+    StrategyDeploymentMetrics,
+    StrategyDeploymentOrders,
+    DeploymentEvent,
+)
+from module.broker_connections.model import BrokerConnections
+from module.backtest.model import Backtest, BacktestMetrics, BacktestOrder
+from module.event_bus.model import EventOutbox
+
 target_metadata = Base.metadata
 # target_metadata = None
 
@@ -65,9 +79,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()

@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 
 import jwt
@@ -13,8 +14,6 @@ from config import (
     JWT_SECRET,
 )
 from core.db import get_db_session
-# from infra.db.model import User
-# from utils import get_datetime
 from module.user.model import User
 from util import get_datetime
 from .exception import JWTException
@@ -36,6 +35,7 @@ class JWTService:
         self._jwt_expiry_secs = jwt_expiry_secs
         self._cookie_alias = cookie_alias
         self._is_production = is_production
+        self._logger = logging.getLogger("jwt_service")
 
     def _generate_expiry(self) -> int:
         """Private method to generate JWT expiry datetime"""
@@ -139,6 +139,7 @@ class JWTService:
                 raise JWTException("User not found.")
 
             if user.jwt is not None and user.jwt != token:
+                self._logger.info("Invalid token detected")
                 raise JWTException("Invalid token")
 
         return payload

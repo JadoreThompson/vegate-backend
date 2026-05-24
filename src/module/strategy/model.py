@@ -1,26 +1,15 @@
 from datetime import datetime
-from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, String, Text, UniqueConstraint, UUID as SaUUID
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import ForeignKey, String, Text, UUID as SaUUID
+from sqlalchemy.orm import Mapped, mapped_column
 
-# from .base import Base, datetime_tz, uuid_pk
-# from utils import get_datetime
 from core.db import Base, uuid_pk, datetime_tz
-from module.user.model import User
 from util import get_datetime
-
-# if TYPE_CHECKING:
-#     from .user import User
-#     from .backtest import Backtest
-#     from .strategy_deployments import StrategyDeployments
 
 
 class Strategy(Base):
     __tablename__ = "strategy"
-    # __table_args__ = (UniqueConstraint("user_id", "name"),)
 
     strategy_id: Mapped[UUID] = uuid_pk()
     user_id: Mapped[UUID] = mapped_column(
@@ -32,17 +21,5 @@ class Strategy(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = datetime_tz()
     updated_at: Mapped[datetime] = datetime_tz(nullable=False, onupdate=get_datetime)
-    prompt: Mapped[str] = mapped_column(Text, nullable=False)
-    code: Mapped[str] = mapped_column(Text, nullable=False)
-
-    # Relationships
-    # backtests: Mapped[list["Backtest"]] = relationship(
-    #     back_populates="strategy", cascade="all, delete-orphan", passive_deletes=True
-    # )
-    # strategy_deployments: Mapped[list["StrategyDeployments"]] = relationship(
-    #     back_populates="strategy", cascade="all, delete-orphan", passive_deletes=True
-    # )
-    # user: Mapped["User"] = relationship(
-    #     back_populates="strategy", passive_deletes=True
-    # )
-    # user: Mapped["User"] = relationship(back_populates="strategies", passive_deletes=True)
+    prompt: Mapped[str] = mapped_column(Text, nullable=True)
+    code: Mapped[str | None] = mapped_column(Text, nullable=True)

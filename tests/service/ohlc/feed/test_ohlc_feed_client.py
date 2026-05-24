@@ -208,7 +208,7 @@ class TestSubscribe:
         client.subscribe(
             symbol="AAPL",
             market_type=MarketType.STOCKS,
-            broker=BrokerType.ALPACA,
+            broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
             start=1500000000,
         )
@@ -217,7 +217,7 @@ class TestSubscribe:
             "type": "subscribe",
             "symbol": "AAPL",
             "market_type": "stocks",
-            "broker": "alpaca",
+            "broker_type": "alpaca",
             "timeframe": "1m",
             "start": 1500000000,
         }
@@ -229,7 +229,7 @@ class TestSubscribe:
         client.subscribe(
             symbol="AAPL",
             market_type=MarketType.STOCKS,
-            broker=BrokerType.ALPACA,
+            broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
             start=1500000000,
         )
@@ -243,7 +243,7 @@ class TestSubscribe:
         client.subscribe(
             symbol="AAPL",
             market_type=MarketType.STOCKS,
-            broker=BrokerType.ALPACA,
+            broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
             start=None,
         )
@@ -257,7 +257,7 @@ class TestSubscribe:
         client.subscribe(
             symbol="AAPL",
             market_type=MarketType.STOCKS,
-            broker=BrokerType.ALPACA,
+            broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
         )
 
@@ -275,7 +275,7 @@ class TestSubscribe:
             client.subscribe(
                 symbol="AAPL",
                 market_type=MarketType.STOCKS,
-                broker=BrokerType.ALPACA,
+                broker_type=BrokerType.ALPACA,
                 timeframe=Timeframe.m1,
                 start=1500000000,
             )
@@ -698,7 +698,7 @@ class TestIntegration:
             client.subscribe(
                 symbol="AAPL",
                 market_type=MarketType.STOCKS,
-                broker=BrokerType.ALPACA,
+                broker_type=BrokerType.ALPACA,
                 timeframe=Timeframe.m1,
             )
 
@@ -732,7 +732,7 @@ class TestIntegration:
             client.subscribe(
                 symbol="AAPL",
                 market_type=MarketType.STOCKS,
-                broker=BrokerType.ALPACA,
+                broker_type=BrokerType.ALPACA,
                 timeframe=Timeframe.m1,
                 start=1500000000,
             )

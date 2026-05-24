@@ -62,8 +62,7 @@ async def get_deployment_endpoint(
     configuration, and error messages if any.
     """
     deployment = await deployments_service.get(deployment_id, jwt.sub, db_sess)
-    instrument = await db_sess.get(Instrument, deployment.instrument_id)
-    return deployments_service.to_response(deployment, instrument, deployment.metrics)
+    return deployments_service.to_response(deployment, deployment.metrics)
 
 
 @router.post("/{deployment_id}/start")

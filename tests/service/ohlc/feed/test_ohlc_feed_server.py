@@ -79,7 +79,7 @@ def socket_conn(mock_writer):
         writer=mock_writer,
         symbol="AAPL",
         market_type=MarketType.STOCKS,
-        broker=BrokerType.ALPACA,
+        broker_type=BrokerType.ALPACA,
         timeframe=Timeframe.m1,
     )
 
@@ -227,7 +227,7 @@ class TestSocketConnectionClose:
             writer=mock_writer,
             symbol="AAPL",
             market_type=MarketType.STOCKS,
-            broker=BrokerType.ALPACA,
+            broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
         )
         # Should not raise
@@ -281,7 +281,7 @@ class TestOHLCFeedServerHandleCandle:
             writer=mock_writer,
             symbol="AAPL",
             market_type=MarketType.STOCKS,
-            broker=BrokerType.ALPACA,
+            broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
         )
         candle = make_ohlc_model()
@@ -604,7 +604,7 @@ class TestOHLCFeedServerHandleSubscribe:
             payload = {
                 "symbol": "AAPL",
                 "market_type": "stocks",
-                "broker": "alpaca",
+                "broker_type": "alpaca",
                 "timeframe": "1m",
             }
             result = await server._handle_subscribe(payload, mock_writer)
@@ -621,7 +621,7 @@ class TestOHLCFeedServerHandleSubscribe:
                 payload = {
                     "symbol": "AAPL",
                     "market_type": "stocks",
-                    "broker": "alpaca",
+                    "broker_type": "alpaca",
                     "timeframe": "1m",
                 }
                 result = await server._handle_subscribe(payload, mock_writer)
@@ -641,7 +641,7 @@ class TestOHLCFeedServerHandleSubscribe:
                     payload = {
                         "symbol": "AAPL",
                         "market_type": "stocks",
-                        "broker": "alpaca",
+                        "broker_type": "alpaca",
                         "timeframe": "1m",
                     }
                     result = await server._handle_subscribe(payload, mock_writer)
@@ -665,7 +665,7 @@ class TestOHLCFeedServerHandleSubscribe:
                         payload = {
                             "symbol": "AAPL",
                             "market_type": "stocks",
-                            "broker": "alpaca",
+                            "broker_type": "alpaca",
                             "timeframe": "m1",
                         }
                         result = await server._handle_subscribe(payload, mock_writer)
@@ -690,7 +690,7 @@ class TestOHLCFeedServerHandleSubscribe:
                         payload = {
                             "symbol": "AAPL",
                             "market_type": "stocks",
-                            "broker": "alpaca",
+                            "broker_type": "alpaca",
                             "timeframe": "1m",
                         }
                         result = await server._handle_subscribe(payload, mock_writer)
@@ -699,7 +699,7 @@ class TestOHLCFeedServerHandleSubscribe:
                         assert isinstance(result, SocketConnection)
                         assert result.symbol == "AAPL"
                         assert result.market_type == MarketType.STOCKS
-                        assert result.broker == BrokerType.ALPACA
+                        assert result.broker_type == BrokerType.ALPACA
                         assert result.timeframe == Timeframe.m1
 
     @pytest.mark.asyncio(loop_scope="session")
@@ -722,7 +722,7 @@ class TestOHLCFeedServerHandleSubscribe:
                             payload = {
                                 "symbol": "AAPL",
                                 "market_type": "stocks",
-                                "broker": "alpaca",
+                                "broker_type": "alpaca",
                                 "timeframe": "1m",
                                 "start": 1500000000,
                             }
@@ -759,7 +759,7 @@ class TestOHLCFeedServerHandleSubscribe:
                                 payload = {
                                     "symbol": "AAPL",
                                     "market_type": "stocks",
-                                    "broker": "alpaca",
+                                    "broker_type": "alpaca",
                                     "timeframe": "1m",
                                     "start": 1500000000,
                                 }
@@ -852,7 +852,7 @@ class TestOHLCFeedServerRegisterLive:
             writer=mock_writer,
             symbol="AAPL",
             market_type=MarketType.STOCKS,
-            broker=BrokerType.ALPACA,
+            broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
         )
         server._register_live(socket_conn)
@@ -952,7 +952,7 @@ class TestIntegration:
                         payload = {
                             "symbol": "AAPL",
                             "market_type": "stocks",
-                            "broker": "alpaca",
+                            "broker_type": "alpaca",
                             "timeframe": "1m",
                         }
                         conn = await server._handle_subscribe(payload, mock_writer)
@@ -983,14 +983,14 @@ class TestIntegration:
             writer=writer1,
             symbol="AAPL",
             market_type=MarketType.STOCKS,
-            broker=BrokerType.ALPACA,
+            broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
         )
         conn2 = SocketConnection(
             writer=writer2,
             symbol="AAPL",
             market_type=MarketType.STOCKS,
-            broker=BrokerType.ALPACA,
+            broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
         )
 

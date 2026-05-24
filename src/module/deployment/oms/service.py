@@ -63,16 +63,22 @@ class OMSService:
         async with get_db_session() as db_sess:
             res = await db_sess.execute(
                 select(User.user_id, BrokerConnections)
+                .select_from(StrategyDeployments)
                 .join(
                     BrokerConnections,
-                    BrokerConnections.broker_account_id
+                    BrokerConnections.connection_id
                     == StrategyDeployments.broker_connection_id,
                 )
-                .join(Strategy, StrategyDeployments.strategy_id == Strategy.strategy_id)
-                .join(User, Strategy.user_id == User.user_id)
+                .join(
+                    Strategy,
+                    StrategyDeployments.strategy_id == Strategy.strategy_id,
+                )
+                .join(
+                    User,
+                    Strategy.user_id == User.user_id,
+                )
                 .where(StrategyDeployments.deployment_id == deployment_id)
             )
-
             row = res.first()
             if not row:
                 raise BrokerConnectionDoesNotExistException(deployment_id)

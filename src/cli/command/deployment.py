@@ -3,7 +3,7 @@ from uuid import UUID
 
 import click
 
-from core.redis import REDIS_CLIENT
+from core.redis import REDIS_CLIENT_SYNC
 from module.event_bus import SyncEventPublisher
 from module.markets.feed import OHLCFeedClient
 from module.deployment.manager import StrategyDeploymentService
@@ -13,12 +13,12 @@ logger = logging.getLogger("commands.deployment")
 
 
 @click.group()
-def strategy():
+def deployment():
     """Manage live strategy deployments."""
     pass
 
 
-@strategy.command(name="run")
+@deployment.command(name="run")
 @click.option(
     "--deployment-id",
     type=UUID,
@@ -42,7 +42,7 @@ def run(deployment_id, ohlc_feed_host, ohlc_feed_port, oms_base_url, verbose):
         ohlc_feed_client=ohlc_feed_client,
         oms_client=oms_client,
         event_publisher=event_publisher,
-        redis_client=REDIS_CLIENT
+        redis_client=REDIS_CLIENT_SYNC,
     )
     sds.setup()
     sds.run()

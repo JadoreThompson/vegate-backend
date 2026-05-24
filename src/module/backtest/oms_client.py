@@ -2,17 +2,15 @@ import logging
 import uuid
 from collections import defaultdict
 
-# from enums import OrderSide, OrderStatus, OrderType
 from module.broker import Order, OrderRequest
-from module.broker.enums import OrderSide, OrderStatus, OrderType
 from module.broker.client import BrokerClientException
+from module.broker.enums import OrderSide, OrderStatus, OrderType
 from module.deployment.oms import OMSClient
-# from module.markets.schema import OHLC as OHLCSchema
 from module.markets.schema import OHLC as OHLCSchema
 from .ohlc_feed_client import BacktestOHLCFeedClient
 
 
-class BacktestBrokerClient(OMSClient):
+class BacktestOMSClient(OMSClient):
     """OMS client implementation for backtesting."""
 
     def __init__(self, starting_balance: float):
@@ -36,8 +34,8 @@ class BacktestBrokerClient(OMSClient):
     def get_equity(self):
         self.equity = self._calculate_equity()
         return self.equity
-    
-    def get_position(self,symbol: str):
+
+    def get_position(self, symbol: str):
         return self._asset_holdings.get(symbol, 0.0)
 
     def place_order(self, request: OrderRequest, candle_ts: int) -> Order:

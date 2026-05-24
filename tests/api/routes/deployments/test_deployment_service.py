@@ -65,7 +65,6 @@ def clear_tables():
     with get_db_sess_sync() as db_sess:
         db_sess.execute(delete(StrategyDeployments))
         db_sess.execute(delete(Strategy))
-        # db_sess.execute(delete(User))
         db_sess.commit()
 
 
@@ -94,18 +93,12 @@ class TestCreateDeployment:
             mock_info.id = uuid4()
             mock_markets_service.get_symbol_info = AsyncMock(return_value=mock_info)
 
-            mock_deployment = MagicMock()
-            mock_deployment.deployment_id = uuid4()
             mock_db_sess.flush = AsyncMock()
             mock_db_sess.refresh = AsyncMock(side_effect=lambda obj: None)
 
             request = CreateDeploymentRequest(
                 strategy_id=uuid4(),
                 broker_connection_id=uuid4(),
-                symbol="AAPL",
-                timeframe=Timeframe.m1,
-                market_type=MarketType.STOCKS,
-                broker_type=BrokerType.ALPACA,
             )
 
             await deployment_service.create(request, mock_db_sess)
@@ -141,7 +134,6 @@ class TestGetDeployment:
         @pytest.mark.asyncio(loop_scope="session")
         async def test_get_deployment_wrong_user_raises(self, deployment_service):
             mock_db_sess = AsyncMock()
-            # scalar returns None when the join+filter finds no match for this user
             mock_db_sess.scalar.return_value = None
 
             with pytest.raises(DeploymentNotFoundException):
@@ -178,18 +170,9 @@ class TestGetDeployment:
             await db_sess.flush()
             await db_sess.refresh(broker_connection)
 
-            instrument_id = await db_sess.scalar(
-                select(Instrument.id).where(Instrument.symbol == "AAPL")
-            )
-
             deployment = StrategyDeployments(
                 strategy_id=strategy.strategy_id,
                 broker_connection_id=broker_connection.connection_id,
-                # symbol="AAPL",
-                # broker=BrokerType.ALPACA,
-                timeframe=Timeframe.m1,
-                # market_type=MarketType.STOCKS,
-                instrument_id=instrument_id,
             )
             db_sess.add(deployment)
             await db_sess.commit()
@@ -213,20 +196,14 @@ class TestGetAllDeployments:
             mock_deployment.deployment_id = uuid4()
             mock_deployment.strategy_id = uuid4()
             mock_deployment.broker_connection_id = uuid4()
-            mock_deployment.symbol = "AAPL"
-            mock_deployment.timeframe = Timeframe.m1
             mock_deployment.status = StrategyDeploymentStatus.PENDING
             mock_deployment.error_message = None
             mock_deployment.created_at = datetime.now()
             mock_deployment.updated_at = datetime.now()
             mock_deployment.stopped_at = None
 
-            mock_instrument = MagicMock()
-            mock_instrument.id = uuid4()
-            mock_instrument.symbol = "AAPL"
-
             mock_result = MagicMock()
-            mock_result.all.return_value = [(mock_deployment, None, mock_instrument)]
+            mock_result.all.return_value = [(mock_deployment, None)]
             mock_db_sess.execute.return_value = mock_result
 
             result = await deployment_service.get_all(
@@ -260,25 +237,18 @@ class TestGetAllDeployments:
         async def test_get_all_has_next_when_more_results(self, deployment_service):
             mock_db_sess = AsyncMock()
 
-            # Return limit+1 results to trigger has_next=True
-            mock_instrument = MagicMock()
-            mock_instrument.id = uuid4()
-            mock_instrument.symbol = "AAPL"
-
             mock_deployments = []
             for _ in range(11):
                 d = MagicMock()
                 d.deployment_id = uuid4()
                 d.strategy_id = uuid4()
                 d.broker_connection_id = uuid4()
-                d.symbol = "AAPL"
-                d.timeframe = Timeframe.m1
                 d.status = StrategyDeploymentStatus.PENDING
                 d.error_message = None
                 d.created_at = datetime.now()
                 d.updated_at = datetime.now()
                 d.stopped_at = None
-                mock_deployments.append((d, None, mock_instrument))
+                mock_deployments.append((d, None))
 
             mock_result = MagicMock()
             mock_result.all.return_value = mock_deployments

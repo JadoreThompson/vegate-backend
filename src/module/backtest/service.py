@@ -11,11 +11,7 @@ from module.markets.model import Instrument
 from module.strategy import StrategyService
 from module.strategy.model import Strategy
 from .enums import BacktestStatus
-from .exception import (
-    BacktestNotFoundException,
-    InvalidDateRange,
-    BacktestInProgressException,
-)
+from .exception import BacktestNotFoundException, BacktestInProgressException
 from .executor import BacktestExecutor
 from .model import Backtest, BacktestMetrics, BacktestOrder
 from .schema import (
@@ -47,27 +43,12 @@ class BacktestsService:
             request.strategy_id, user_id, db_sess
         )
 
-        info = await self._markets_service.get_symbol_info(
-            request.symbol,
-            request.market_type,
-            request.broker,
-            request.timeframe,
-            db_sess,
-        )
-
-        if info.start_date > request.start_date or info.end_date < request.end_date:
-            raise InvalidDateRange(
-                f"Invalid date range. Available data {info.start_date} to {info.end_date}"
-            )
-
         backtest = Backtest(
             strategy_id=request.strategy_id,
-            instrument_id=info.id,
             starting_balance=request.starting_balance,
             start_date=request.start_date,
             end_date=request.end_date,
-            timeframe=request.timeframe,
-            status=BacktestStatus.IN_PROGRESS,
+            status=BacktestStatus.PENDING,
         )
         db_sess.add(backtest)
         await db_sess.flush()
@@ -81,14 +62,10 @@ class BacktestsService:
         self, id: UUID, user_id: UUID, db_sess: AsyncSession
     ) -> BacktestResponse:
         backtest = await self.get_user_backtest(id, user_id, db_sess)
-
-        instrument = await db_sess.get(Instrument, backtest.instrument_id)
-
         metrics = await db_sess.scalar(
             select(BacktestMetrics).where(BacktestMetrics.backtest_id == id)
         )
-
-        return self.to_response(backtest, instrument, metrics)
+        return self.to_response(backtest, metrics)
 
     async def get_user_backtest(
         self, id: UUID, user_id: UUID, db_sess: AsyncSession
@@ -115,9 +92,9 @@ class BacktestsService:
     ) -> PaginatedResponse[BacktestResponse]:
         stmt = (
             select(Backtest, BacktestMetrics, Instrument)
-            .join(Instrument, Instrument.id == Backtest.instrument_id)
+            # .join(Instrument, Instrument.id == Backtest.instrument_id)
             .outerjoin(BacktestMetrics)
-            .join(Strategy)
+            .join(Strategy, Strategy.strategy_id == Backtest.strategy_id)
             .where(Strategy.user_id == user_id)
             .offset((page - 1) * limit)
             .limit(limit + 1)
@@ -132,8 +109,10 @@ class BacktestsService:
         res = await db_sess.execute(stmt)
 
         backtests = [
-            self.to_response(backtest, instrument, metrics)
-            for backtest, metrics, instrument in res.all()
+            # self.to_response(backtest, instrument, metrics)
+            # for backtest, metrics, instrument in res.all()
+            self.to_response(backtest, metrics)
+            for backtest, metrics in res.all()
         ]
 
         return PaginatedResponse[BacktestResponse](
@@ -147,9 +126,10 @@ class BacktestsService:
         self, strategy_id: UUID, db_sess: AsyncSession, *, page: int, limit: int
     ):
         res = await db_sess.execute(
-            select(Backtest, BacktestMetrics, Instrument)
+            # select(Backtest, BacktestMetrics, Instrument)
+            select(Backtest, BacktestMetrics)
             .outerjoin(BacktestMetrics)
-            .join(Instrument, Instrument.id == Backtest.instrument_id)
+            # .join(Instrument, Instrument.id == Backtest.instrument_id)
             .where(Backtest.strategy_id == strategy_id)
             .offset((page - 1) * limit)
             .limit(limit + 1)
@@ -161,23 +141,22 @@ class BacktestsService:
             size=min(limit, len(rows)),
             has_next=len(rows) > limit,
             data=[
-                self.to_response(backtest, instrument, metrics)
-                for backtest, metrics, instrument in rows[:limit]
+                # self.to_response(backtest, instrument, metrics)
+                self.to_response(backtest, metrics)
+                # for backtest, metrics, instrument in rows[:limit]
+                for backtest, metrics in rows[:limit]
             ],
         )
 
     def to_response(
         self,
         backtest: Backtest,
-        instrument: Instrument,
+        # instrument: Instrument,
         metrics: BacktestMetrics | None,
     ) -> BacktestResponse:
         return BacktestResponse(
             id=backtest.id,
             strategy_id=backtest.strategy_id,
-            symbol=instrument.symbol,
-            broker=instrument.broker_type,
-            market_type=instrument.market_type,
             starting_balance=backtest.starting_balance,
             start_date=date(
                 year=backtest.start_date.year,
@@ -218,7 +197,8 @@ class BacktestsService:
         res = await db_sess.execute(
             select(BacktestOrder)
             .join(Backtest)
-            .join(Strategy)
+            # .join(Strategy)
+            .join(Strategy, Strategy.strategy_id == Backtest.strategy_id)
             .where(BacktestOrder.backtest_id == id)
             .where(Strategy.user_id == user_id)
             .offset((page - 1) * limit)

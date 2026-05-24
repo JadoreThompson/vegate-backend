@@ -10,12 +10,12 @@ from module.strategy.model import Strategy
 # TODO: Implement agents and run tests
 
 
-@pytest.mark.skip
 class TestCreateStrategy:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_create_strategy_returns_200(self, authenticated_client):
         payload = {
+            "name": "Mock Strategy",
             "description": "A momentum strategy based on RSI indicator",
         }
 
@@ -27,10 +27,18 @@ class TestCreateStrategy:
         assert data["name"] == "Mock Strategy"
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_create_strategy_missing_description_returns_422(
+    async def test_create_strategy_missing_description_returns_200(
         self, authenticated_client
     ):
-        payload = {}
+        payload = {"name": "Missing description"}
+
+        res = await authenticated_client.post("/strategy/", json=payload)
+
+        assert res.status_code == 200
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_create_strategy_missing_name_returns_422(self, authenticated_client):
+        payload = {"description": "Missing name"}
 
         res = await authenticated_client.post("/strategy/", json=payload)
 
@@ -108,7 +116,7 @@ class TestUpdateStrategy:
 
         assert res.status_code == 200
         data = res.json()
-        assert data["name"] == "Updated Strategy"
+        assert data["name"] == "Updated Strategy Name"
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_update_strategy_name_too_short_returns_422(
@@ -131,6 +139,7 @@ class TestUpdateStrategy:
         strategy_id = uuid4()
 
         payload = {
+            "name": "What a nice strategy",
             "description": "short",
         }
 
@@ -169,7 +178,7 @@ class TestStrategyEndpointsUnauthenticated:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_create_strategy_unauthenticated_returns_401(self, client):
         payload = {
-            "description": "test strategy",
+            "name": "test strategy",
         }
 
         res = await client.post("/strategy/", json=payload)

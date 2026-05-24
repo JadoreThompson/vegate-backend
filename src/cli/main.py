@@ -11,7 +11,7 @@ from cli.command.monitor import monitor
 from cli.command.ohlc_loader import ohlc_loader
 from cli.command.oms import oms
 from cli.command.outbox import outbox
-from cli.command.strategy import strategy
+from cli.command.deployment import deployment
 
 
 @click.group(invoke_without_command=True)
@@ -38,4 +38,4 @@ cli.add_command(monitor)
 cli.add_command(ohlc_loader)
 cli.add_command(oms)
 cli.add_command(outbox)
-cli.add_command(strategy)
+cli.add_command(deployment)

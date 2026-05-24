@@ -3,8 +3,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from module.backtest.broker_client import BacktestBrokerClient
-from module.backtest.engine import BacktestConfig, BacktestEngine
+from module.backtest.oms_client import BacktestOMSClient
+from module.backtest.engine import BacktestEngine
 from module.broker.enums import BrokerType, OrderSide, OrderStatus, OrderType
 from module.broker.schema import Order, OrderRequest
 from module.event_bus import SyncEventPublisher
@@ -55,9 +55,18 @@ def _make_event_publisher():
 
 class SimpleStrategy(BaseStrategy):
 
-    def __init__(self, config, ohlc_feed_client, oms_client, event_publisher):
-        super().__init__(config, ohlc_feed_client, oms_client, event_publisher)
+    def __init__(self, ohlc_feed_client, oms_client, event_publisher):
+        super().__init__(ohlc_feed_client, oms_client, event_publisher)
         self._order: Order = None
+        self._quantity = 1
+
+    def startup(self):
+        self.ohlc_feed_client.subscribe(
+            symbol="AAPL",
+            market_type=MarketType.STOCKS,
+            timeframe=Timeframe.m1,
+            broker_type=BrokerType.ALPACA,
+        )
 
     def on_candle(self, candle):
         if self._order is None:
@@ -66,8 +75,7 @@ class SimpleStrategy(BaseStrategy):
                     symbol=candle.symbol,
                     order_type=OrderType.MARKET,
                     side=OrderSide.BUY,
-                    # notional=candle.close,
-                    quantity=1,
+                    quantity=self._quantity,
                 ),
                 candle.timestamp,
             )
@@ -77,32 +85,11 @@ class SimpleStrategy(BaseStrategy):
                     symbol=candle.symbol,
                     order_type=OrderType.MARKET,
                     side=OrderSide.SELL,
-                    quantity=self._order.quantity,
+                    quantity=self._quantity,
                 ),
                 candle.timestamp,
             )
             self._order = None
-
-
-class TestBacktestMetricsCalculation:
-
-    def _prepare(self, candles, starting_balance=10_000.0):
-        market_type = MarketType.STOCKS
-        config = BacktestConfig(
-            symbol="AAPL",
-            market_type=market_type,
-            timeframe=Timeframe.m1,
-            broker=BrokerType.ALPACA,
-            starting_balance=starting_balance,
-            start_date=candles[0].timestamp,
-            end_date=candles[-1].timestamp,
-        )
-        oms = BacktestBrokerClient(starting_balance=starting_balance)
-        feed = _make_ohlc_feed_client(candles, market_type=market_type)
-        event_pub = _make_event_publisher()
-        strategy = SimpleStrategy(config, feed, oms, event_pub)
-        engine = BacktestEngine(strategy, config)
-        return engine
 
 
 def _candle(close, ts, **kw):
@@ -122,22 +109,19 @@ def _candle(close, ts, **kw):
 
 class TestBacktestMetricsCalculation:
 
-    def _prepare(self, candles, starting_balance=10_000.0):
+    def _prepare(
+        self,
+        candles,
+        starting_balance=10_000.0,
+        start_date=datetime(year=2024, month=1, day=1),
+        end_date=datetime(year=2025, month=1, day=1),
+    ):
         market_type = MarketType.STOCKS
-        config = BacktestConfig(
-            symbol="AAPL",
-            market_type=market_type,
-            timeframe=Timeframe.m1,
-            broker=BrokerType.ALPACA,
-            starting_balance=starting_balance,
-            start_date=candles[0].timestamp,
-            end_date=candles[-1].timestamp,
-        )
-        oms = BacktestBrokerClient(starting_balance=starting_balance)
+        oms = BacktestOMSClient(starting_balance=starting_balance)
         feed = _make_ohlc_feed_client(candles, market_type=market_type)
         event_pub = _make_event_publisher()
-        strategy = SimpleStrategy(config, feed, oms, event_pub)
-        engine = BacktestEngine(strategy, config)
+        strategy = SimpleStrategy(feed, oms, event_pub)
+        engine = BacktestEngine(strategy, starting_balance, start_date, end_date)
         return engine
 
     def test_returns_correct_realised_pnl(self):
@@ -193,8 +177,8 @@ class TestBacktestMetricsCalculation:
 
     def test_profit_factor_zero_with_no_trades(self):
         class NoTradeStrategy(BaseStrategy):
-            def __init__(self, config, ohlc_feed_client, oms_client, event_publisher):
-                super().__init__(config, ohlc_feed_client, oms_client, event_publisher)
+            def __init__(self, ohlc_feed_client, oms_client, event_publisher):
+                super().__init__(ohlc_feed_client, oms_client, event_publisher)
 
             def on_candle(self, candle):
                 pass
@@ -202,27 +186,23 @@ class TestBacktestMetricsCalculation:
         market_type = MarketType.STOCKS
         ts = lambda i: datetime(2024, 1, 1, 1, i, tzinfo=UTC)
         candles = [_candle(100.0 + i * 0.5, ts(i)) for i in range(1, 21)]
-        config = BacktestConfig(
-            symbol="AAPL",
-            market_type=market_type,
-            timeframe=Timeframe.m1,
-            broker=BrokerType.ALPACA,
-            starting_balance=10000.0,
-            start_date=candles[0].timestamp,
-            end_date=candles[-1].timestamp,
-        )
-        oms = BacktestBrokerClient(starting_balance=10000)
+        oms = BacktestOMSClient(starting_balance=10000)
         feed = _make_ohlc_feed_client(candles, market_type=market_type)
         event_pub = _make_event_publisher()
-        strategy = NoTradeStrategy(config, feed, oms, event_pub)
-        engine = BacktestEngine(strategy, config)
+        strategy = NoTradeStrategy(feed, oms, event_pub)
+        engine = BacktestEngine(
+            strategy,
+            10000,
+            start_date=datetime(year=2024, month=1, day=1),
+            end_date=datetime(year=2025, month=1, day=1),
+        )
         metrics = engine.run()
         assert metrics.profit_factor == 0.0
 
     def test_profit_factor_with_partially_filled_orders(self):
         class PartialFillStrategy(BaseStrategy):
-            def __init__(self, config, ohlc_feed_client, oms_client, event_publisher):
-                super().__init__(config, ohlc_feed_client, oms_client, event_publisher)
+            def __init__(self, ohlc_feed_client, oms_client, event_publisher):
+                super().__init__(ohlc_feed_client, oms_client, event_publisher)
                 self._order: Order = None
 
             def on_candle(self, candle):
@@ -253,20 +233,16 @@ class TestBacktestMetricsCalculation:
         ts = lambda m: datetime(2024, 1, 1, 1, m, tzinfo=UTC)
         candles = [_candle(100.0, ts(1)), _candle(110.0, ts(2))]
         market_type = MarketType.STOCKS
-        config = BacktestConfig(
-            symbol="AAPL",
-            market_type=market_type,
-            timeframe=Timeframe.m1,
-            broker=BrokerType.ALPACA,
-            starting_balance=10000.0,
-            start_date=candles[0].timestamp,
-            end_date=candles[-1].timestamp,
-        )
-        oms = BacktestBrokerClient(starting_balance=10000)
+        oms = BacktestOMSClient(starting_balance=10000)
         feed = _make_ohlc_feed_client(candles, market_type=market_type)
         event_pub = _make_event_publisher()
-        strategy = PartialFillStrategy(config, feed, oms, event_pub)
-        engine = BacktestEngine(strategy, config)
+        strategy = PartialFillStrategy(feed, oms, event_pub)
+        engine = BacktestEngine(
+            strategy,
+            10000,
+            start_date=datetime(year=2024, month=1, day=1),
+            end_date=datetime(year=2025, month=1, day=1),
+        )
         metrics = engine.run()
         assert metrics.profit_factor == float("inf")
 
@@ -346,16 +322,7 @@ class TestBacktestEngineIntegration:
         symbol = "AAPL"
         market_type = MarketType.STOCKS
 
-        config = BacktestConfig(
-            symbol=symbol,
-            market_type=market_type,
-            timeframe=Timeframe.m1,
-            broker=BrokerType.ALPACA,
-            starting_balance=starting_balance,
-            start_date=datetime(2024, 1, 2, tzinfo=UTC),
-            end_date=datetime(2024, 1, 3, 0, 0, 0, tzinfo=UTC),
-        )
-        oms = BacktestBrokerClient(starting_balance=starting_balance)
+        oms = BacktestOMSClient(starting_balance=starting_balance)
         from module.backtest.ohlc_feed_client import BacktestOHLCFeedClient
 
         feed = BacktestOHLCFeedClient(
@@ -365,12 +332,17 @@ class TestBacktestEngineIntegration:
         feed.subscribe(
             symbol=symbol,
             market_type=market_type,
-            broker=BrokerType.ALPACA,
+            broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
         )
         event_pub = _make_event_publisher()
-        strategy = SimpleStrategy(config, feed, oms, event_pub)
-        engine = BacktestEngine(strategy, config)
+        strategy = SimpleStrategy(feed, oms, event_pub)
+        engine = BacktestEngine(
+            strategy,
+            10000,
+            start_date=datetime(year=2024, month=1, day=1),
+            end_date=datetime(year=2024, month=1, day=1),
+        )
         metrics = engine.run()
 
         assert metrics.realised_pnl == 10.0

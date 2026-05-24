@@ -8,10 +8,9 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.db import Base, uuid_pk, datetime_tz
-# from enums import BacktestStatus, OrderStatus, Timeframe
 from module.backtest.enums import BacktestStatus
-from module.broker.enums import BrokerType, OrderStatus
-from module.markets.enums import Timeframe
+from module.broker.enums import OrderStatus
+from util import get_datetime
 
 
 class Backtest(Base):
@@ -23,22 +22,17 @@ class Backtest(Base):
         ForeignKey("strategy.strategy_id", ondelete="CASCADE"),
         nullable=False,
     )
-    instrument_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("instruments.id", ondelete="CASCADE"),
-        nullable=False,
-    )
     # Broker is needed to know which data source to use for backtesting
     starting_balance: Mapped[int] = mapped_column(Integer, nullable=False)
     start_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
     end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    timeframe: Mapped[Timeframe] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(
         String, nullable=False, default=BacktestStatus.PENDING.value
     )
     created_at: Mapped[datetime] = datetime_tz()
+    updated_at: Mapped[datetime] = datetime_tz(onupdate=get_datetime)
 
     # Relationships
     orders: Mapped[list["BacktestOrder"]] = relationship(

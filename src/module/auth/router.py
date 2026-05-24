@@ -2,9 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.redis import REDIS_CLIENT
 from module.api.dependencies import depends_class, depends_db_sess, depends_jwt
-from module.email import BrevoEmailService
 from module.jwt import JWTPayload, JWTService
 from module.user.model import User
 from .schema import (
@@ -22,18 +20,13 @@ from .service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
-jwt_service = JWTService()
-# auth_service = AuthService(
-#     email_service=BrevoEmailService("Vegate", "no-reply@jadore.dev"),
-#     redis_client=REDIS_CLIENT,
-# )
-
 
 @router.post("/register")
 async def register(
     body: RegisterUserRequest,
     db_sess: AsyncSession = Depends(depends_db_sess),
     auth_service: AuthService = Depends(depends_class(AuthService)),
+    jwt_service: JWTService = Depends(depends_class(JWTService)),
 ):
     user = await auth_service.register_user(body, db_sess)
     rsp = await jwt_service.set_cookie(user=user, db_sess=db_sess)
@@ -47,6 +40,7 @@ async def login(
     body: LoginUserRequest,
     db_sess: AsyncSession = Depends(depends_db_sess),
     auth_service: AuthService = Depends(depends_class(AuthService)),
+    jwt_service: JWTService = Depends(depends_class(JWTService)),
 ):
     try:
         user = await auth_service.authenticate_user(request=body, db_sess=db_sess)
@@ -72,6 +66,7 @@ async def verify_email(
     jwt: JWTPayload = Depends(depends_jwt(False)),
     db_sess: AsyncSession = Depends(depends_db_sess),
     auth_service: AuthService = Depends(depends_class(AuthService)),
+    jwt_service: JWTService = Depends(depends_class(JWTService)),
 ):
     try:
         user = await auth_service.verify_email(
@@ -89,6 +84,7 @@ async def verify_email(
 async def logout(
     jwt: JWTPayload = Depends(depends_jwt(False)),
     db_sess: AsyncSession = Depends(depends_db_sess),
+    jwt_service: JWTService = Depends(depends_class(JWTService)),
 ):
     await db_sess.execute(update(User).values(jwt=None).where(User.user_id == jwt.sub))
     rsp = jwt_service.remove_cookie()

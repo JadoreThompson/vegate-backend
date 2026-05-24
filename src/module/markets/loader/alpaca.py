@@ -54,8 +54,11 @@ class AlpacaOHLCLoader(OHLCLoader):
                 instrument_id, symbol, timeframe, records
             )
 
+            batch_start_date = datetime.fromtimestamp(records[-1]['timestamp'])
+            batch_end_date = datetime.fromtimestamp(records[-1]['timestamp'])
+
             self._logger.info(
-                f"Persisted {count} candles for {symbol} between {params['start']} and {params['end']}"
+                f"Persisted {count} candles for {symbol} between {batch_start_date} and {batch_end_date}"
             )
 
             total_count += count

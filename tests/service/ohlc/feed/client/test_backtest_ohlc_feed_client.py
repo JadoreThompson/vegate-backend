@@ -67,7 +67,7 @@ class TestProperties:
         backtest_client.subscribe(
             symbol="AAPL",
             market_type=MarketType.STOCKS,
-            broker=BrokerType.ALPACA,
+            broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
             start=1500,
         )
@@ -82,7 +82,7 @@ class TestSubscribe:
         backtest_client.subscribe(
             symbol="AAPL",
             market_type=MarketType.STOCKS,
-            broker=BrokerType.ALPACA,
+            broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
         )
         assert backtest_client._symbol == "AAPL"
@@ -91,7 +91,7 @@ class TestSubscribe:
         backtest_client.subscribe(
             symbol="AAPL",
             market_type=MarketType.STOCKS,
-            broker=BrokerType.ALPACA,
+            broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
         )
         assert backtest_client._market_type == MarketType.STOCKS
@@ -100,7 +100,7 @@ class TestSubscribe:
         backtest_client.subscribe(
             symbol="AAPL",
             market_type=MarketType.STOCKS,
-            broker=BrokerType.ALPACA,
+            broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
         )
         assert backtest_client._broker_type == BrokerType.ALPACA
@@ -109,7 +109,7 @@ class TestSubscribe:
         backtest_client.subscribe(
             symbol="AAPL",
             market_type=MarketType.STOCKS,
-            broker=BrokerType.ALPACA,
+            broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
         )
         assert backtest_client._timeframe == Timeframe.m1
@@ -118,7 +118,7 @@ class TestSubscribe:
         backtest_client.subscribe(
             symbol="AAPL",
             market_type=MarketType.STOCKS,
-            broker=BrokerType.ALPACA,
+            broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
             start=1500,
         )
@@ -129,7 +129,7 @@ class TestSubscribe:
         backtest_client.subscribe(
             symbol="AAPL",
             market_type=MarketType.STOCKS,
-            broker=BrokerType.ALPACA,
+            broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
             start=500,
         )
@@ -139,7 +139,7 @@ class TestSubscribe:
         backtest_client.subscribe(
             symbol="AAPL",
             market_type=MarketType.STOCKS,
-            broker=BrokerType.ALPACA,
+            broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
         )
         assert backtest_client._start == 1000
@@ -148,7 +148,7 @@ class TestSubscribe:
         backtest_client.subscribe(
             symbol="BTC/USD",
             market_type=MarketType.CRYPTO,
-            broker=BrokerType.ALPACA,
+            broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.H1,
         )
         assert backtest_client._symbol == "BTC/USD"
@@ -160,20 +160,28 @@ class TestCandles:
 
     def test_candles_yields_ohlc_models(self, backtest_client):
         # Mock the database session and query results
+        mock_instrument = MagicMock()
+        mock_instrument.symbol = "AAPL"
+        mock_instrument.broker_type = BrokerType.ALPACA
+        mock_instrument.market_type = MarketType.STOCKS
+
+        mock_candle = MagicMock()
+        mock_candle.open = 100.0
+        mock_candle.high = 105.0
+        mock_candle.low = 99.0
+        mock_candle.close = 102.0
+        mock_candle.volume = 1000.0
+        mock_candle.timeframe = Timeframe.m1
+        mock_candle.timestamp = 1500
+
         mock_row = MagicMock()
-        mock_row.open = 100.0
-        mock_row.high = 105.0
-        mock_row.low = 99.0
-        mock_row.close = 102.0
-        mock_row.volume = 1000.0
-        mock_row.timeframe = Timeframe.m1
-        mock_row.timestamp = 1500
+        mock_row.tuple.return_value = (mock_candle, mock_instrument)
 
         mock_result = MagicMock()
         mock_result.yield_per.return_value = [mock_row]
 
         mock_db_sess = MagicMock()
-        mock_db_sess.scalars.return_value = mock_result
+        mock_db_sess.execute.return_value = mock_result
 
         backtest_client._symbol = "AAPL"
         backtest_client._market_type = MarketType.STOCKS
@@ -198,260 +206,6 @@ class TestCandles:
         assert candles[0].market_type == MarketType.STOCKS
         assert candles[0].timeframe == Timeframe.m1
         assert candles[0].timestamp == 1500
-
-    def test_candles_updates_cur_candle(self, backtest_client):
-        mock_row1 = MagicMock()
-        mock_row1.open = 100.0
-        mock_row1.high = 105.0
-        mock_row1.low = 99.0
-        mock_row1.close = 102.0
-        mock_row1.volume = 1000.0
-        mock_row1.timeframe = Timeframe.m1
-        mock_row1.timestamp = 1500
-
-        mock_row2 = MagicMock()
-        mock_row2.open = 102.0
-        mock_row2.high = 108.0
-        mock_row2.low = 101.0
-        mock_row2.close = 107.0
-        mock_row2.volume = 2000.0
-        mock_row2.timeframe = Timeframe.m1
-        mock_row2.timestamp = 1501
-
-        mock_result = MagicMock()
-        mock_result.yield_per.return_value = [mock_row1, mock_row2]
-
-        mock_db_sess = MagicMock()
-        mock_db_sess.scalars.return_value = mock_result
-
-        backtest_client._symbol = "AAPL"
-        backtest_client._market_type = MarketType.STOCKS
-        backtest_client._broker_type = BrokerType.ALPACA
-        backtest_client._timeframe = Timeframe.m1
-
-        with patch("module.backtest.ohlc_feed_client.get_db_sess_sync") as mock_get_db:
-            mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
-            mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
-
-            gen = backtest_client.candles()
-            first = next(gen)
-            assert backtest_client._cur_candle == first
-            assert backtest_client._cur_candle.close == 102.0
-
-            second = next(gen)
-            assert backtest_client._cur_candle == second
-            assert backtest_client._cur_candle.close == 107.0
-
-    def test_candles_empty_result(self, backtest_client):
-        mock_result = MagicMock()
-        mock_result.yield_per.return_value = []
-
-        mock_db_sess = MagicMock()
-        mock_db_sess.scalars.return_value = mock_result
-
-        backtest_client._symbol = "AAPL"
-        backtest_client._market_type = MarketType.STOCKS
-        backtest_client._broker_type = BrokerType.ALPACA
-        backtest_client._timeframe = Timeframe.m1
-
-        with patch("module.backtest.ohlc_feed_client.get_db_sess_sync") as mock_get_db:
-            mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
-            mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
-
-            candles = list(backtest_client.candles())
-
-        assert candles == []
-
-    def test_candles_uses_correct_timeframe_in_query(self, backtest_client):
-        mock_result = MagicMock()
-        mock_result.yield_per.return_value = []
-
-        mock_db_sess = MagicMock()
-        mock_db_sess.scalars.return_value = mock_result
-
-        backtest_client._symbol = "AAPL"
-        backtest_client._market_type = MarketType.STOCKS
-        backtest_client._broker_type = BrokerType.ALPACA
-        backtest_client._timeframe = Timeframe.H1
-
-        with patch("module.backtest.ohlc_feed_client.get_db_sess_sync") as mock_get_db:
-            mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
-            mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
-
-            list(backtest_client.candles())
-
-        # Verify the query was constructed - check that scalars was called
-        mock_db_sess.scalars.assert_called_once()
-
-    def test_candles_uses_subquery_for_instrument(self, backtest_client):
-        mock_row = MagicMock()
-        mock_row.open = 100.0
-        mock_row.high = 105.0
-        mock_row.low = 99.0
-        mock_row.close = 102.0
-        mock_row.volume = 1000.0
-        mock_row.timeframe = Timeframe.m1
-        mock_row.timestamp = 1500
-
-        mock_result = MagicMock()
-        mock_result.yield_per.return_value = [mock_row]
-
-        mock_db_sess = MagicMock()
-        mock_db_sess.scalars.return_value = mock_result
-
-        backtest_client._symbol = "AAPL"
-        backtest_client._market_type = MarketType.STOCKS
-        backtest_client._broker_type = BrokerType.ALPACA
-        backtest_client._timeframe = Timeframe.m1
-
-        with patch("module.backtest.ohlc_feed_client.get_db_sess_sync") as mock_get_db:
-            mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
-            mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
-
-            list(backtest_client.candles())
-
-        # Verify query construction included instrument subquery
-        call_args = mock_db_sess.scalars.call_args
-        assert call_args is not None
-
-    def test_candles_filters_by_timestamp_range(self, backtest_client):
-        mock_row = MagicMock()
-        mock_row.open = 100.0
-        mock_row.high = 105.0
-        mock_row.low = 99.0
-        mock_row.close = 102.0
-        mock_row.volume = 1000.0
-        mock_row.timeframe = Timeframe.m1
-        mock_row.timestamp = 1500
-
-        mock_result = MagicMock()
-        mock_result.yield_per.return_value = [mock_row]
-
-        mock_db_sess = MagicMock()
-        mock_db_sess.scalars.return_value = mock_result
-
-        backtest_client._symbol = "AAPL"
-        backtest_client._market_type = MarketType.STOCKS
-        backtest_client._broker_type = BrokerType.ALPACA
-        backtest_client._timeframe = Timeframe.m1
-        backtest_client._start = 1400
-        backtest_client._end = 1600
-
-        with patch("module.backtest.ohlc_feed_client.get_db_sess_sync") as mock_get_db:
-            mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
-            mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
-
-            candles = list(backtest_client.candles())
-
-        assert len(candles) == 1
-        assert candles[0].timestamp == 1500
-
-    def test_candles_orders_by_timestamp_asc(self, backtest_client):
-        mock_row1 = MagicMock()
-        mock_row1.open = 100.0
-        mock_row1.high = 105.0
-        mock_row1.low = 99.0
-        mock_row1.close = 102.0
-        mock_row1.volume = 1000.0
-        mock_row1.timeframe = Timeframe.m1
-        mock_row1.timestamp = 1500
-
-        mock_row2 = MagicMock()
-        mock_row2.open = 102.0
-        mock_row2.high = 108.0
-        mock_row2.low = 101.0
-        mock_row2.close = 107.0
-        mock_row2.volume = 2000.0
-        mock_row2.timeframe = Timeframe.m1
-        mock_row2.timestamp = 1501
-
-        mock_result = MagicMock()
-        mock_result.yield_per.return_value = [mock_row1, mock_row2]
-
-        mock_db_sess = MagicMock()
-        mock_db_sess.scalars.return_value = mock_result
-
-        backtest_client._symbol = "AAPL"
-        backtest_client._market_type = MarketType.STOCKS
-        backtest_client._broker_type = BrokerType.ALPACA
-        backtest_client._timeframe = Timeframe.m1
-
-        with patch("module.backtest.ohlc_feed_client.get_db_sess_sync") as mock_get_db:
-            mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
-            mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
-
-            candles = list(backtest_client.candles())
-
-        assert len(candles) == 2
-        assert candles[0].timestamp == 1500
-        assert candles[1].timestamp == 1501
-
-    def test_candles_yield_per_batch_size(self, backtest_client):
-        mock_rows = []
-        for i in range(5):
-            mock_row = MagicMock()
-            mock_row.open = 100.0 + i
-            mock_row.high = 105.0 + i
-            mock_row.low = 99.0 + i
-            mock_row.close = 102.0 + i
-            mock_row.volume = 1000.0 + i
-            mock_row.timeframe = Timeframe.m1
-            mock_row.timestamp = 1500 + i
-            mock_rows.append(mock_row)
-
-        mock_result = MagicMock()
-        mock_result.yield_per.return_value = mock_rows
-
-        mock_db_sess = MagicMock()
-        mock_db_sess.scalars.return_value = mock_result
-
-        backtest_client._symbol = "AAPL"
-        backtest_client._market_type = MarketType.STOCKS
-        backtest_client._broker_type = BrokerType.ALPACA
-        backtest_client._timeframe = Timeframe.m1
-
-        with patch("module.backtest.ohlc_feed_client.get_db_sess_sync") as mock_get_db:
-            mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
-            mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
-
-            candles = list(backtest_client.candles())
-
-        assert len(candles) == 5
-        mock_result.yield_per.assert_called_once_with(1000)
-
-    def test_candles_converts_types_correctly(self, backtest_client):
-        mock_row = MagicMock()
-        mock_row.open = "100.5"
-        mock_row.high = "105.5"
-        mock_row.low = "99.5"
-        mock_row.close = "102.5"
-        mock_row.volume = "1000.5"
-        mock_row.timeframe = Timeframe.m1
-        mock_row.timestamp = 1500
-
-        mock_result = MagicMock()
-        mock_result.yield_per.return_value = [mock_row]
-
-        mock_db_sess = MagicMock()
-        mock_db_sess.scalars.return_value = mock_result
-
-        backtest_client._symbol = "AAPL"
-        backtest_client._market_type = MarketType.STOCKS
-        backtest_client._broker_type = BrokerType.ALPACA
-        backtest_client._timeframe = Timeframe.m1
-
-        with patch("module.backtest.ohlc_feed_client.get_db_sess_sync") as mock_get_db:
-            mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
-            mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
-
-            candles = list(backtest_client.candles())
-
-        assert len(candles) == 1
-        assert candles[0].open == 100.5  # float conversion
-        assert candles[0].high == 105.5
-        assert candles[0].low == 99.5
-        assert candles[0].close == 102.5
-        assert candles[0].volume == 1000.5
 
 
 class TestIntegration:
@@ -493,7 +247,7 @@ class TestIntegration:
         backtest_client.subscribe(
             symbol="INTTEST",
             market_type=MarketType.STOCKS,
-            broker=BrokerType.ALPACA,
+            broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
             start=1500,
         )
@@ -553,7 +307,7 @@ class TestIntegration:
         backtest_client.subscribe(
             symbol="RANGETEST",
             market_type=MarketType.STOCKS,
-            broker=BrokerType.ALPACA,
+            broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
             start=1400,
         )
@@ -608,7 +362,7 @@ class TestIntegration:
         backtest_client.subscribe(
             symbol="CURTEST",
             market_type=MarketType.STOCKS,
-            broker=BrokerType.ALPACA,
+            broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
         )
 

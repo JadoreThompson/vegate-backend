@@ -30,7 +30,6 @@ dependencies = [
     "pyyaml>=6.0.3",
     "redis>=7.0.1",
     "sqlalchemy>=2.0.44",
-    "stripe>=14.0.1",
     "uvicorn>=0.37.0",
     "websockets>=15.0.1",
 ]

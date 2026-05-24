@@ -11,6 +11,6 @@ ohlc_feed:
   #   timeframes: ["1m"]
   - symbol: SOL/USD
     market_type: crypto
-    start_date: 2026-05-10
+    start_date: 2026-05-22
     broker: alpaca
     timeframes: ["1m"]

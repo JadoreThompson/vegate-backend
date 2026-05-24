@@ -2,11 +2,10 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from module.broker.enums import BrokerType, OrderStatus
+from module.broker.enums import OrderStatus
 from module.deployment.enums import StrategyDeploymentStatus
-from module.markets.enums import MarketType, Timeframe
 from core.schema import CustomBaseModel
 
 
@@ -15,12 +14,6 @@ class CreateDeploymentRequest(BaseModel):
 
     strategy_id: UUID
     broker_connection_id: UUID
-    symbol: str = Field(min_length=1, max_length=10)
-    timeframe: Timeframe
-    market_type: MarketType
-    # Where to pull data from
-    broker_type: BrokerType
-
 
 class CreateStrategyDeploymentResponse(CustomBaseModel):
     id: UUID
@@ -38,8 +31,6 @@ class StrategyDeploymentResponse(CustomBaseModel):
     id: UUID
     strategy_id: UUID
     broker_connection_id: UUID
-    symbol: str
-    timeframe: Timeframe
     status: StrategyDeploymentStatus
     error_message: str | None
     created_at: datetime

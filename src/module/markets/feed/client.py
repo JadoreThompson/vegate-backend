@@ -92,7 +92,7 @@ class OHLCFeedClient:
         self,
         symbol: str,
         market_type: MarketType,
-        broker: BrokerType,
+        broker_type: BrokerType,
         timeframe: Timeframe,
         start: int | None = None,
     ) -> None:
@@ -100,7 +100,7 @@ class OHLCFeedClient:
             "type": "subscribe",
             "symbol": symbol,
             "market_type": market_type.value,
-            "broker": broker.value,
+            "broker_type": broker_type.value,
             "timeframe": timeframe.value,
             "start": start,
         }
@@ -114,7 +114,7 @@ class OHLCFeedClient:
             "Subscribed: %s / %s / %s / %s start=%s",
             symbol,
             market_type,
-            broker,
+            broker_type,
             timeframe,
             start,
         )
@@ -297,7 +297,6 @@ class OHLCFeedClient:
                 low=float(candle_data["low"]),
                 close=float(candle_data["close"]),
                 volume=float(candle_data.get("volume", 0.0)),
-                # timestamp=timestamp,
                 timestamp=ts,
                 timeframe=Timeframe(candle_data["timeframe"]),
                 symbol=candle_data["symbol"],

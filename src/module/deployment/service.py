@@ -43,18 +43,8 @@ class DeploymentsService:
     async def create(
         self, request: CreateDeploymentRequest, db_sess: AsyncSession
     ) -> StrategyDeployments:
-        info = await self._markets_service.get_symbol_info(
-            request.symbol,
-            request.market_type,
-            request.broker_type,
-            request.timeframe,
-            db_sess,
-        )
-
         deployment = StrategyDeployments(
             strategy_id=request.strategy_id,
-            instrument_id=info.id,
-            timeframe=request.timeframe,
             broker_connection_id=request.broker_connection_id,
         )
 
@@ -97,9 +87,7 @@ class DeploymentsService:
     ):
         deployment = await self._get_user_deployment(deployment_id, user_id, db_sess)
         metrics = deployment.metrics
-        instrument = await db_sess.get(Instrument, deployment.instrument_id)
-
-        return self.to_response(deployment, instrument, metrics)
+        return self.to_response(deployment, metrics)
 
     async def get_all(
         self,
@@ -111,9 +99,8 @@ class DeploymentsService:
         status: list[StrategyDeploymentStatus] | None = None,
     ):
         stmt = (
-            select(StrategyDeployments, StrategyDeploymentMetrics, Instrument)
-            .join(Instrument, Instrument.id == StrategyDeployments.instrument_id)
-            .join(Strategy)
+            select(StrategyDeployments, StrategyDeploymentMetrics)
+            .join(Strategy, Strategy.strategy_id == StrategyDeployments.strategy_id)
             .outerjoin(StrategyDeploymentMetrics)
             .where(Strategy.user_id == user_id)
         )
@@ -135,8 +122,8 @@ class DeploymentsService:
             size=min(limit, len(rows)),
             has_next=len(rows) >= limit,
             data=[
-                self.to_response(deployment, instrument, metrics)
-                for deployment, metrics, instrument in rows[:limit]
+                self.to_response(deployment, metrics)
+                for deployment, metrics in rows[:limit]
             ],
         )
 
@@ -144,8 +131,7 @@ class DeploymentsService:
         self, strategy_id: UUID, db_sess: AsyncSession, *, page: int, limit: int
     ):
         res = await db_sess.execute(
-            select(StrategyDeployments, StrategyDeploymentMetrics, Instrument)
-            .join(Instrument, Instrument.id == StrategyDeployments.instrument_id)
+            select(StrategyDeployments, StrategyDeploymentMetrics)
             .join(Strategy, StrategyDeployments.strategy_id == Strategy.strategy_id)
             .outerjoin(
                 StrategyDeploymentMetrics,
@@ -165,8 +151,8 @@ class DeploymentsService:
             size=min(limit, len(rows)),
             has_next=len(rows) >= limit,
             data=[
-                self.to_response(deployment, instrument, metrics)
-                for deployment, metrics, instrument in rows[:limit]
+                self.to_response(deployment, metrics)
+                for deployment, metrics in rows[:limit]
             ],
         )
 
@@ -264,15 +250,12 @@ class DeploymentsService:
     def to_response(
         self,
         deployment: StrategyDeployments,
-        instrument: Instrument,
         metrics: StrategyDeploymentMetrics | None = None,
     ):
         return StrategyDeploymentResponse(
             id=deployment.deployment_id,
             strategy_id=deployment.strategy_id,
             broker_connection_id=deployment.broker_connection_id,
-            symbol=instrument.symbol,
-            timeframe=deployment.timeframe,
             status=StrategyDeploymentStatus(deployment.status),
             error_message=deployment.error_message,
             created_at=deployment.created_at,

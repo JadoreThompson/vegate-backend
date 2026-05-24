@@ -136,35 +136,6 @@ def mock_session(mock_broker_client):
     return Session(deployment_id=deployment_id, broker_client=mock_broker_client)
 
 
-# class TestSession:
-#     """Unit tests for Session dataclass."""
-
-#     def test_session_init(self):
-#         deployment_id = uuid4()
-#         broker_client = MagicMock(spec=BrokerClient)
-#         session = Session(deployment_id=deployment_id, broker_client=broker_client)
-
-#         assert session.deployment_id == deployment_id
-#         assert session.broker_client == broker_client
-
-
-# class TestOMSServiceInit:
-#     """Unit tests for OMSService initialization."""
-
-#     def test_init_sets_redis(self, oms_service, mock_redis):
-#         assert oms_service._redis_client == mock_redis
-
-#     def test_init_sets_event_publisher(self, oms_service, mock_event_publisher):
-#         assert oms_service._event_publisher == mock_event_publisher
-
-#     def test_init_empty_broker_clients(self, oms_service):
-#         assert oms_service._broker_clients == {}
-
-#     def test_init_logger(self, oms_service):
-#         assert oms_service._logger is not None
-#         assert oms_service._logger.name == "OMSService"
-
-
 class TestCreateSession:
     """Unit tests for create_session."""
 

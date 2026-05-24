@@ -47,12 +47,10 @@ class BaseStrategy(ABC):
 
     def __init__(
         self,
-        config: StrategyConfig,
         ohlc_feed_client: OHLCFeedClient,
         oms_client: "OMSClient",
         event_publisher: SyncEventPublisher,
     ):
-        self.config = config
         self.ohlc_feed_client = ohlc_feed_client
         self.oms_client = oms_client
         self.event_publisher = event_publisher

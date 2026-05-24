@@ -26,13 +26,13 @@ class SocketConnection:
         writer: asyncio.StreamWriter,
         symbol: str,
         market_type: MarketType,
-        broker: BrokerType,
+        broker_type: BrokerType,
         timeframe: Timeframe,
     ):
         self.writer = writer
         self.symbol = symbol
         self.market_type = market_type
-        self.broker = broker
+        self.broker_type = broker_type
         self.timeframe = timeframe
 
         # Replay state - None once bootstrapped into live stream
@@ -69,7 +69,7 @@ class SocketConnection:
             "SocketConnection("
             f"symbol={self.symbol!r}, "
             f"market_type={self.market_type!r}, "
-            f"broker={self.broker!r}, "
+            f"broker_type={self.broker_type!r}, "
             f"timeframe={self.timeframe!r}, "
             f"addr={self.addr!r}"
             ")"
@@ -106,6 +106,7 @@ class OHLCFeedServer:
         """
         for feed in feeds:
             feed.set_on_candle(self.handle_candle)
+            await feed_manager.register(feed)
             self._logger.info(
                 "Registered feed '%s' (%s / %s / %s)",
                 feed.name,
@@ -192,7 +193,9 @@ class OHLCFeedServer:
 
                 elif msg_type == "replay_ack":
                     if conn is None:
-                        writer.write(self._err("Must subscribe before sending replay_ack"))
+                        writer.write(
+                            self._err("Must subscribe before sending replay_ack")
+                        )
                         await writer.drain()
                         continue
                     await self._handle_replay_ack(conn)
@@ -213,7 +216,7 @@ class OHLCFeedServer:
         finally:
             # Remove from live set if bootstrapped
             if conn is not None:
-                self._live_conns[conn.symbol][conn.market_type][conn.broker][
+                self._live_conns[conn.symbol][conn.market_type][conn.broker_type][
                     conn.timeframe
                 ].discard(conn)
             try:
@@ -233,7 +236,7 @@ class OHLCFeedServer:
         try:
             symbol: str = payload["symbol"]
             market_type = MarketType(payload["market_type"])
-            broker = BrokerType(payload["broker"])
+            broker_type = BrokerType(payload["broker_type"])
             timeframe = Timeframe(payload["timeframe"])
         except (KeyError, ValueError) as exc:
             writer.write(self._err(f"Bad subscribe payload: {exc}"))
@@ -241,6 +244,7 @@ class OHLCFeedServer:
             return None
 
         if symbol not in feed_manager.get_symbols():
+            print(feed_manager.get_symbols())
             writer.write(self._err(f"'{symbol}' is not supported"))
             await writer.drain()
             return None
@@ -254,20 +258,22 @@ class OHLCFeedServer:
             await writer.drain()
             return None
 
-        if broker not in feed_manager.get_brokers(symbol, market_type):
+        if broker_type not in feed_manager.get_brokers(symbol, market_type):
             writer.write(
                 self._err(
-                    f"Broker '{broker}' for market type '{market_type}' "
+                    f"Broker '{broker_type}' for market type '{market_type}' "
                     f"for symbol '{symbol}' is not supported"
                 )
             )
             await writer.drain()
             return None
 
-        if timeframe not in feed_manager.get_timeframes(symbol, market_type, broker):
+        if timeframe not in feed_manager.get_timeframes(
+            symbol, market_type, broker_type
+        ):
             writer.write(
                 self._err(
-                    f"Timeframe '{timeframe}' for broker '{broker}' "
+                    f"Timeframe '{timeframe}' for broker '{broker_type}' "
                     f"for market type '{market_type}' "
                     f"for symbol '{symbol}' is not supported"
                 )
@@ -279,7 +285,7 @@ class OHLCFeedServer:
             writer=writer,
             symbol=symbol,
             market_type=market_type,
-            broker=broker,
+            broker_type=broker_type,
             timeframe=timeframe,
         )
 
@@ -336,7 +342,7 @@ class OHLCFeedServer:
         await conn.send(self._candle_payload(candle=candle, is_live=False))
 
     def _register_live(self, conn: SocketConnection) -> None:
-        self._live_conns[conn.symbol][conn.market_type][conn.broker][
+        self._live_conns[conn.symbol][conn.market_type][conn.broker_type][
             conn.timeframe
         ].add(conn)
         self._logger.info(
@@ -344,7 +350,7 @@ class OHLCFeedServer:
             conn.addr,
             conn.symbol,
             conn.market_type,
-            conn.broker,
+            conn.broker_type,
             conn.timeframe,
         )
 
@@ -354,7 +360,7 @@ class OHLCFeedServer:
             .where(
                 Instrument.symbol == conn.symbol,
                 Instrument.market_type == conn.market_type,
-                Instrument.broker_type == conn.broker,
+                Instrument.broker_type == conn.broker_type,
             )
             .subquery()
         )

@@ -4,21 +4,16 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from module.broker.enums import BrokerType, OrderStatus
-from module.markets.enums import MarketType, Timeframe
+from module.broker.enums import OrderStatus
 from .enums import BacktestStatus
 from core.schema import CustomBaseModel
 
 
 class CreateBacktestRequest(BaseModel):
     strategy_id: UUID
-    symbol: str = Field(min_length=1, max_length=10)
-    broker: BrokerType
-    market_type: MarketType
     starting_balance: int = Field(gt=0, le=100_000)
     start_date: datetime
     end_date: datetime
-    timeframe: Timeframe
 
 
 class CreateBacktestResponse(BaseModel):
@@ -45,9 +40,6 @@ class BacktestMetricsSchema(BaseModel):
 class BacktestResponse(CustomBaseModel):
     id: UUID
     strategy_id: UUID
-    symbol: str
-    broker: BrokerType
-    market_type: MarketType
     starting_balance: float
     start_date: date
     end_date: date

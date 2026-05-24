@@ -7,22 +7,15 @@ from uuid import UUID
 from redis import Redis
 from sqlalchemy import select
 
-from config import (
-    REDIS_STRATEGY_DEPLOYMENT_HEARTBEAT_KEY_PREFIX,
-    SRC_PATH,
-    STRATEGY_DEPLOYMENT_EVENTS_KEY,
-)
+from config import REDIS_STRATEGY_DEPLOYMENT_HEARTBEAT_KEY_PREFIX, SRC_PATH
 from core.db import get_db_sess_sync
-from module.broker.enums import BrokerType
 from module.deployment.enums import StrategyDeploymentStatus
-from module.markets.enums import MarketType, Timeframe
-# from module.deployment.oms import OMSClient
+
 from .oms import OMSClient
 from module.event_bus import SyncEventPublisher
-from module.markets.model import Instrument
 from module.markets.feed import OHLCFeedClient
 from module.strategy.model import Strategy
-from module.strategy.strategy import StrategyConfig
+from module.strategy.strategy import BaseStrategy, StrategyConfig
 from .event import DeploymentStatusChangedEvent
 from .model import StrategyDeployments
 
@@ -57,42 +50,51 @@ class StrategyDeploymentService:
     def setup(self):
         with get_db_sess_sync() as db_sess:
             res = db_sess.execute(
-                select(StrategyDeployments, Strategy, Instrument)
-                .join(Instrument, Instrument.id == StrategyDeployments.instrument_id)
+                # select(StrategyDeployments, Strategy, Instrument)
+                select(StrategyDeployments, Strategy)
+                # .join(Instrument, Instrument.id == StrategyDeployments.instrument_id)
                 .join(
                     Strategy,
                     StrategyDeployments.strategy_id == Strategy.strategy_id,
-                )
-                .where(StrategyDeployments.deployment_id == self._deployment_id)
+                ).where(StrategyDeployments.deployment_id == self._deployment_id)
             )
-            data: tuple[StrategyDeployments, Strategy, Instrument] = res.first()
+            # data: tuple[StrategyDeployments, Strategy, Instrument] = res.first()
+            data: tuple[StrategyDeployments, Strategy] = res.first()
             if data is None:
                 raise ValueError(
                     f"Deployment with id '{self._deployment_id}' not found"
                 )
 
-        deployment, strategy, instrument = data
+        # deployment, strategy, instrument = data
+        deployment, strategy = data
         if deployment is None:
             raise ValueError(f"Deployment with id '{self._deployment_id}' not found")
 
-        strategy_config = StrategyConfig(
-            symbol=instrument.native_symbol,
-            market_type=MarketType(instrument.market_type),
-            broker_type=BrokerType(instrument.broker_type),
-            timeframe=Timeframe(deployment.timeframe),
-        )
+        # strategy_config = StrategyConfig(
+        #     symbol=instrument.native_symbol,
+        #     market_type=MarketType(instrument.market_type),
+        #     broker_type=BrokerType(instrument.broker_type),
+        #     timeframe=Timeframe(deployment.timeframe),
+        # )
         self._write_code(strategy.code)
-        self._strategy = self._load_strategy(strategy_config)
+        # self._strategy = self._load_strategy(strategy_config)
+        self._strategy = self._load_strategy()
 
     def run(self) -> None:
         try:
             self._alive = True
+            # self._event_publisher.enqueue(
+            #     DeploymentStatusChangedEvent(
+            #         deployment_id=self._deployment_id,
+            #         status=StrategyDeploymentStatus.RUNNING,
+            #     ),
+            #     STRATEGY_DEPLOYMENT_EVENTS_KEY,
+            # )
             self._event_publisher.enqueue(
                 DeploymentStatusChangedEvent(
                     deployment_id=self._deployment_id,
                     status=StrategyDeploymentStatus.RUNNING,
-                ),
-                STRATEGY_DEPLOYMENT_EVENTS_KEY,
+                )
             )
             self._heartbeat_th = Thread(
                 target=self._heartbeat_loop, name="HeartbeatLoop"
@@ -101,7 +103,6 @@ class StrategyDeploymentService:
 
             self._ohlc_feed_client.connect()
             self._oms_client.create_session(self._deployment_id)
-            self._oms_client.connect()
 
             self._strategy.startup()
             for candle in self._ohlc_feed_client.candles():
@@ -110,12 +111,18 @@ class StrategyDeploymentService:
             pass
         finally:
             self._alive = False
+            # self._event_publisher.enqueue(
+            #     DeploymentStatusChangedEvent(
+            #         deployment_id=self._deployment_id,
+            #         status=StrategyDeploymentStatus.STOPPED,
+            #     ),
+            #     STRATEGY_DEPLOYMENT_EVENTS_KEY,
+            # )
             self._event_publisher.enqueue(
                 DeploymentStatusChangedEvent(
                     deployment_id=self._deployment_id,
                     status=StrategyDeploymentStatus.STOPPED,
-                ),
-                STRATEGY_DEPLOYMENT_EVENTS_KEY,
+                )
             )
 
             if self._heartbeat_th is not None and self._heartbeat_th.is_alive():
@@ -133,14 +140,15 @@ class StrategyDeploymentService:
             f.write(code)
         self._logger.info(f"Strategy code written to {self._fpath}")
 
-    def _load_strategy(self, config: StrategyConfig):
+    # def _load_strategy(self, config: StrategyConfig):
+    def _load_strategy(self) -> BaseStrategy:
         if not os.path.exists(self._fpath):
             raise FileNotFoundError(f"File not found at '{self._fpath}'")
 
         from user_strategy import UserStrategy
 
         strategy = UserStrategy(
-            config=config,
+            # config=config,
             ohlc_feed_client=self._ohlc_feed_client,
             oms_client=self._oms_client,
             event_publisher=self._event_publisher,

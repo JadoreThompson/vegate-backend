@@ -33,7 +33,7 @@ from module.deployment.event.deserialiser import DeploymentEventDeserialiser
 from module.deployment.event.relay import DeploymentEventRelay
 from module.deployment.executor import ProcessDeploymentExecutor
 from module.deployment.router import router as deployment_router
-from module.email.brevo import BrevoEmailService
+from module.email import BrevoEmailService
 from module.jwt import JWTService, JWTException
 from module.markets import MarketsService
 from module.markets.exception import SymbolNotFoundException
@@ -83,13 +83,6 @@ async def lifespan(app: FastAPI):
         broker_connections_service=broker_connections_service,
     )
     object_registry.register(deployment_service)
-
-    deployments_service = DeploymentsService(
-        markets_service=MarketsService(),
-        deployment_executor=deployment_service,
-        broker_connections_service=broker_connections_service,
-    )
-    object_registry.register(deployments_service)
 
     event_relay = DeploymentEventRelay(deserialiser=DeploymentEventDeserialiser())
     task = asyncio.create_task(event_relay.run())

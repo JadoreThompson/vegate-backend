@@ -1,33 +1,21 @@
 from uuid import UUID
+from warnings import deprecated
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# from api.models import PaginatedResponse
-# from api.routes.strategy.agents.code_review import code_review_agent, CodeReviewOutput
-# from api.routes.strategy.agents.strategy import strategy_gen_agent, StrategyGenOutput
-# from api.routes.strategy.exception import (
-#     StrategyGenerationError,
-#     StrategyValidationException,
-#     StrategyNotFoundException,
-# )
-# from api.routes.strategy.models import (
-#     CreateStrategyRequest,
-#     UpdateStrategyRequest,
-#     StrategyResponse,
-# )
-# from infra.db.model import Strategy
 from module.api.schema import PaginatedResponse
 from .agents import code_review_agent, strategy_gen_agent
 from .agents.code_review import CodeReviewOutput
 from .agents.strategy_gen import StrategyGenOutput
-from .exception import StrategyGenerationError, StrategyValidationException, StrategyNotFoundException
-from .model import Strategy
-from .schema import (
-    CreateStrategyRequest,
-    UpdateStrategyRequest,
-    StrategyResponse
+from .exception import (
+    StrategyGenerationError,
+    StrategyValidationException,
+    StrategyNotFoundException,
 )
+from .model import Strategy
+from .schema import CreateStrategyRequest, UpdateStrategyRequest, StrategyResponse
+
 
 class StrategyService:
 
@@ -37,27 +25,22 @@ class StrategyService:
     async def create(
         self, request: CreateStrategyRequest, user_id: UUID, db_sess: AsyncSession
     ) -> Strategy:
-        strategy_details = await self._generate_strategy_code(request.description)
-        await self._validate_strategy_code(strategy_details.code)
-        
-        # strategy_details = StrategyGenOutput(
-        #     name="Test Strategy",
-        #     description="A test strategy",
-        #     code="# print('Hello world')",
-        # )
-
         new_strategy = Strategy(
             user_id=user_id,
-            name=strategy_details.name,
-            description=strategy_details.description,
-            code=strategy_details.code,
-            prompt=request.description,
+            name=request.name,
+            description=request.description,
         )
+
         db_sess.add(new_strategy)
+
         await db_sess.flush()
         await db_sess.refresh(new_strategy)
+
         return new_strategy
 
+    @deprecated(
+        "Strategy code is no longer generated. It's uploaded and editied by the user"
+    )
     async def _generate_strategy_code(self, description: str) -> StrategyGenOutput:
         result = await strategy_gen_agent.run(description)
         output: StrategyGenOutput = result.output
@@ -122,7 +105,6 @@ class StrategyService:
             has_next=len(strategies) > limit,
             data=strategies[:limit],
         )
-
 
     async def update(
         self,

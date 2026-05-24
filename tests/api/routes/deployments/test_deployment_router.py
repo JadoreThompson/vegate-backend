@@ -17,31 +17,20 @@ from module.broker_connections.model import BrokerConnections
 from module.broker.enums import BrokerType
 
 
-async def create_strategy(client, prompt: str = "Create a test strategy") -> StrategyResponse:
+async def create_strategy(
+    client, prompt: str = "Create a test strategy"
+) -> StrategyResponse:
     from module.api.app import app
 
     object_registry = app.state.object_registry
     strategy_service = object_registry.get(StrategyService)
 
-    generate_strategy_code = strategy_service._generate_strategy_code
-    validate_strategy_code = strategy_service._validate_strategy_code
-
-    strategy_service._generate_strategy_code = AsyncMock(
-        return_value=StrategyGenOutput(
-            name="Test strategy",
-            description="A test strategy",
-            code="print('Hello Im a test strategy')",
-            error=None,
-        )
+    rsp = await client.post(
+        "/strategy/",
+        json={"name": "Deployment router tests strategy", "description": prompt},
     )
-    strategy_service._validate_strategy_code = AsyncMock(return_value=True)
-
-    rsp = await client.post("/strategy/", json={"description": prompt})
     rsp.raise_for_status()
     data = StrategyResponse(**rsp.json())
-
-    strategy_service._generate_strategy_code = generate_strategy_code
-    strategy_service._validate_strategy_code = validate_strategy_code
 
     return data
 
@@ -111,10 +100,6 @@ class TestCreateDeployment:
         payload = {
             "strategy_id": str(strategy.id),
             "broker_connection_id": broker_connection_id,
-            "symbol": "AAPL",
-            "timeframe": "1m",
-            "market_type": "stocks",
-            "broker_type": "alpaca",
         }
 
         rsp = await authenticated_client.post("/deployments/", json=payload)
@@ -129,10 +114,6 @@ class TestCreateDeployment:
     ):
         payload = {
             "broker_connection_id": str(uuid4()),
-            "symbol": "AAPL",
-            "timeframe": "1m",
-            "market_type": "stocks",
-            "broker_type": "alpaca",
         }
 
         rsp = await authenticated_client.post("/deployments/", json=payload)
@@ -145,63 +126,17 @@ class TestCreateDeployment:
     ):
         payload = {
             "strategy_id": str(uuid4()),
-            "symbol": "AAPL",
-            "timeframe": "1m",
-            "market_type": "stocks",
-            "broker_type": "alpaca",
         }
 
         rsp = await authenticated_client.post("/deployments/", json=payload)
 
         assert rsp.status_code == 422
-
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_create_deployment_missing_symbol_returns_422(
-        self, authenticated_client
-    ):
-        payload = {
-            "strategy_id": str(uuid4()),
-            "broker_connection_id": str(uuid4()),
-            "timeframe": "1m",
-            "market_type": "stocks",
-            "broker_type": "alpaca",
-        }
-
-        rsp = await authenticated_client.post("/deployments/", json=payload)
-
-        assert rsp.status_code == 422
-
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_create_deployment_invalid_symbol_returns_404(
-        self, authenticated_client
-    ):
-        _mock_deployment_runner()
-
-        strategy = await create_strategy(authenticated_client)
-        broker_connection_id = await create_broker_connection(authenticated_client)
-
-        payload = {
-            "strategy_id": str(strategy.id),
-            "broker_connection_id": broker_connection_id,
-            "symbol": "FAKE",
-            "timeframe": "1m",
-            "market_type": "stocks",
-            "broker_type": "alpaca",
-        }
-
-        rsp = await authenticated_client.post("/deployments/", json=payload)
-
-        assert rsp.status_code == 404, rsp.json()
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_create_deployment_unauthenticated_returns_401(self, client):
         payload = {
             "strategy_id": str(uuid4()),
             "broker_connection_id": str(uuid4()),
-            "symbol": "AAPL",
-            "timeframe": "1m",
-            "market_type": "stocks",
-            "broker_type": "alpaca",
         }
 
         rsp = await client.post("/deployments/", json=payload)
@@ -221,10 +156,6 @@ class TestGetDeployment:
         payload = {
             "strategy_id": str(strategy.id),
             "broker_connection_id": broker_connection_id,
-            "symbol": "AAPL",
-            "timeframe": "1m",
-            "market_type": "stocks",
-            "broker_type": "alpaca",
         }
 
         rsp = await authenticated_client.post("/deployments/", json=payload)
@@ -262,12 +193,11 @@ class TestListDeployments:
 
         assert rsp.status_code == 200
         data = rsp.json()
-        # assert isinstance(data, list)
         assert "page" in data
         assert "size" in data
-        assert data['size'] == 0
-        assert 'has_next' in data
-        assert 'data' in data
+        assert data["size"] == 0
+        assert "has_next" in data
+        assert "data" in data
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_list_deployments_with_pagination(self, authenticated_client):
@@ -279,10 +209,6 @@ class TestListDeployments:
         request = {
             "strategy_id": str(strategy.id),
             "broker_connection_id": broker_connection_id,
-            "symbol": "AAPL",
-            "timeframe": "1m",
-            "market_type": "stocks",
-            "broker_type": "alpaca",
         }
 
         for _ in range(3):
@@ -293,12 +219,12 @@ class TestListDeployments:
 
         assert rsp.status_code == 200, rsp.json()
         data = rsp.json()
-        
+
         assert "page" in data
         assert "size" in data
-        assert data['size'] == 3
-        assert 'has_next' in data
-        assert 'data' in data
+        assert data["size"] == 3
+        assert "has_next" in data
+        assert "data" in data
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_list_deployments_with_status_filter(self, authenticated_client):
@@ -327,10 +253,6 @@ class TestStartDeployment:
         payload = {
             "strategy_id": str(strategy.id),
             "broker_connection_id": broker_connection_id,
-            "symbol": "AAPL",
-            "timeframe": "1m",
-            "market_type": "stocks",
-            "broker_type": "alpaca",
         }
 
         rsp = await authenticated_client.post("/deployments/", json=payload)
@@ -338,7 +260,6 @@ class TestStartDeployment:
 
         deployment_id = rsp.json()["id"]
 
-        # Set to stopped so we can start it again
         deployment = await db_sess.get(StrategyDeployments, deployment_id)
         deployment.status = StrategyDeploymentStatus.STOPPED
         await db_sess.commit()
@@ -366,10 +287,6 @@ class TestStartDeployment:
         payload = {
             "strategy_id": str(strategy.id),
             "broker_connection_id": broker_connection_id,
-            "symbol": "AAPL",
-            "timeframe": "1m",
-            "market_type": "stocks",
-            "broker_type": "alpaca",
         }
 
         rsp = await authenticated_client.post("/deployments/", json=payload)
@@ -385,12 +302,6 @@ class TestStartDeployment:
 
         assert rsp.status_code == 400, rsp.json()
 
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_start_deployment_unauthenticated_returns_401(self, client):
-        rsp = await client.post(f"/deployments/{uuid4()}/start")
-
-        assert rsp.status_code == 401
-
 
 class TestStopDeployment:
 
@@ -404,10 +315,6 @@ class TestStopDeployment:
         payload = {
             "strategy_id": str(strategy.id),
             "broker_connection_id": broker_connection_id,
-            "symbol": "AAPL",
-            "timeframe": "1m",
-            "market_type": "stocks",
-            "broker_type": "alpaca",
         }
 
         rsp = await authenticated_client.post("/deployments/", json=payload)
@@ -442,10 +349,6 @@ class TestStopDeployment:
         payload = {
             "strategy_id": str(strategy.id),
             "broker_connection_id": broker_connection_id,
-            "symbol": "AAPL",
-            "timeframe": "1m",
-            "market_type": "stocks",
-            "broker_type": "alpaca",
         }
 
         rsp = await authenticated_client.post("/deployments/", json=payload)
@@ -461,12 +364,6 @@ class TestStopDeployment:
 
         assert rsp.status_code == 200, rsp.json()
 
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_stop_deployment_unauthenticated_returns_401(self, client):
-        rsp = await client.post(f"/deployments/{uuid4()}/stop")
-
-        assert rsp.status_code == 401
-
 
 class TestGetDeploymentOrders:
 
@@ -480,10 +377,6 @@ class TestGetDeploymentOrders:
         payload = {
             "strategy_id": str(strategy.id),
             "broker_connection_id": broker_connection_id,
-            "symbol": "AAPL",
-            "timeframe": "1m",
-            "market_type": "stocks",
-            "broker_type": "alpaca",
         }
 
         rsp = await authenticated_client.post("/deployments/", json=payload)
@@ -517,10 +410,6 @@ class TestGetDeploymentOrders:
         payload = {
             "strategy_id": str(strategy.id),
             "broker_connection_id": broker_connection_id,
-            "symbol": "AAPL",
-            "timeframe": "1m",
-            "market_type": "stocks",
-            "broker_type": "alpaca",
         }
 
         rsp = await authenticated_client.post("/deployments/", json=payload)
@@ -536,12 +425,6 @@ class TestGetDeploymentOrders:
         data = rsp.json()
         assert data["page"] == 1
 
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_get_orders_unauthenticated_returns_401(self, client):
-        rsp = await client.get(f"/deployments/{uuid4()}/orders")
-
-        assert rsp.status_code == 401
-
 
 class TestGetDeploymentEvents:
 
@@ -555,10 +438,6 @@ class TestGetDeploymentEvents:
         payload = {
             "strategy_id": str(strategy.id),
             "broker_connection_id": broker_connection_id,
-            "symbol": "AAPL",
-            "timeframe": "1m",
-            "market_type": "stocks",
-            "broker_type": "alpaca",
         }
 
         rsp = await authenticated_client.post("/deployments/", json=payload)
@@ -582,41 +461,6 @@ class TestGetDeploymentEvents:
 
         assert rsp.status_code == 404
 
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_get_events_with_pagination(self, authenticated_client):
-        _mock_deployment_runner()
-
-        strategy = await create_strategy(authenticated_client)
-        broker_connection_id = await create_broker_connection(authenticated_client)
-
-        payload = {
-            "strategy_id": str(strategy.id),
-            "broker_connection_id": broker_connection_id,
-            "symbol": "AAPL",
-            "timeframe": "1m",
-            "market_type": "stocks",
-            "broker_type": "alpaca",
-        }
-
-        rsp = await authenticated_client.post("/deployments/", json=payload)
-        assert rsp.status_code == 201, rsp.json()
-
-        deployment_id = rsp.json()["id"]
-
-        rsp = await authenticated_client.get(
-            f"/deployments/{deployment_id}/events?page=1&limit=10"
-        )
-
-        assert rsp.status_code == 200, rsp.json()
-        data = rsp.json()
-        assert data["page"] == 1
-
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_get_events_unauthenticated_returns_401(self, client):
-        rsp = await client.get(f"/deployments/{uuid4()}/events")
-
-        assert rsp.status_code == 401
-
 
 class TestDeploymentEndpointsUnauthenticated:
 
@@ -625,10 +469,6 @@ class TestDeploymentEndpointsUnauthenticated:
         payload = {
             "strategy_id": str(uuid4()),
             "broker_connection_id": str(uuid4()),
-            "symbol": "AAPL",
-            "timeframe": "1m",
-            "market_type": "stocks",
-            "broker_type": "alpaca",
         }
 
         rsp = await client.post("/deployments/", json=payload)

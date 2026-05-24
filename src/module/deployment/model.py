@@ -40,12 +40,6 @@ class StrategyDeployments(Base):
         ForeignKey("broker_connections.connection_id", ondelete="CASCADE"),
         nullable=False,
     )
-    timeframe: Mapped[Timeframe] = mapped_column(String, nullable=False)
-    instrument_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("instruments.id", ondelete="CASCADE"),
-        nullable=False,
-    )
     status: Mapped[StrategyDeploymentStatus] = mapped_column(
         String,
         nullable=False,

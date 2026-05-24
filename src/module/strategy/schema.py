@@ -7,7 +7,8 @@ from core.schema import CustomBaseModel
 
 
 class CreateStrategyRequest(BaseModel):
-    description: str
+    name: str
+    description: str | None = None
 
 
 class UpdateStrategyRequest(BaseModel):
@@ -18,12 +19,11 @@ class UpdateStrategyRequest(BaseModel):
 class StrategyResponse(CustomBaseModel):
     id: UUID
     name: str
-    description: str
-    prompt: str
+    description: str | None = None
+    prompt: str | None = None
     created_at: datetime
     updated_at: datetime
-    code: str
-    prompt: str
+    code: str | None = None
 
 
 class StrategyCodeResponse(CustomBaseModel):

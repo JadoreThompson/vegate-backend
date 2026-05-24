@@ -120,7 +120,6 @@ def loader_run(
         asyncio.run(run())
         click.echo("Data loaded successfully")
     except KeyboardInterrupt:
-        click.echo("\nLoader stopped by user")
         sys.exit(0)
     except Exception as e:
         click.echo(f"Error loading data: {e}", err=True)

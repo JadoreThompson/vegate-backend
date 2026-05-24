@@ -1,3 +1,4 @@
+import logging
 from sqlalchemy import update
 from sqlalchemy.dialects.postgresql import insert
 
@@ -15,6 +16,7 @@ class EventConsumerService:
     def __init__(self, deserialiser: DeploymentEventDeserialiser):
         self._deserialiser = deserialiser
         self._kafka_consumer: AsyncKafkaConsumer | None = None
+        self._logger = logging.getLogger(self.__class__.__name__)
 
     async def stop(self):
         if self._kafka_consumer:
@@ -37,17 +39,11 @@ class EventConsumerService:
 
     async def _persist(self, event: DeploymentEventT) -> None:
         async with get_db_session() as session:
-            # stmt = (
-            #     insert(DeploymentEvent)
-            #     .values(
-            #         id=event.id,
-            #         deployment_id=event.deployment_id,
-            #         event_type=event.type,
-            #         payload=event.model_dump(mode="json"),
-            #         timestamp=event.timestamp,
-            #     )
-            #     .on_conflict_do_nothing(index_elements=["id"])
-            # )
+            deployment = await session.get(StrategyDeployments, event.deployment_id)
+            if deployment is None:
+                self._logger.info(f"Deployment with id '{event.deployment_id}' not found.")
+                return
+
             await session.execute(
                 insert(DeploymentEvent)
                 .values(

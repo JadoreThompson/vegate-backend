@@ -6,14 +6,14 @@ from typing import Any, Awaitable, Callable
 from uuid import UUID
 
 import websockets
-from sqlalchemy import insert
+from sqlalchemy import insert, select
 
 from core.db import get_db_session
 from module.broker.enums import BrokerType
 from .exception import AlpacaOHLCFeedException
 from ..base import OHLCFeed
 from ...enums import MarketType, Timeframe
-from ...model import OHLC
+from ...model import OHLC, Instrument
 from ...schema import OHLC as OHLCSchema
 
 
@@ -66,6 +66,7 @@ class AlpacaOHLCFeed(OHLCFeed):
 
     async def run(self) -> None:
         url = self._get_url()
+        self._instrument_id = await self._get_or_create_instrument_id()
 
         async with websockets.connect(url) as ws:
             await ws.send(
@@ -114,10 +115,31 @@ class AlpacaOHLCFeed(OHLCFeed):
             except asyncio.CancelledError:
                 pass
 
-    def _get_url(self):
-        if self._market_type == MarketType.CRYPTO:
-            return "wss://stream.data.alpaca.markets/v1beta3/crypto/eu-1"
-        return "wss://stream.data.alpaca.markets/v2/iex"
+    async def _get_or_create_instrument_id(self) -> UUID:
+        """Fetch existing instrument or create a new one."""
+        async with get_db_session() as db_sess:
+            instrument_id = await db_sess.scalar(
+                select(Instrument.id).where(
+                    Instrument.native_symbol == self._symbol,
+                    Instrument.market_type == self._market_type,
+                    Instrument.broker_type == BrokerType.ALPACA,
+                )
+            )
+            if instrument_id is not None:
+                return instrument_id
+
+            instrument_id = await db_sess.scalar(
+                insert(Instrument)
+                .values(
+                    symbol=self._format_symbol(self._symbol),
+                    native_symbol=self._symbol,
+                    market_type=self._market_type,
+                    broker_type=BrokerType.ALPACA,
+                )
+                .returning(Instrument.id)
+            )
+            await db_sess.commit()
+            return instrument_id
 
     async def _persist_candle(self, candle: OHLCSchema) -> None:
         async with get_db_session() as db_sess:
@@ -134,6 +156,14 @@ class AlpacaOHLCFeed(OHLCFeed):
                 )
             )
             await db_sess.commit()
+
+    def _get_url(self):
+        if self._market_type == MarketType.CRYPTO:
+            return "wss://stream.data.alpaca.markets/v1beta3/crypto/eu-1"
+        return "wss://stream.data.alpaca.markets/v2/iex"
+    
+    def _format_symbol(self, symbol: str) -> str:
+        return symbol.replace("/", "")
 
     def _generate_subscription_message(self) -> dict[str, Any]:
         payload = {"action": "subscribe"}

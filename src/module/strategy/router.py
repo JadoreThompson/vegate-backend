@@ -9,27 +9,14 @@ from module.backtest import BacktestsService
 from module.backtest.schema import BacktestResponse
 from module.deployment import DeploymentsService
 from module.deployment.schema import StrategyDeploymentResponse
-from .service import StrategyService
+from module.jwt import JWTPayload
 from .schema import (
     CreateStrategyRequest,
     StrategyCodeResponse,
     StrategyResponse,
     UpdateStrategyRequest,
 )
-
-# from api.routes.backtests.model import BacktestResponse
-# from api.routes.backtests.service import APIBacktestsService
-# from api.routes.deployments.models import StrategyDeploymentResponse
-# from api.routes.deployments.service import APIDeploymentsService
-# from api.routes.strategy.models import (
-#     CreateStrategyRequest,
-#     StrategyCodeResponse,
-#     StrategyResponse,
-#     UpdateStrategyRequest,
-# )
-# from api.routes.strategy.service import APIStrategyService
-# from api.types import JWTPayload
-from module.jwt import JWTPayload
+from .service import StrategyService
 
 router = APIRouter(prefix="/strategy", tags=["Strategy"])
 
@@ -150,6 +137,22 @@ async def update_strategy(
         created_at=strategy.created_at,
         updated_at=strategy.updated_at,
     )
+
+
+@router.put("/{strategy_id}/code")
+async def update_strategy_code(
+    strategy_id: UUID,
+    jwt: JWTPayload = Depends(depends_jwt()),
+    db_sess: AsyncSession = Depends(depends_db_sess),
+    strategy_service: StrategyService = Depends(depends_class(StrategyService)),
+    file: UploadFile = File(),
+):
+    if not file.filename.endswith(".py"):
+        raise HTTPException(status_code=400, detail="File must have a .py extension")
+
+    code = (await file.read()).decode()
+    strategy = await strategy_service.update_code(strategy_id, jwt.sub, code, db_sess)
+    await db_sess.commit()
 
 
 @router.get("/{strategy_id}/code", response_model=StrategyCodeResponse)
