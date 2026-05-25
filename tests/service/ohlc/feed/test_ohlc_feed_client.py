@@ -205,51 +205,90 @@ class TestSubscribe:
         client._socket = MagicMock(spec=socket.socket)
         client._socket.sendall = MagicMock()
 
-        client.subscribe(
-            symbol="AAPL",
-            market_type=MarketType.STOCKS,
-            broker_type=BrokerType.ALPACA,
-            timeframe=Timeframe.m1,
-        )
+        client.subscribe([
+            {
+                "symbol": "AAPL",
+                "market_type": MarketType.STOCKS,
+                "broker_type": BrokerType.ALPACA,
+                "timeframe": [Timeframe.m1],
+            },
+        ])
 
         assert client._subscribe_payload == {
             "type": "subscribe",
-            "symbol": "AAPL",
-            "market_type": "stocks",
-            "broker_type": "alpaca",
-            "timeframe": "1m",
+            "instruments": [
+                {
+                    "symbol": "AAPL",
+                    "market_type": "stocks",
+                    "broker_type": "alpaca",
+                    "timeframe": "1m",
+                },
+            ],
+        }
+
+    def test_subscribe_multiple_instruments(self, client):
+        client._socket = MagicMock(spec=socket.socket)
+        client._socket.sendall = MagicMock()
+
+        client.subscribe([
+            {
+                "symbol": "AAPL",
+                "market_type": MarketType.STOCKS,
+                "broker_type": BrokerType.ALPACA,
+                "timeframe": [Timeframe.m1, Timeframe.m5],
+            },
+            {
+                "symbol": "SOL/USD",
+                "market_type": MarketType.CRYPTO,
+                "broker_type": BrokerType.ALPACA,
+                "timeframe": [Timeframe.m1],
+            },
+        ])
+
+        assert client._subscribe_payload == {
+            "type": "subscribe",
+            "instruments": [
+                {"symbol": "AAPL", "market_type": "stocks", "broker_type": "alpaca", "timeframe": "1m"},
+                {"symbol": "AAPL", "market_type": "stocks", "broker_type": "alpaca", "timeframe": "5m"},
+                {"symbol": "SOL/USD", "market_type": "crypto", "broker_type": "alpaca", "timeframe": "1m"},
+            ],
         }
 
     def test_subscribe_sends_payload(self, client):
         client._socket = MagicMock(spec=socket.socket)
         client._socket.sendall = MagicMock()
 
-        client.subscribe(
-            symbol="AAPL",
-            market_type=MarketType.STOCKS,
-            broker_type=BrokerType.ALPACA,
-            timeframe=Timeframe.m1,
-        )
+        client.subscribe([
+            {
+                "symbol": "AAPL",
+                "market_type": MarketType.STOCKS,
+                "broker_type": BrokerType.ALPACA,
+                "timeframe": [Timeframe.m1],
+            },
+        ])
 
         client._socket.sendall.assert_called_once()
         sent = client._socket.sendall.call_args.args[0]
         data = json.loads(sent.decode().strip())
         assert data["type"] == "subscribe"
-        assert data["symbol"] == "AAPL"
+        assert data["instruments"][0]["symbol"] == "AAPL"
 
     def test_subscribe_logs(self, client, caplog):
         client._socket = MagicMock(spec=socket.socket)
         client._socket.sendall = MagicMock()
 
         with caplog.at_level(logging.INFO):
-            client.subscribe(
-                symbol="AAPL",
-                market_type=MarketType.STOCKS,
-                broker_type=BrokerType.ALPACA,
-                timeframe=Timeframe.m1,
-            )
+            client.subscribe([
+                {
+                    "symbol": "AAPL",
+                    "market_type": MarketType.STOCKS,
+                    "broker_type": BrokerType.ALPACA,
+                    "timeframe": [Timeframe.m1],
+                },
+            ])
 
-        assert "Subscribed: AAPL" in caplog.text
+        assert "Subscribed to" in caplog.text
+        assert "1" in caplog.text
 
 
 class TestSend:
@@ -663,12 +702,14 @@ class TestIntegration:
             mock_create.return_value = mock_sock
 
             client.connect()
-            client.subscribe(
-                symbol="AAPL",
-                market_type=MarketType.STOCKS,
-                broker_type=BrokerType.ALPACA,
-                timeframe=Timeframe.m1,
-            )
+            client.subscribe([
+                {
+                    "symbol": "AAPL",
+                    "market_type": MarketType.STOCKS,
+                    "broker_type": BrokerType.ALPACA,
+                    "timeframe": [Timeframe.m1],
+                },
+            ])
 
             # Simulate EOF after one candle
             mock_reader.readline.side_effect = [

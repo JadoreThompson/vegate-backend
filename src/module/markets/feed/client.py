@@ -88,32 +88,38 @@ class OHLCFeedClient:
     def is_connected(self) -> bool:
         return self._socket is not None
 
-    def subscribe(
-        self,
-        symbol: str,
-        market_type: MarketType,
-        broker_type: BrokerType,
-        timeframe: Timeframe,
-    ) -> None:
-        payload = {
-            "type": "subscribe",
-            "symbol": symbol,
-            "market_type": market_type.value,
-            "broker_type": broker_type.value,
-            "timeframe": timeframe.value,
-        }
+    def subscribe(self, instruments: list[dict]) -> None:
+        items = []
+        for inst in instruments:
+            symbol = inst["symbol"]
+            market_type = (
+                inst["market_type"].value
+                if isinstance(inst["market_type"], MarketType)
+                else inst["market_type"]
+            )
+            broker_type = (
+                inst["broker_type"].value
+                if isinstance(inst["broker_type"], BrokerType)
+                else inst["broker_type"]
+            )
+            timeframes = inst.get("timeframe", [])
+            if isinstance(timeframes, (Timeframe, str)):
+                timeframes = [timeframes]
+            for tf in timeframes:
+                tf_val = tf.value if isinstance(tf, Timeframe) else tf
+                items.append(
+                    {
+                        "symbol": symbol,
+                        "market_type": market_type,
+                        "broker_type": broker_type,
+                        "timeframe": tf_val,
+                    }
+                )
 
+        payload = {"type": "subscribe", "instruments": items}
         self._subscribe_payload = payload
-
         self._send(payload)
-
-        self._logger.info(
-            "Subscribed: %s / %s / %s / %s",
-            symbol,
-            market_type,
-            broker_type,
-            timeframe,
-        )
+        self._logger.info("Subscribed to %d instrument(s)", len(items))
 
     def candles(self) -> Generator[OHLC, None, None]:
         if self._subscribe_payload is None:

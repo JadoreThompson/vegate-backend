@@ -68,14 +68,8 @@ class SocketConnection:
 
 
 class OHLCFeedServer:
-    """
-    Asyncio TCP server that streams market data to internal services.
-    """
 
-    DEFAULT_HOST: ClassVar[str] = "127.0.0.1"
-    DEFAULT_PORT: ClassVar[int] = 9000
-
-    def __init__(self, host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
+    def __init__(self, host: str = "127.0.0.1", port: int = 9000) -> None:
         self._host = host
         self._port = port
 
@@ -155,7 +149,7 @@ class OHLCFeedServer:
         addr = "{}:{}".format(*writer.get_extra_info("peername"))
         self._logger.info("New connection from %s", addr)
 
-        conn: SocketConnection | None = None
+        conns: list[SocketConnection] = []
 
         try:
             while True:
@@ -166,7 +160,6 @@ class OHLCFeedServer:
                     break
 
                 if not raw:
-                    # EOF
                     break
 
                 try:
@@ -179,7 +172,9 @@ class OHLCFeedServer:
                 msg_type = payload.get("type")
 
                 if msg_type == "subscribe":
-                    conn = await self._handle_subscribe(payload, writer)
+                    result = await self._handle_subscribe(payload, writer)
+                    if result is not None:
+                        conns.extend(result)
 
                 elif msg_type == "heartbeat":
                     writer.write(self._heartbeat_ack())
@@ -195,8 +190,7 @@ class OHLCFeedServer:
                 "Unexpected error on connection %s", addr, exc_info=exc
             )
         finally:
-            # Remove from live set if bootstrapped
-            if conn is not None:
+            for conn in conns:
                 self._live_conns[conn.symbol][conn.market_type][conn.broker_type][
                     conn.timeframe
                 ].discard(conn)
@@ -211,67 +205,101 @@ class OHLCFeedServer:
         self,
         payload: dict,
         writer: asyncio.StreamWriter,
-    ) -> SocketConnection | None:
-        """Validate the subscribe message, then start replay or live stream."""
+    ) -> list[SocketConnection] | None:
+        """Validate the subscribe message and register live connections."""
 
         try:
-            symbol: str = payload["symbol"]
-            market_type = MarketType(payload["market_type"])
-            broker_type = BrokerType(payload["broker_type"])
-            timeframe = Timeframe(payload["timeframe"])
-        except (KeyError, ValueError) as exc:
-            writer.write(self._err(f"Bad subscribe payload: {exc}"))
+            instruments = payload["instruments"]
+        except KeyError:
+            writer.write(self._err("Missing 'instruments' in subscribe payload"))
             await writer.drain()
             return None
 
-        if symbol not in feed_manager.get_symbols():
-            print(feed_manager.get_symbols())
-            writer.write(self._err(f"'{symbol}' is not supported"))
+        if not isinstance(instruments, list) or not instruments:
+            writer.write(self._err("'instruments' must be a non-empty list"))
             await writer.drain()
             return None
 
-        if market_type not in feed_manager.get_market_types(symbol):
-            writer.write(
-                self._err(
-                    f"Market type '{market_type}' for symbol '{symbol}' is not supported"
+        expanded: list[tuple[str, MarketType, BrokerType, Timeframe]] = []
+
+        for idx, item in enumerate(instruments):
+            try:
+                symbol: str = item["symbol"]
+                market_type = MarketType(item["market_type"])
+                broker_type = BrokerType(item["broker_type"])
+                raw_timeframes = item.get("timeframe", [])
+                if isinstance(raw_timeframes, str):
+                    raw_timeframes = [raw_timeframes]
+            except (KeyError, ValueError) as exc:
+                writer.write(self._err(f"Bad instrument entry at index {idx}: {exc}"))
+                await writer.drain()
+                return None
+
+            if symbol not in feed_manager.get_symbols():
+                writer.write(self._err(f"'{symbol}' at index {idx} is not supported"))
+                await writer.drain()
+                return None
+
+            if market_type not in feed_manager.get_market_types(symbol):
+                writer.write(
+                    self._err(
+                        f"Market type '{market_type}' for symbol '{symbol}' "
+                        f"at index {idx} is not supported"
+                    )
                 )
-            )
-            await writer.drain()
-            return None
+                await writer.drain()
+                return None
 
-        if broker_type not in feed_manager.get_brokers(symbol, market_type):
-            writer.write(
-                self._err(
-                    f"Broker '{broker_type}' for market type '{market_type}' "
-                    f"for symbol '{symbol}' is not supported"
+            if broker_type not in feed_manager.get_brokers(symbol, market_type):
+                writer.write(
+                    self._err(
+                        f"Broker '{broker_type}' for market type '{market_type}' "
+                        f"for symbol '{symbol}' at index {idx} is not supported"
+                    )
                 )
+                await writer.drain()
+                return None
+
+            for tf_raw in raw_timeframes:
+                try:
+                    timeframe = Timeframe(tf_raw)
+                except ValueError:
+                    writer.write(
+                        self._err(
+                            f"Invalid timeframe '{tf_raw}' at index {idx}"
+                        )
+                    )
+                    await writer.drain()
+                    return None
+
+                if timeframe not in feed_manager.get_timeframes(
+                    symbol, market_type, broker_type
+                ):
+                    writer.write(
+                        self._err(
+                            f"Timeframe '{timeframe}' for broker '{broker_type}' "
+                            f"for market type '{market_type}' "
+                            f"for symbol '{symbol}' at index {idx} is not supported"
+                        )
+                    )
+                    await writer.drain()
+                    return None
+
+                expanded.append((symbol, market_type, broker_type, timeframe))
+
+        conns = []
+        for symbol, market_type, broker_type, timeframe in expanded:
+            conn = SocketConnection(
+                writer=writer,
+                symbol=symbol,
+                market_type=market_type,
+                broker_type=broker_type,
+                timeframe=timeframe,
             )
-            await writer.drain()
-            return None
+            self._register_live(conn)
+            conns.append(conn)
 
-        if timeframe not in feed_manager.get_timeframes(
-            symbol, market_type, broker_type
-        ):
-            writer.write(
-                self._err(
-                    f"Timeframe '{timeframe}' for broker '{broker_type}' "
-                    f"for market type '{market_type}' "
-                    f"for symbol '{symbol}' is not supported"
-                )
-            )
-            await writer.drain()
-            return None
-
-        conn = SocketConnection(
-            writer=writer,
-            symbol=symbol,
-            market_type=market_type,
-            broker_type=broker_type,
-            timeframe=timeframe,
-        )
-
-        self._register_live(conn)
-        return conn
+        return conns
 
     def _register_live(self, conn: SocketConnection) -> None:
         self._live_conns[conn.symbol][conn.market_type][conn.broker_type][

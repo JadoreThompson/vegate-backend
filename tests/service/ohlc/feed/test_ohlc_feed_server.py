@@ -474,10 +474,14 @@ class TestOHLCFeedServerHandleClient:
                                 json.dumps(
                                     {
                                         "type": "subscribe",
-                                        "symbol": "AAPL",
-                                        "market_type": "stocks",
-                                        "broker": "alpaca",
-                                        "timeframe": "1m",
+                                        "instruments": [
+                                            {
+                                                "symbol": "AAPL",
+                                                "market_type": "stocks",
+                                                "broker_type": "alpaca",
+                                                "timeframe": ["1m"],
+                                            },
+                                        ],
                                     }
                                 ).encode()
                                 + b"\n",
@@ -507,30 +511,55 @@ class TestOHLCFeedServerHandleSubscribe:
     """Unit tests for OHLCFeedServer._handle_subscribe."""
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_handle_subscribe_bad_payload_missing_key(self, server, mock_writer):
-        payload = {
-            "symbol": "AAPL",
-            "market_type": "stocks",
-        }  # missing broker, timeframe
+    async def test_handle_subscribe_missing_instruments(self, server, mock_writer):
+        payload = {"type": "subscribe"}
         result = await server._handle_subscribe(payload, mock_writer)
         assert result is None
         assert any(
-            b"Bad subscribe payload" in c.args[0]
+            b"Missing 'instruments'" in c.args[0]
             for c in mock_writer.write.call_args_list
         )
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_handle_subscribe_bad_payload_invalid_enum(self, server, mock_writer):
+    async def test_handle_subscribe_empty_instruments(self, server, mock_writer):
+        payload = {"type": "subscribe", "instruments": []}
+        result = await server._handle_subscribe(payload, mock_writer)
+        assert result is None
+        assert any(
+            b"non-empty list" in c.args[0]
+            for c in mock_writer.write.call_args_list
+        )
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_handle_subscribe_bad_entry_missing_key(self, server, mock_writer):
         payload = {
-            "symbol": "AAPL",
-            "market_type": "invalid_market",
-            "broker": "alpaca",
-            "timeframe": "m1",
+            "instruments": [
+                {"symbol": "AAPL", "market_type": "stocks"},
+            ],
         }
         result = await server._handle_subscribe(payload, mock_writer)
         assert result is None
         assert any(
-            b"Bad subscribe payload" in c.args[0]
+            b"Bad instrument entry" in c.args[0]
+            for c in mock_writer.write.call_args_list
+        )
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_handle_subscribe_bad_entry_invalid_enum(self, server, mock_writer):
+        payload = {
+            "instruments": [
+                {
+                    "symbol": "AAPL",
+                    "market_type": "invalid_market",
+                    "broker_type": "alpaca",
+                    "timeframe": ["1m"],
+                },
+            ],
+        }
+        result = await server._handle_subscribe(payload, mock_writer)
+        assert result is None
+        assert any(
+            b"Bad instrument entry" in c.args[0]
             for c in mock_writer.write.call_args_list
         )
 
@@ -538,10 +567,14 @@ class TestOHLCFeedServerHandleSubscribe:
     async def test_handle_subscribe_unsupported_symbol(self, server, mock_writer):
         with patch.object(feed_manager, "get_symbols", return_value=set()):
             payload = {
-                "symbol": "AAPL",
-                "market_type": "stocks",
-                "broker_type": "alpaca",
-                "timeframe": "1m",
+                "instruments": [
+                    {
+                        "symbol": "AAPL",
+                        "market_type": "stocks",
+                        "broker_type": "alpaca",
+                        "timeframe": ["1m"],
+                    },
+                ],
             }
             result = await server._handle_subscribe(payload, mock_writer)
             assert result is None
@@ -555,10 +588,14 @@ class TestOHLCFeedServerHandleSubscribe:
         with patch.object(feed_manager, "get_symbols", return_value={"AAPL"}):
             with patch.object(feed_manager, "get_market_types", return_value=set()):
                 payload = {
-                    "symbol": "AAPL",
-                    "market_type": "stocks",
-                    "broker_type": "alpaca",
-                    "timeframe": "1m",
+                    "instruments": [
+                        {
+                            "symbol": "AAPL",
+                            "market_type": "stocks",
+                            "broker_type": "alpaca",
+                            "timeframe": ["1m"],
+                        },
+                    ],
                 }
                 result = await server._handle_subscribe(payload, mock_writer)
                 assert result is None
@@ -575,15 +612,20 @@ class TestOHLCFeedServerHandleSubscribe:
             ):
                 with patch.object(feed_manager, "get_brokers", return_value=set()):
                     payload = {
-                        "symbol": "AAPL",
-                        "market_type": "stocks",
-                        "broker_type": "alpaca",
-                        "timeframe": "1m",
+                        "instruments": [
+                            {
+                                "symbol": "AAPL",
+                                "market_type": "stocks",
+                                "broker_type": "alpaca",
+                                "timeframe": ["1m"],
+                            },
+                        ],
                     }
                     result = await server._handle_subscribe(payload, mock_writer)
                     assert result is None
                     assert any(
-                        b"Broker" in c.args[0] for c in mock_writer.write.call_args_list
+                        b"Broker" in c.args[0]
+                        for c in mock_writer.write.call_args_list
                     )
 
     @pytest.mark.asyncio(loop_scope="session")
@@ -599,10 +641,14 @@ class TestOHLCFeedServerHandleSubscribe:
                         feed_manager, "get_timeframes", return_value=set()
                     ):
                         payload = {
-                            "symbol": "AAPL",
-                            "market_type": "stocks",
-                            "broker_type": "alpaca",
-                            "timeframe": "m1",
+                            "instruments": [
+                                {
+                                    "symbol": "AAPL",
+                                    "market_type": "stocks",
+                                    "broker_type": "alpaca",
+                                    "timeframe": ["1m"],
+                                },
+                            ],
                         }
                         result = await server._handle_subscribe(payload, mock_writer)
                         assert result is None
@@ -612,7 +658,7 @@ class TestOHLCFeedServerHandleSubscribe:
                         )
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_handle_subscribe_success_no_start(self, server, mock_writer):
+    async def test_handle_subscribe_success_single_instrument(self, server, mock_writer):
         with patch.object(feed_manager, "get_symbols", return_value={"AAPL"}):
             with patch.object(
                 feed_manager, "get_market_types", return_value={MarketType.STOCKS}
@@ -624,19 +670,64 @@ class TestOHLCFeedServerHandleSubscribe:
                         feed_manager, "get_timeframes", return_value={Timeframe.m1}
                     ):
                         payload = {
-                            "symbol": "AAPL",
-                            "market_type": "stocks",
-                            "broker_type": "alpaca",
-                            "timeframe": "1m",
+                            "instruments": [
+                                {
+                                    "symbol": "AAPL",
+                                    "market_type": "stocks",
+                                    "broker_type": "alpaca",
+                                    "timeframe": ["1m"],
+                                },
+                            ],
                         }
                         result = await server._handle_subscribe(payload, mock_writer)
 
                         assert result is not None
-                        assert isinstance(result, SocketConnection)
-                        assert result.symbol == "AAPL"
-                        assert result.market_type == MarketType.STOCKS
-                        assert result.broker_type == BrokerType.ALPACA
-                        assert result.timeframe == Timeframe.m1
+                        assert isinstance(result, list)
+                        assert len(result) == 1
+                        assert result[0].symbol == "AAPL"
+                        assert result[0].market_type == MarketType.STOCKS
+                        assert result[0].broker_type == BrokerType.ALPACA
+                        assert result[0].timeframe == Timeframe.m1
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_handle_subscribe_success_multiple_instruments(self, server, mock_writer):
+        with patch.object(feed_manager, "get_symbols", return_value={"AAPL", "MSFT"}):
+            with patch.object(
+                feed_manager, "get_market_types", return_value={MarketType.STOCKS}
+            ):
+                with patch.object(
+                    feed_manager, "get_brokers", return_value={BrokerType.ALPACA}
+                ):
+                    with patch.object(
+                        feed_manager, "get_timeframes", return_value={Timeframe.m1, Timeframe.m5}
+                    ):
+                        payload = {
+                            "instruments": [
+                                {
+                                    "symbol": "AAPL",
+                                    "market_type": "stocks",
+                                    "broker_type": "alpaca",
+                                    "timeframe": ["1m", "5m"],
+                                },
+                                {
+                                    "symbol": "MSFT",
+                                    "market_type": "stocks",
+                                    "broker_type": "alpaca",
+                                    "timeframe": ["1m"],
+                                },
+                            ],
+                        }
+                        result = await server._handle_subscribe(payload, mock_writer)
+
+                        assert result is not None
+                        assert isinstance(result, list)
+                        assert len(result) == 3
+                        assert result[0].symbol == "AAPL"
+                        assert result[0].timeframe == Timeframe.m1
+                        assert result[1].symbol == "AAPL"
+                        assert result[1].timeframe == Timeframe.m5
+                        assert result[2].symbol == "MSFT"
+                        assert result[2].timeframe == Timeframe.m1
 
 
 class TestOHLCFeedServerRegisterLive:
@@ -675,7 +766,6 @@ class TestIntegration:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_full_subscription_flow(self, server, mock_writer):
         """Test subscribe -> live bootstrap flow."""
-        # Setup feed manager mocks
         with patch.object(feed_manager, "get_symbols", return_value={"AAPL"}):
             with patch.object(
                 feed_manager, "get_market_types", return_value={MarketType.STOCKS}
@@ -687,20 +777,24 @@ class TestIntegration:
                         feed_manager, "get_timeframes", return_value={Timeframe.m1}
                     ):
                         payload = {
-                            "symbol": "AAPL",
-                            "market_type": "stocks",
-                            "broker_type": "alpaca",
-                            "timeframe": "1m",
+                            "instruments": [
+                                {
+                                    "symbol": "AAPL",
+                                    "market_type": "stocks",
+                                    "broker_type": "alpaca",
+                                    "timeframe": ["1m"],
+                                },
+                            ],
                         }
-                        conn = await server._handle_subscribe(payload, mock_writer)
+                        conns = await server._handle_subscribe(payload, mock_writer)
 
-                        assert conn is not None
+                        assert conns is not None
+                        assert len(conns) == 1
 
-                        # Verify connection is in live set
                         live_set = server._live_conns["AAPL"][MarketType.STOCKS][
                             BrokerType.ALPACA
                         ][Timeframe.m1]
-                        assert conn in live_set
+                        assert conns[0] in live_set
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_broadcast_to_live_connections(self, server):
