@@ -9,6 +9,7 @@ from .enums import MarketType, Timeframe
 from .exception import SymbolNotFoundException
 from .model import OHLC, Instrument
 from .schema import InstrumentInfo
+from .schema import OHLC as OHLCResponse
 
 
 class MarketsService:
@@ -112,4 +113,72 @@ class MarketsService:
             timeframe=row.timeframe,
             start_date=datetime.fromtimestamp(row.start_ts, UTC),
             end_date=datetime.fromtimestamp(row.end_ts, UTC),
+        )
+
+    async def get_ohlc_bars(
+        self,
+        db_sess: AsyncSession,
+        *,
+        symbol: str,
+        market_type: MarketType,
+        broker_type: BrokerType,
+        timeframe: Timeframe,
+        page: int = 1,
+        limit: int = 50,
+        start_time: int | None = None,
+        end_time: int | None = None,
+    ) -> PaginatedResponse[OHLCResponse]:
+        stmt = (
+            select(
+                OHLC.open,
+                OHLC.high,
+                OHLC.low,
+                OHLC.close,
+                OHLC.volume,
+                OHLC.timestamp,
+                OHLC.timeframe,
+                Instrument.symbol,
+                Instrument.broker_type,
+                Instrument.market_type,
+            )
+            .join(Instrument, OHLC.instrument_id == Instrument.id)
+            .where(
+                Instrument.symbol == symbol,
+                Instrument.market_type == market_type,
+                Instrument.broker_type == broker_type,
+                OHLC.timeframe == timeframe,
+            )
+            .order_by(OHLC.timestamp.asc())
+            .offset((page - 1) * limit)
+            .limit(limit + 1)
+        )
+
+        if start_time is not None:
+            stmt = stmt.where(OHLC.timestamp >= start_time)
+        if end_time is not None:
+            stmt = stmt.where(OHLC.timestamp <= end_time)
+
+        result = await db_sess.execute(stmt)
+        rows = result.all()
+        has_next = len(rows) > limit
+        rows = rows[:limit]
+
+        data = [
+            OHLCResponse(
+                open=float(row.open),
+                high=float(row.high),
+                low=float(row.low),
+                close=float(row.close),
+                volume=float(row.volume),
+                timestamp=row.timestamp,
+                timeframe=row.timeframe,
+                symbol=row.symbol,
+                broker=row.broker_type,
+                market_type=row.market_type,
+            )
+            for row in rows
+        ]
+
+        return PaginatedResponse(
+            size=len(data), has_next=has_next, data=data, page=page
         )

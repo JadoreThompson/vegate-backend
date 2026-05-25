@@ -3,7 +3,6 @@ import sys
 import click
 
 from cli.command.backtest import backtest
-from cli.command.consumer import consumer
 from cli.command.db import db
 from cli.command.feed import feed
 from cli.command.http import http
@@ -30,7 +29,6 @@ def cli(ctx, version):
 
 
 cli.add_command(backtest)
-cli.add_command(consumer)
 cli.add_command(db)
 cli.add_command(feed)
 cli.add_command(http)

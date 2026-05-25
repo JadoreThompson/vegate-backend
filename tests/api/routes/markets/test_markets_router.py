@@ -66,3 +66,76 @@ class TestGetMarketsInfo:
         assert data["size"] == 0
         assert data["data"] == []
         assert data["has_next"] is False
+
+
+class TestGetOHLCBars:
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_get_ohlc_bars_returns_200(self, client):
+        res = await client.get(
+            "/markets/bars?symbol=AAPL&market_type=stocks&broker_type=alpaca&timeframe=1m"
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert "data" in data
+        assert "page" in data
+        assert "size" in data
+        assert "has_next" in data
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_get_ohlc_bars_with_pagination(self, client):
+        res = await client.get(
+            "/markets/bars?symbol=AAPL&market_type=stocks&broker_type=alpaca&timeframe=1m&page=1&limit=10"
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["page"] == 1
+        assert data["size"] <= 10
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_get_ohlc_bars_with_time_filters(self, client):
+        res = await client.get(
+            "/markets/bars?symbol=AAPL&market_type=stocks&broker_type=alpaca&timeframe=1m&start_time=1700000000&end_time=1700003600"
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert "data" in data
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_get_ohlc_bars_missing_symbol_returns_422(self, client):
+        res = await client.get(
+            "/markets/bars?market_type=stocks&broker_type=alpaca&timeframe=1m"
+        )
+        assert res.status_code == 422
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_get_ohlc_bars_missing_market_type_returns_422(self, client):
+        res = await client.get(
+            "/markets/bars?symbol=AAPL&broker_type=alpaca&timeframe=1m"
+        )
+        assert res.status_code == 422
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_get_ohlc_bars_invalid_page_returns_422(self, client):
+        res = await client.get(
+            "/markets/bars?symbol=AAPL&market_type=stocks&broker_type=alpaca&timeframe=1m&page=0"
+        )
+        assert res.status_code == 422
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_get_ohlc_bars_invalid_limit_returns_422(self, client):
+        res = await client.get(
+            "/markets/bars?symbol=AAPL&market_type=stocks&broker_type=alpaca&timeframe=1m&limit=201"
+        )
+        assert res.status_code == 422
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_get_ohlc_bars_nonexistent_instrument_returns_empty(self, client):
+        res = await client.get(
+            "/markets/bars?symbol=FAKE_SYMBOL_12345&market_type=stocks&broker_type=alpaca&timeframe=1m"
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["size"] == 0
+        assert data["data"] == []
+        assert data["has_next"] is False
