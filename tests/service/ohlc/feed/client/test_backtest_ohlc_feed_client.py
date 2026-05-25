@@ -10,8 +10,8 @@ from module.broker.enums import BrokerType
 from module.markets.enums import MarketType, Timeframe
 from module.markets.model import OHLC, Instrument
 from core.db import get_db_sess_sync, get_db_session
+from module.backtest.engine.ohlc_feed_client import BacktestOHLCFeedClient
 from module.markets.schema import OHLC as OHLCModel
-from module.backtest.ohlc_feed_client import BacktestOHLCFeedClient
 
 
 @pytest.fixture
@@ -189,7 +189,7 @@ class TestCandles:
             },
         ])
 
-        with patch("module.backtest.ohlc_feed_client.get_db_sess_sync") as mock_get_db:
+        with patch("module.backtest.engine.ohlc_feed_client.get_db_sess_sync") as mock_get_db:
             mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
             mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
 

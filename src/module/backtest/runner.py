@@ -13,10 +13,10 @@ from module.event_bus import SyncEventPublisher
 from module.markets.historical import HistoricalDataClient
 from module.strategy.model import Strategy
 from module.strategy.strategy import BaseStrategy
+from .engine.ohlc_feed_client import BacktestOHLCFeedClient
+from .engine.oms_client import BacktestOMSClient
 from .engine.schema import BacktestMetrics as BacktestMetricsDto
 from .model import Backtest, BacktestMetrics, BacktestOrder
-from .ohlc_feed_client import BacktestOHLCFeedClient
-from .oms_client import BacktestOMSClient
 
 
 class BacktestRunner:

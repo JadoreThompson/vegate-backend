@@ -3,8 +3,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from module.backtest.oms_client import BacktestOMSClient
+from core.db import get_db_sess_sync
 from module.backtest.engine import BacktestEngine
+from module.backtest.engine.oms_client import BacktestOMSClient
 from module.broker.enums import BrokerType, OrderSide, OrderStatus, OrderType
 from module.broker.schema import Order, OrderRequest
 from module.event_bus import SyncEventPublisher
@@ -12,7 +13,6 @@ from module.markets.enums import MarketType, Timeframe
 from module.markets.model import OHLC
 from module.markets.schema import OHLC as OHLCModel
 from module.strategy.strategy import BaseStrategy
-from core.db import get_db_sess_sync
 
 
 def create_candle(
@@ -325,7 +325,7 @@ class TestBacktestEngineIntegration:
         market_type = MarketType.STOCKS
 
         oms = BacktestOMSClient(starting_balance=starting_balance)
-        from module.backtest.ohlc_feed_client import BacktestOHLCFeedClient
+        from module.backtest.engine.ohlc_feed_client import BacktestOHLCFeedClient
 
         feed = BacktestOHLCFeedClient(
             start=int(datetime(2024, 1, 2, tzinfo=UTC).timestamp()),

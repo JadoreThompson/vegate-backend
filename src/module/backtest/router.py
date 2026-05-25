@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from module.api.dependencies import CSVQuery, depends_class, depends_db_sess, depends_jwt
 from module.api.schema import PaginatedResponse
-# from enums import BacktestStatus
 from module.backtest.enums import BacktestStatus
 from module.jwt import JWTPayload
 from .schema import (

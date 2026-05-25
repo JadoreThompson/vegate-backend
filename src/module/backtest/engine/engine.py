@@ -6,8 +6,8 @@ from module.broker.enums import OrderSide, OrderStatus, OrderType
 from module.markets.schema import OHLC
 from module.strategy.strategy import BaseStrategy
 from .schema import EquityCurvePoint, BacktestMetrics
-from ..oms_client import BacktestOMSClient
-from ..ohlc_feed_client import BacktestOHLCFeedClient
+from .oms_client import BacktestOMSClient
+from .ohlc_feed_client import BacktestOHLCFeedClient
 
 logger = logging.getLogger(__name__)
 
