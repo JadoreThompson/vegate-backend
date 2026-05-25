@@ -179,7 +179,6 @@ class BacktestOMSClient(OMSClient):
             Order object with FILLED or REJECTED status
         """
         self._ensure_feed()
-        self._logger.info(f"Balance {self.balance}")
         order_id = str(uuid.uuid4())
         price = self.ohlc_feed_client.cur_candle.close
         current_ts = self.ohlc_feed_client.cur_candle.timestamp

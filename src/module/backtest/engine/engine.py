@@ -39,6 +39,7 @@ class BacktestEngine:
         """
         logger.info(f"Starting backtest from {self._start_date} to {self._end_date}")
         logger.info(f"Starting balance: ${self._broker_client.get_balance():,.2f}")
+        self._strategy.oms_client.ohlc_feed_client = self._strategy.ohlc_feed_client
 
         self._strategy.startup()
         self._process_candles()
@@ -48,25 +49,13 @@ class BacktestEngine:
         self._strategy.shutdown()
         return metrics
 
-    def _process_candles(self) -> None:
-        """Stream and process candles from database."""
+    def _process_candles(self):
         candle_count = 0
         last_log_count = 0
         log_interval = 100  # Log every 100 candles
 
-        ohlc_feed_client: BacktestOHLCFeedClient = self._strategy.ohlc_feed_client
-        self._broker_client.ohlc_feed_client = ohlc_feed_client
-        tf_seconds = ohlc_feed_client.timeframe.get_seconds()
-        start = ohlc_feed_client.start
-        open = None
-        high = None
-        low = None
-        close = None
-        volume = 0
-
-        for candle in ohlc_feed_client.candles():
+        for candle in self._yield_candles(self._strategy.ohlc_feed_client):
             if candle_count == 0:
-                start = candle.timestamp
                 self._equity_curve.append(
                     EquityCurvePoint(
                         timestamp=candle.timestamp,
@@ -76,39 +65,7 @@ class BacktestEngine:
                 )
 
             candle_count += 1
-
-            self._broker_client.execute_pending_orders(candle)
-
-            if open is None:
-                open = candle.open
-
-            high = candle.high if high is None else max(high, candle.high)
-            low = candle.low if low is None else min(low, candle.low)
-            close = candle.close
-            volume += candle.volume
-
-            if candle.timestamp + tf_seconds == start + tf_seconds:
-                candle = OHLC(
-                    open=open,
-                    high=high,
-                    low=low,
-                    close=close,
-                    volume=volume,
-                    symbol=candle.symbol,
-                    broker=candle.broker,
-                    market_type=candle.market_type,
-                    timeframe=candle.timeframe,
-                    timestamp=start,
-                )
-
-                self._strategy.on_candle(candle)
-
-                open = None
-                high = None
-                low = None
-                close = None
-                volume = 0
-                start = start + tf_seconds
+            self._strategy.on_candle(candle)
 
             self._equity_curve.append(
                 EquityCurvePoint(
@@ -133,6 +90,61 @@ class BacktestEngine:
             f"Candle processing complete: {candle_count} total candles processed"
         )
 
+    def _yield_candles(self, ohlc_feed_client: BacktestOHLCFeedClient):
+        """Yield candles from feed client."""
+        oms_client: BacktestOMSClient = self._strategy.oms_client  # type: ignore
+        prev_candles: list[OHLC] = []
+
+        for candle in ohlc_feed_client.candles():
+            oms_client.execute_pending_orders(candle)
+            prev_candles.append(candle)
+
+            for subscription in ohlc_feed_client._subscriptions:
+                if (
+                    subscription["symbol"] == candle.symbol
+                    and subscription["broker_type"] == candle.broker
+                    and subscription["market_type"] == candle.market_type
+                ):
+                    for tf in subscription["timeframe"]:
+                        tf_seconds = tf.get_seconds()
+
+                        start_time = candle.timestamp // tf_seconds * tf_seconds
+                        end_time = start_time + tf_seconds
+
+                        if candle.timestamp + tf_seconds == end_time:
+                            high: float = 0.0
+                            low: float = 0.0
+                            volume: float = 0.0
+
+                            for i in range(len(prev_candles) - 1, -1, -1):
+                                prev_candle = prev_candles[i]
+                                if (
+                                    prev_candle.symbol != candle.symbol
+                                    or prev_candle.broker != candle.broker
+                                    or prev_candle.market_type != candle.market_type
+                                    or prev_candle.timeframe != candle.timeframe
+                                ):
+                                    continue
+
+                                high = max(high, prev_candle.high)
+                                low = min(low, prev_candle.low)
+                                volume += prev_candle.volume
+
+                                if prev_candle.timestamp == start_time:
+                                    yield OHLC(
+                                        open=prev_candle.open,
+                                        high=high,
+                                        low=low,
+                                        close=candle.close,
+                                        volume=volume,
+                                        symbol=candle.symbol,
+                                        broker=candle.broker,
+                                        market_type=candle.market_type,
+                                        timeframe=tf,
+                                        timestamp=prev_candle.timestamp,
+                                    )
+                                    break
+
     def _calculate_metrics(self) -> BacktestMetrics:
         """Calculate backtest metrics.
 
@@ -145,8 +157,7 @@ class BacktestEngine:
         realised_pnl = end_balance - self._starting_balance
         end_equity = self._broker_client.get_equity()
         total_return_pct = (
-            end_balance
-            - self._starting_balance
+            end_balance - self._starting_balance
         ) / self._starting_balance
 
         return BacktestMetrics(

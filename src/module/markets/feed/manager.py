@@ -73,6 +73,3 @@ class FeedManager:
                 "Received exceptions whilst stopping feeds",
                 excs,
             )
-
-
-feed_manager = FeedManager()

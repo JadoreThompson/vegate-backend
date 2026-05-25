@@ -1,9 +1,9 @@
 ohlc_feed:
-  # - symbol: BTC/USD
-  #   market_type: crypto
-  #   start_date: 2026-05-10
-  #   broker: alpaca
-  #   timeframes: ["1m"]
+  - symbol: BTC/USD
+    market_type: crypto
+    start_date: 2026-05-10
+    broker: alpaca
+    timeframes: ["1m"]
   # - symbol: AAPL
   #   market_type: stocks
   #   start_date: 2026-05-10

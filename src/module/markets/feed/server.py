@@ -4,10 +4,12 @@ import asyncio
 import json
 import logging
 from collections import defaultdict
+from pydantic import ValidationError
 
 from module.broker.enums import BrokerType
+from module.markets.feed.schema import SubscribeRequest
 from .base import OHLCFeed
-from .manager import feed_manager
+from .manager import FeedManager
 from ..enums import MarketType, Timeframe
 from ..schema import OHLC as OHLCSchema
 
@@ -51,7 +53,13 @@ class SocketConnection:
 
 class OHLCFeedServer:
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 9000) -> None:
+    def __init__(
+        self,
+        feed_manager: FeedManager,
+        host: str = "127.0.0.1",
+        port: int = 9000,
+    ) -> None:
+        self._feed_manager = feed_manager
         self._host = host
         self._port = port
 
@@ -68,11 +76,11 @@ class OHLCFeedServer:
 
     async def init(self, feeds: list[OHLCFeed]) -> None:
         """
-        Register feeds with the global feed_manager.
+        Register feeds with the global self._feed_manager.
         """
         for feed in feeds:
             feed.set_on_candle(self.handle_candle)
-            await feed_manager.register(feed)
+            await self._feed_manager.register(feed)
             self._logger.info(
                 "Registered feed '%s' (%s / %s / %s)",
                 feed.name,
@@ -207,25 +215,24 @@ class OHLCFeedServer:
 
         for idx, item in enumerate(instruments):
             try:
-                symbol: str = item["symbol"]
-                market_type = MarketType(item["market_type"])
-                broker_type = BrokerType(item["broker_type"])
-                raw_timeframes = item.get("timeframe", [])
-                if isinstance(raw_timeframes, str):
-                    raw_timeframes = [raw_timeframes]
-            except (KeyError, ValueError) as exc:
+                request = SubscribeRequest.model_validate(item)
+            except ValidationError as exc:
                 await conn.send(
                     self._err(f"Bad instrument entry at index {idx}: {exc}")
                 )
                 return None
 
-            if symbol not in feed_manager.get_symbols():
+            symbol = request.symbol
+            market_type = request.market_type
+            broker_type = request.broker_type
+
+            if symbol not in self._feed_manager.get_symbols():
                 await conn.send(
                     self._err(f"'{symbol}' at index {idx} is not supported")
                 )
                 return None
 
-            if market_type not in feed_manager.get_market_types(symbol):
+            if market_type not in self._feed_manager.get_market_types(symbol):
                 await conn.send(
                     self._err(
                         f"Market type '{market_type}' for symbol '{symbol}' "
@@ -234,7 +241,7 @@ class OHLCFeedServer:
                 )
                 return None
 
-            if broker_type not in feed_manager.get_brokers(symbol, market_type):
+            if broker_type not in self._feed_manager.get_brokers(symbol, market_type):
                 await conn.send(
                     self._err(
                         f"Broker '{broker_type}' for market type '{market_type}' "
@@ -243,16 +250,8 @@ class OHLCFeedServer:
                 )
                 return None
 
-            for tf_raw in raw_timeframes:
-                try:
-                    timeframe = Timeframe(tf_raw)
-                except ValueError:
-                    await conn.send(
-                        self._err(f"Invalid timeframe '{tf_raw}' at index {idx}")
-                    )
-                    return None
-
-                if timeframe not in feed_manager.get_timeframes(
+            for timeframe in request.timeframe:
+                if timeframe not in self._feed_manager.get_timeframes(
                     symbol, market_type, broker_type
                 ):
                     await conn.send(

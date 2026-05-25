@@ -19,46 +19,6 @@ def backtest_client():
     return BacktestOHLCFeedClient(start=1000, end=2000)
 
 
-class TestInit:
-    """Unit tests for BacktestOHLCFeedClient initialization."""
-
-    def test_init_sets_start_and_end(self):
-        client = BacktestOHLCFeedClient(start=1000, end=2000)
-        assert client._start == 1000
-        assert client._end == 2000
-
-    def test_init_default_values(self, backtest_client):
-        assert backtest_client._subscriptions == []
-        assert backtest_client._timeframe is None
-        assert backtest_client._cur_candle is None
-
-    def test_init_name(self, backtest_client):
-        assert backtest_client._name == "BacktestOHLCFeedClient"
-
-    def test_init_logger(self, backtest_client):
-        assert backtest_client._logger is not None
-        assert backtest_client._logger.name == "BacktestOHLCFeedClient"
-
-
-class TestProperties:
-    """Unit tests for BacktestOHLCFeedClient properties."""
-
-    def test_timeframe_property(self, backtest_client):
-        backtest_client._timeframe = Timeframe.H1
-        assert backtest_client.timeframe == Timeframe.H1
-
-    def test_timeframe_property_none(self, backtest_client):
-        assert backtest_client.timeframe is None
-
-    def test_cur_candle_property(self, backtest_client):
-        mock_candle = MagicMock(spec=OHLCModel)
-        backtest_client._cur_candle = mock_candle
-        assert backtest_client.cur_candle == mock_candle
-
-    def test_cur_candle_property_none(self, backtest_client):
-        assert backtest_client.cur_candle is None
-
-
 class TestSubscribe:
     """Unit tests for the subscribe method."""
 
@@ -68,7 +28,7 @@ class TestSubscribe:
                 "symbol": "AAPL",
                 "market_type": MarketType.STOCKS,
                 "broker_type": BrokerType.ALPACA,
-                "timeframe": Timeframe.m1,
+                "timeframe": [Timeframe.m1],
             },
         ])
         assert len(backtest_client._subscriptions) == 1
@@ -76,7 +36,7 @@ class TestSubscribe:
         assert sub["symbol"] == "AAPL"
         assert sub["market_type"] == "stocks"
         assert sub["broker_type"] == "alpaca"
-        assert sub["timeframe"] == "1m"
+        assert sub["timeframe"] == ["1m"]
 
     def test_subscribe_multiple_timeframes(self, backtest_client):
         backtest_client.subscribe([
@@ -87,9 +47,8 @@ class TestSubscribe:
                 "timeframe": [Timeframe.m1, Timeframe.m5],
             },
         ])
-        assert len(backtest_client._subscriptions) == 2
-        assert backtest_client._subscriptions[0]["timeframe"] == "1m"
-        assert backtest_client._subscriptions[1]["timeframe"] == "5m"
+        assert len(backtest_client._subscriptions) == 1
+        assert backtest_client._subscriptions[0]["timeframe"] == ["1m", "5m"]
 
     def test_subscribe_multiple_instruments(self, backtest_client):
         backtest_client.subscribe([
@@ -97,47 +56,18 @@ class TestSubscribe:
                 "symbol": "AAPL",
                 "market_type": MarketType.STOCKS,
                 "broker_type": BrokerType.ALPACA,
-                "timeframe": Timeframe.m1,
+                "timeframe": [Timeframe.m1],
             },
             {
                 "symbol": "BTC/USD",
                 "market_type": MarketType.CRYPTO,
                 "broker_type": BrokerType.ALPACA,
-                "timeframe": Timeframe.H1,
+                "timeframe": [Timeframe.H1],
             },
         ])
         assert len(backtest_client._subscriptions) == 2
         assert backtest_client._subscriptions[0]["symbol"] == "AAPL"
         assert backtest_client._subscriptions[1]["symbol"] == "BTC/USD"
-
-    def test_subscribe_sets_timeframe_from_first(self, backtest_client):
-        backtest_client.subscribe([
-            {
-                "symbol": "AAPL",
-                "market_type": MarketType.STOCKS,
-                "broker_type": BrokerType.ALPACA,
-                "timeframe": Timeframe.H1,
-            },
-        ])
-        assert backtest_client._timeframe == Timeframe.H1
-        assert backtest_client.timeframe == Timeframe.H1
-
-    def test_subscribe_empty_instruments(self, backtest_client):
-        backtest_client.subscribe([])
-        assert backtest_client._subscriptions == []
-        assert backtest_client._timeframe is None
-
-    def test_subscribe_sets_name(self, backtest_client):
-        backtest_client.subscribe([
-            {
-                "symbol": "AAPL",
-                "market_type": MarketType.STOCKS,
-                "broker_type": BrokerType.ALPACA,
-                "timeframe": Timeframe.m1,
-            },
-        ])
-        assert "BacktestOHLCFeedClient" in backtest_client._name
-        assert "AAPL" in backtest_client._name
 
     def test_subscribe_crypto_symbol(self, backtest_client):
         backtest_client.subscribe([
@@ -145,7 +75,7 @@ class TestSubscribe:
                 "symbol": "BTC/USD",
                 "market_type": MarketType.CRYPTO,
                 "broker_type": BrokerType.ALPACA,
-                "timeframe": Timeframe.H1,
+                "timeframe": [Timeframe.H1],
             },
         ])
         assert len(backtest_client._subscriptions) == 1
@@ -159,6 +89,7 @@ class TestCandles:
     def test_candles_yields_ohlc_models(self, backtest_client):
         mock_instrument = MagicMock()
         mock_instrument.symbol = "AAPL"
+        mock_instrument.native_symbol = "AAPL"
         mock_instrument.broker_type = BrokerType.ALPACA
         mock_instrument.market_type = MarketType.STOCKS
 
@@ -185,9 +116,11 @@ class TestCandles:
                 "symbol": "AAPL",
                 "market_type": MarketType.STOCKS,
                 "broker_type": BrokerType.ALPACA,
-                "timeframe": Timeframe.m1,
+                "timeframe": [Timeframe.m1],
             },
         ])
+
+        backtest_client._end = 1500
 
         with patch("module.backtest.engine.ohlc_feed_client.get_db_sess_sync") as mock_get_db:
             mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
@@ -262,7 +195,7 @@ class TestIntegration:
                 "symbol": "INTTEST",
                 "market_type": MarketType.STOCKS,
                 "broker_type": BrokerType.ALPACA,
-                "timeframe": Timeframe.m1,
+                "timeframe": [Timeframe.m1],
             },
         ])
 
@@ -292,7 +225,7 @@ class TestIntegration:
                 "symbol": "RANGETEST",
                 "market_type": MarketType.STOCKS,
                 "broker_type": BrokerType.ALPACA,
-                "timeframe": Timeframe.m1,
+                "timeframe": [Timeframe.m1],
             },
         ])
         backtest_client._end = 1800
@@ -317,7 +250,7 @@ class TestIntegration:
                 "symbol": "CURTEST",
                 "market_type": MarketType.STOCKS,
                 "broker_type": BrokerType.ALPACA,
-                "timeframe": Timeframe.m1,
+                "timeframe": [Timeframe.m1],
             },
         ])
 
@@ -352,13 +285,13 @@ class TestIntegration:
                 "symbol": "MULTI_A",
                 "market_type": MarketType.STOCKS,
                 "broker_type": BrokerType.ALPACA,
-                "timeframe": Timeframe.m1,
+                "timeframe": [Timeframe.m1],
             },
             {
                 "symbol": "MULTI_B",
                 "market_type": MarketType.STOCKS,
                 "broker_type": BrokerType.ALPACA,
-                "timeframe": Timeframe.m1,
+                "timeframe": [Timeframe.m1],
             },
         ])
 

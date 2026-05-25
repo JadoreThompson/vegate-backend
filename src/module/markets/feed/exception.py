@@ -1,0 +1,2 @@
+class OHLCFeedSocketException(Exception):
+    pass

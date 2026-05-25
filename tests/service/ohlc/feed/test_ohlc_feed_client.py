@@ -221,7 +221,7 @@ class TestSubscribe:
                     "symbol": "AAPL",
                     "market_type": "stocks",
                     "broker_type": "alpaca",
-                    "timeframe": "1m",
+                    "timeframe": ["1m"],
                 },
             ],
         }
@@ -248,9 +248,8 @@ class TestSubscribe:
         assert client._subscribe_payload == {
             "type": "subscribe",
             "instruments": [
-                {"symbol": "AAPL", "market_type": "stocks", "broker_type": "alpaca", "timeframe": "1m"},
-                {"symbol": "AAPL", "market_type": "stocks", "broker_type": "alpaca", "timeframe": "5m"},
-                {"symbol": "SOL/USD", "market_type": "crypto", "broker_type": "alpaca", "timeframe": "1m"},
+                {"symbol": "AAPL", "market_type": "stocks", "broker_type": "alpaca", "timeframe": ["1m", "5m"]},
+                {"symbol": "SOL/USD", "market_type": "crypto", "broker_type": "alpaca", "timeframe": ["1m"]},
             ],
         }
 

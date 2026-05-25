@@ -10,6 +10,7 @@ from module.broker.enums import BrokerType
 from module.markets.enums import MarketType, Timeframe
 from module.markets.feed import OHLCFeed, OHLCFeedServer
 from module.markets.feed.alpaca import AlpacaOHLCFeed
+from module.markets.feed.manager import FeedManager
 from module.markets.loader.alpaca import AlpacaOHLCLoader
 
 
@@ -67,7 +68,8 @@ def run(host, port):
                 asyncio.create_task(_wrapper(feed.run()))
                 feeds.append(feed)
 
-        server = OHLCFeedServer(host, port)
+        feed_manager = FeedManager()
+        server = OHLCFeedServer(feed_manager, host, port)
         try:
             await server.init(feeds)
             await server.run()

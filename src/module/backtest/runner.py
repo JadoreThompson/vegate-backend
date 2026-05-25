@@ -31,7 +31,6 @@ class BacktestRunner:
         self._logger.info(f"Starting BacktestRunner for ID '{self._backtest_id}'")
 
         try:
-
             with get_db_sess_sync() as db_sess:
                 db_backtest = db_sess.get(Backtest, self._backtest_id)
                 if db_backtest is None:
@@ -127,7 +126,7 @@ class BacktestRunner:
             event_publisher=event_publisher,
             historical_data_client=historical_data_client,
         )
-    
+
     def _store_results(self, result: BacktestMetricsDto) -> None:
         """Store backtest results to database.
 
@@ -149,7 +148,8 @@ class BacktestRunner:
         n = len(equity_curve)
         if n > 5:
             indices = [0, n * 1 // 4, n * 2 // 4, n * 3 // 4, n - 1]
-            equity_curve = [asdict(equity_curve[i]) for i in indices]
+            equity_curve = [equity_curve[i] for i in indices]
+        equity_curve = [asdict(curve) for curve in equity_curve]
 
         # Update database
         with get_db_sess_sync() as db_sess:
@@ -186,10 +186,7 @@ class BacktestRunner:
         with get_db_sess_sync() as db_sess:
             db_sess.execute(
                 update(Backtest)
-                .where(
-                    Backtest.id == self._backtest_id,
-                    Backtest.status != BacktestStatus.COMPLETED,
-                )
+                .where(Backtest.id == self._backtest_id)
                 .values(status=status.value)
             )
             db_sess.commit()

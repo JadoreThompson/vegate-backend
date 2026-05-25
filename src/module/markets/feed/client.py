@@ -9,14 +9,12 @@ from datetime import UTC, datetime
 from typing import Generator
 
 from module.broker.enums import BrokerType
+from module.markets.feed.schema import SubscribeRequest
+from .exception import OHLCFeedSocketException
 from ..enums import MarketType, Timeframe
 from ..schema import OHLC
 
 logger = logging.getLogger(__name__)
-
-
-class OHLCFeedSocketException(Exception):
-    pass
 
 
 class OHLCFeedClient:
@@ -91,30 +89,8 @@ class OHLCFeedClient:
     def subscribe(self, instruments: list[dict]) -> None:
         items = []
         for inst in instruments:
-            symbol = inst["symbol"]
-            market_type = (
-                inst["market_type"].value
-                if isinstance(inst["market_type"], MarketType)
-                else inst["market_type"]
-            )
-            broker_type = (
-                inst["broker_type"].value
-                if isinstance(inst["broker_type"], BrokerType)
-                else inst["broker_type"]
-            )
-            timeframes = inst.get("timeframe", [])
-            if isinstance(timeframes, (Timeframe, str)):
-                timeframes = [timeframes]
-            for tf in timeframes:
-                tf_val = tf.value if isinstance(tf, Timeframe) else tf
-                items.append(
-                    {
-                        "symbol": symbol,
-                        "market_type": market_type,
-                        "broker_type": broker_type,
-                        "timeframe": tf_val,
-                    }
-                )
+            request = SubscribeRequest.model_validate(inst)
+            items.append(inst)
 
         payload = {"type": "subscribe", "instruments": items}
         self._subscribe_payload = payload
@@ -149,16 +125,10 @@ class OHLCFeedClient:
             if not self._reconnect:
                 break
 
-
-            if (
-                self._reconnect_attempts
-                and attempts >= self._reconnect_attempts
-            ):
-                self._logger.error(
-                    "Exhausted reconnection attempts"
-                )
+            if self._reconnect_attempts and attempts >= self._reconnect_attempts:
+                self._logger.error("Exhausted reconnection attempts")
                 break
-            
+
             attempts += 1
 
             self._logger.info(
