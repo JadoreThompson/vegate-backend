@@ -10,6 +10,7 @@ from core.db import get_db_sess_sync
 from module.backtest.engine import BacktestEngine
 from module.backtest.enums import BacktestStatus
 from module.event_bus import SyncEventPublisher
+from module.markets.historical import HistoricalDataClient
 from module.strategy.model import Strategy
 from module.strategy.strategy import BaseStrategy
 from .engine.schema import BacktestMetrics as BacktestMetricsDto
@@ -118,11 +119,13 @@ class BacktestRunner:
         from user_strategy import UserStrategy  # type: ignore
 
         event_publisher = SyncEventPublisher()
+        historical_data_client = HistoricalDataClient()
 
         return UserStrategy(
             ohlc_feed_client=ohlc_feed_client,
             oms_client=oms_client,
             event_publisher=event_publisher,
+            historical_data_client=historical_data_client,
         )
     
     def _store_results(self, result: BacktestMetricsDto) -> None:

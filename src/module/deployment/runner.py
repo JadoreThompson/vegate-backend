@@ -14,6 +14,7 @@ from module.deployment.enums import StrategyDeploymentStatus
 from .oms import OMSClient
 from module.event_bus import SyncEventPublisher
 from module.markets.feed import OHLCFeedClient
+from module.markets.historical import HistoricalDataClient
 from module.strategy.model import Strategy
 from module.strategy.strategy import BaseStrategy, StrategyConfig
 from .event import DeploymentStatusChangedEvent
@@ -134,10 +135,13 @@ class StrategyDeploymentRunner:
 
         from user_strategy import UserStrategy
 
+        historical_data_client = HistoricalDataClient()
+
         strategy = UserStrategy(
             ohlc_feed_client=self._ohlc_feed_client,
             oms_client=self._oms_client,
             event_publisher=self._event_publisher,
+            historical_data_client=historical_data_client,
         )
 
         return strategy
