@@ -11,10 +11,7 @@ from module.markets.enums import MarketType, Timeframe
 from module.markets.schema import OHLC as OHLCModel
 from module.markets.feed.base import OHLCFeed
 from module.markets.feed.manager import feed_manager
-from module.markets.feed.server import (
-    OHLCFeedServer,
-    SocketConnection,
-)
+from module.markets.feed.server import OHLCFeedServer, SocketConnection
 
 
 def make_ohlc_model(**kwargs):
@@ -53,13 +50,7 @@ def mock_writer():
 
 @pytest.fixture
 def socket_conn(mock_writer):
-    return SocketConnection(
-        writer=mock_writer,
-        symbol="AAPL",
-        market_type=MarketType.STOCKS,
-        broker_type=BrokerType.ALPACA,
-        timeframe=Timeframe.m1,
-    )
+    return SocketConnection(writer=mock_writer)
 
 
 @pytest.fixture
@@ -183,13 +174,7 @@ class TestSocketConnectionClose:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_close_swallows_exceptions(self, mock_writer):
         mock_writer.close = MagicMock(side_effect=OSError("already closed"))
-        conn = SocketConnection(
-            writer=mock_writer,
-            symbol="AAPL",
-            market_type=MarketType.STOCKS,
-            broker_type=BrokerType.ALPACA,
-            timeframe=Timeframe.m1,
-        )
+        conn = SocketConnection(writer=mock_writer)
         # Should not raise
         await conn.close()
 
@@ -239,10 +224,10 @@ class TestOHLCFeedServerHandleCandle:
     ):
         conn2 = SocketConnection(
             writer=mock_writer,
-            symbol="AAPL",
-            market_type=MarketType.STOCKS,
-            broker_type=BrokerType.ALPACA,
-            timeframe=Timeframe.m1,
+            # symbol="AAPL",
+            # market_type=MarketType.STOCKS,
+            # broker_type=BrokerType.ALPACA,
+            # timeframe=Timeframe.m1,
         )
         candle = make_ohlc_model()
         server._live_conns["AAPL"][MarketType.STOCKS][BrokerType.ALPACA][
@@ -512,22 +497,29 @@ class TestOHLCFeedServerHandleSubscribe:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_handle_subscribe_missing_instruments(self, server, mock_writer):
+        mock_existing_instrument = MagicMock(spec=set)
         payload = {"type": "subscribe"}
-        result = await server._handle_subscribe(payload, mock_writer)
+        mock_connection = MagicMock(spec=SocketConnection)
+        result = await server._handle_subscribe(
+            payload, mock_connection, mock_existing_instrument
+        )
         assert result is None
         assert any(
             b"Missing 'instruments'" in c.args[0]
-            for c in mock_writer.write.call_args_list
+            for c in mock_connection.send.call_args_list
         )
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_handle_subscribe_empty_instruments(self, server, mock_writer):
+        mock_existing_instrument = MagicMock(spec=set)
         payload = {"type": "subscribe", "instruments": []}
-        result = await server._handle_subscribe(payload, mock_writer)
+        mock_connection = MagicMock(spec=SocketConnection)
+        result = await server._handle_subscribe(
+            payload, mock_connection, mock_existing_instrument
+        )
         assert result is None
         assert any(
-            b"non-empty list" in c.args[0]
-            for c in mock_writer.write.call_args_list
+            b"non-empty list" in c.args[0] for c in mock_connection.send.call_args_list
         )
 
     @pytest.mark.asyncio(loop_scope="session")
@@ -537,11 +529,15 @@ class TestOHLCFeedServerHandleSubscribe:
                 {"symbol": "AAPL", "market_type": "stocks"},
             ],
         }
-        result = await server._handle_subscribe(payload, mock_writer)
+        mock_existing_instrument = MagicMock(spec=set)
+        mock_connection = MagicMock(spec=SocketConnection)
+        result = await server._handle_subscribe(
+            payload, mock_connection, mock_existing_instrument
+        )
         assert result is None
         assert any(
             b"Bad instrument entry" in c.args[0]
-            for c in mock_writer.write.call_args_list
+            for c in mock_connection.send.call_args_list
         )
 
     @pytest.mark.asyncio(loop_scope="session")
@@ -556,11 +552,15 @@ class TestOHLCFeedServerHandleSubscribe:
                 },
             ],
         }
-        result = await server._handle_subscribe(payload, mock_writer)
+        mock_existing_instrument = MagicMock(spec=set)
+        mock_connection = MagicMock(spec=SocketConnection)
+        result = await server._handle_subscribe(
+            payload, mock_connection, mock_existing_instrument
+        )
         assert result is None
         assert any(
             b"Bad instrument entry" in c.args[0]
-            for c in mock_writer.write.call_args_list
+            for c in mock_connection.send.call_args_list
         )
 
     @pytest.mark.asyncio(loop_scope="session")
@@ -576,11 +576,15 @@ class TestOHLCFeedServerHandleSubscribe:
                     },
                 ],
             }
-            result = await server._handle_subscribe(payload, mock_writer)
+            mock_existing_instrument = MagicMock(spec=set)
+            mock_connection = MagicMock(spec=SocketConnection)
+            result = await server._handle_subscribe(
+                payload, mock_connection, mock_existing_instrument
+            )
             assert result is None
             assert any(
                 b"is not supported" in c.args[0]
-                for c in mock_writer.write.call_args_list
+                for c in mock_connection.send.call_args_list
             )
 
     @pytest.mark.asyncio(loop_scope="session")
@@ -597,11 +601,15 @@ class TestOHLCFeedServerHandleSubscribe:
                         },
                     ],
                 }
-                result = await server._handle_subscribe(payload, mock_writer)
+                mock_existing_instrument = MagicMock(spec=set)
+                mock_connection = MagicMock(spec=SocketConnection)
+                result = await server._handle_subscribe(
+                    payload, mock_connection, mock_existing_instrument
+                )
                 assert result is None
                 assert any(
                     b"Market type" in c.args[0]
-                    for c in mock_writer.write.call_args_list
+                    for c in mock_connection.send.call_args_list
                 )
 
     @pytest.mark.asyncio(loop_scope="session")
@@ -621,11 +629,15 @@ class TestOHLCFeedServerHandleSubscribe:
                             },
                         ],
                     }
-                    result = await server._handle_subscribe(payload, mock_writer)
+                    mock_existing_instrument = MagicMock(spec=set)
+                    mock_connection = MagicMock(spec=SocketConnection)
+                    result = await server._handle_subscribe(
+                        payload, mock_connection, mock_existing_instrument
+                    )
                     assert result is None
                     assert any(
                         b"Broker" in c.args[0]
-                        for c in mock_writer.write.call_args_list
+                        for c in mock_connection.send.call_args_list
                     )
 
     @pytest.mark.asyncio(loop_scope="session")
@@ -650,15 +662,21 @@ class TestOHLCFeedServerHandleSubscribe:
                                 },
                             ],
                         }
-                        result = await server._handle_subscribe(payload, mock_writer)
+                        mock_existing_instrument = MagicMock(spec=set)
+                        mock_connection = MagicMock(spec=SocketConnection)
+                        result = await server._handle_subscribe(
+                            payload, mock_connection, mock_existing_instrument
+                        )
                         assert result is None
                         assert any(
                             b"Timeframe" in c.args[0]
-                            for c in mock_writer.write.call_args_list
+                            for c in mock_connection.send.call_args_list
                         )
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_handle_subscribe_success_single_instrument(self, server, mock_writer):
+    async def test_handle_subscribe_success_single_instrument(
+        self, server, mock_writer
+    ):
         with patch.object(feed_manager, "get_symbols", return_value={"AAPL"}):
             with patch.object(
                 feed_manager, "get_market_types", return_value={MarketType.STOCKS}
@@ -679,18 +697,26 @@ class TestOHLCFeedServerHandleSubscribe:
                                 },
                             ],
                         }
-                        result = await server._handle_subscribe(payload, mock_writer)
+                        mock_existing_instrument = MagicMock(spec=set)
+                        mock_connection = MagicMock(spec=SocketConnection)
+                        result = await server._handle_subscribe(
+                            payload, mock_connection, mock_existing_instrument
+                        )
 
                         assert result is not None
-                        assert isinstance(result, list)
+
+                        assert isinstance(result, set)
                         assert len(result) == 1
-                        assert result[0].symbol == "AAPL"
-                        assert result[0].market_type == MarketType.STOCKS
-                        assert result[0].broker_type == BrokerType.ALPACA
-                        assert result[0].timeframe == Timeframe.m1
+                        result = list(result)
+                        assert result[0][0] == "AAPL"
+                        assert result[0][1] == MarketType.STOCKS
+                        assert result[0][2] == BrokerType.ALPACA
+                        assert result[0][3] == Timeframe.m1
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_handle_subscribe_success_multiple_instruments(self, server, mock_writer):
+    async def test_handle_subscribe_success_multiple_instruments(
+        self, server, mock_writer
+    ):
         with patch.object(feed_manager, "get_symbols", return_value={"AAPL", "MSFT"}):
             with patch.object(
                 feed_manager, "get_market_types", return_value={MarketType.STOCKS}
@@ -699,7 +725,9 @@ class TestOHLCFeedServerHandleSubscribe:
                     feed_manager, "get_brokers", return_value={BrokerType.ALPACA}
                 ):
                     with patch.object(
-                        feed_manager, "get_timeframes", return_value={Timeframe.m1, Timeframe.m5}
+                        feed_manager,
+                        "get_timeframes",
+                        return_value={Timeframe.m1, Timeframe.m5},
                     ):
                         payload = {
                             "instruments": [
@@ -717,24 +745,47 @@ class TestOHLCFeedServerHandleSubscribe:
                                 },
                             ],
                         }
-                        result = await server._handle_subscribe(payload, mock_writer)
+                        mock_existing_instrument = MagicMock(spec=set)
+                        mock_connection = MagicMock(spec=SocketConnection)
+                        result = await server._handle_subscribe(
+                            payload, mock_connection, mock_existing_instrument
+                        )
 
                         assert result is not None
-                        assert isinstance(result, list)
+                        assert isinstance(result, set)
                         assert len(result) == 3
-                        assert result[0].symbol == "AAPL"
-                        assert result[0].timeframe == Timeframe.m1
-                        assert result[1].symbol == "AAPL"
-                        assert result[1].timeframe == Timeframe.m5
-                        assert result[2].symbol == "MSFT"
-                        assert result[2].timeframe == Timeframe.m1
+
+                        expected = {
+                            (
+                                "AAPL",
+                                MarketType.STOCKS,
+                                BrokerType.ALPACA,
+                                Timeframe.m1,
+                            ),
+                            (
+                                "AAPL",
+                                MarketType.STOCKS,
+                                BrokerType.ALPACA,
+                                Timeframe.m5,
+                            ),
+                            (
+                                "MSFT",
+                                MarketType.STOCKS,
+                                BrokerType.ALPACA,
+                                Timeframe.m1,
+                            ),
+                        }
+
+                        assert result == expected
 
 
 class TestOHLCFeedServerRegisterLive:
     """Unit tests for OHLCFeedServer._register_live."""
 
     def test_register_live_adds_to_live_conns(self, server, socket_conn):
-        server._register_live(socket_conn)
+        server._register_live(
+            "AAPL", MarketType.STOCKS, BrokerType.ALPACA, Timeframe.m1, socket_conn
+        )
 
         conns = server._live_conns["AAPL"][MarketType.STOCKS][BrokerType.ALPACA][
             Timeframe.m1
@@ -742,15 +793,13 @@ class TestOHLCFeedServerRegisterLive:
         assert socket_conn in conns
 
     def test_register_live_multiple_connections(self, server, socket_conn, mock_writer):
-        conn2 = SocketConnection(
-            writer=mock_writer,
-            symbol="AAPL",
-            market_type=MarketType.STOCKS,
-            broker_type=BrokerType.ALPACA,
-            timeframe=Timeframe.m1,
+        conn2 = SocketConnection(writer=mock_writer)
+        server._register_live(
+            "AAPL", MarketType.STOCKS, BrokerType.ALPACA, Timeframe.m1, socket_conn
         )
-        server._register_live(socket_conn)
-        server._register_live(conn2)
+        server._register_live(
+            "AAPL", MarketType.STOCKS, BrokerType.ALPACA, Timeframe.m1, conn2
+        )
 
         conns = server._live_conns["AAPL"][MarketType.STOCKS][BrokerType.ALPACA][
             Timeframe.m1
@@ -786,7 +835,10 @@ class TestIntegration:
                                 },
                             ],
                         }
-                        conns = await server._handle_subscribe(payload, mock_writer)
+                        mock_connection = MagicMock(spec=SocketConnection)
+                        conns = await server._handle_subscribe(
+                            payload, mock_connection, set()
+                        )
 
                         assert conns is not None
                         assert len(conns) == 1
@@ -794,7 +846,7 @@ class TestIntegration:
                         live_set = server._live_conns["AAPL"][MarketType.STOCKS][
                             BrokerType.ALPACA
                         ][Timeframe.m1]
-                        assert conns[0] in live_set
+                        assert mock_connection in live_set
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_broadcast_to_live_connections(self, server):
@@ -809,32 +861,26 @@ class TestIntegration:
         writer2.write = MagicMock()
         writer2.drain = AsyncMock()
 
-        conn1 = SocketConnection(
-            writer=writer1,
-            symbol="AAPL",
-            market_type=MarketType.STOCKS,
-            broker_type=BrokerType.ALPACA,
-            timeframe=Timeframe.m1,
-        )
-        conn2 = SocketConnection(
-            writer=writer2,
-            symbol="AAPL",
-            market_type=MarketType.STOCKS,
-            broker_type=BrokerType.ALPACA,
-            timeframe=Timeframe.m1,
-        )
+        conn1 = SocketConnection(writer=writer1)
+        conn1.send = AsyncMock()
+        conn2 = SocketConnection(writer=writer2)
+        conn2.send = AsyncMock()
 
-        server._register_live(conn1)
-        server._register_live(conn2)
+        server._register_live(
+            "AAPL", MarketType.STOCKS, BrokerType.ALPACA, Timeframe.m1, conn1
+        )
+        server._register_live(
+            "AAPL", MarketType.STOCKS, BrokerType.ALPACA, Timeframe.m1, conn2
+        )
 
         candle = make_ohlc_model(open=300.0, close=305.0)
         await server.handle_candle(candle)
 
         # Both writers should have received data
-        writer1.write.assert_called_once()
-        writer2.write.assert_called_once()
+        conn1.send.assert_awaited_once()
+        conn2.send.assert_awaited_once()
 
         # Verify payload
-        data1 = json.loads(writer1.write.call_args.args[0].decode().strip())
+        data1 = json.loads(conn1.send.call_args.args[0].decode().strip())
         assert data1["candle"]["open"] == 300.0
         assert data1["is_live"] is True

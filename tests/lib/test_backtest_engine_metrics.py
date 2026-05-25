@@ -61,12 +61,14 @@ class SimpleStrategy(BaseStrategy):
         self._quantity = 1
 
     def startup(self):
-        self.ohlc_feed_client.subscribe(
-            symbol="AAPL",
-            market_type=MarketType.STOCKS,
-            timeframe=Timeframe.m1,
-            broker_type=BrokerType.ALPACA,
-        )
+        self.ohlc_feed_client.subscribe([
+            {
+                "symbol": "AAPL",
+                "market_type": MarketType.STOCKS,
+                "timeframe": Timeframe.m1,
+                "broker_type": BrokerType.ALPACA,
+            },
+        ])
 
     def on_candle(self, candle):
         if self._order is None:
@@ -329,12 +331,16 @@ class TestBacktestEngineIntegration:
             start=int(datetime(2024, 1, 2, tzinfo=UTC).timestamp()),
             end=int(datetime(2024, 1, 3, 0, 0, 0, tzinfo=UTC).timestamp()),
         )
-        feed.subscribe(
-            symbol=symbol,
-            market_type=market_type,
-            broker_type=BrokerType.ALPACA,
-            timeframe=Timeframe.m1,
-        )
+
+        feed.subscribe([
+            {
+                "symbol": symbol,
+                "market_type": market_type,
+                "broker_type": BrokerType.ALPACA,
+                "timeframe": Timeframe.m1,
+            },
+        ])
+        
         event_pub = _make_event_publisher()
         strategy = SimpleStrategy(feed, oms, event_pub)
         engine = BacktestEngine(

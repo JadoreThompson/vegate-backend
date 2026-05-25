@@ -16,7 +16,7 @@ from module.event_bus import SyncEventPublisher
 from module.markets.feed import OHLCFeedClient
 from module.markets.historical import HistoricalDataClient
 from module.strategy.model import Strategy
-from module.strategy.strategy import BaseStrategy, StrategyConfig
+from module.strategy.strategy import BaseStrategy
 from .event import DeploymentStatusChangedEvent
 from .model import StrategyDeployments
 
@@ -37,7 +37,6 @@ class StrategyDeploymentRunner:
         self._deployment_id = deployment_id
         self._ohlc_feed_client = ohlc_feed_client
         self._oms_client = oms_client
-        self._strategy_config: StrategyConfig | None = None
         self._event_publisher = event_publisher
         self._redis_client = redis_client
         self._heartbeat_interval = heartbeat_interval
