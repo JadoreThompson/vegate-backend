@@ -4,16 +4,11 @@ import asyncio
 import json
 import logging
 from collections import defaultdict
-from typing import ClassVar
 
-from sqlalchemy import select
-
-from core.db import get_db_session
 from module.broker.enums import BrokerType
 from .base import OHLCFeed
 from .manager import feed_manager
 from ..enums import MarketType, Timeframe
-from ..model import Instrument, OHLC
 from ..schema import OHLC as OHLCSchema
 
 logger = logging.getLogger(__name__)
@@ -34,10 +29,6 @@ class SocketConnection:
         self.market_type = market_type
         self.broker_type = broker_type
         self.timeframe = timeframe
-
-        # Replay state - None once bootstrapped into live stream
-        self._replay_data: list[OHLC] | None = None
-        self._replay_idx: int = 0
 
     @property
     def addr(self) -> str:
@@ -83,7 +74,6 @@ class OHLCFeedServer:
 
     DEFAULT_HOST: ClassVar[str] = "127.0.0.1"
     DEFAULT_PORT: ClassVar[int] = 9000
-    _REPLAY_PAGE: ClassVar[int] = 1_000
 
     def __init__(self, host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
         self._host = host
@@ -191,15 +181,6 @@ class OHLCFeedServer:
                 if msg_type == "subscribe":
                     conn = await self._handle_subscribe(payload, writer)
 
-                elif msg_type == "replay_ack":
-                    if conn is None:
-                        writer.write(
-                            self._err("Must subscribe before sending replay_ack")
-                        )
-                        await writer.drain()
-                        continue
-                    await self._handle_replay_ack(conn)
-
                 elif msg_type == "heartbeat":
                     writer.write(self._heartbeat_ack())
                     await writer.drain()
@@ -289,57 +270,8 @@ class OHLCFeedServer:
             timeframe=timeframe,
         )
 
-        start: int | None = payload.get("start")
-
-        if start is None:
-            # No historical replay requested - bootstrap to live stream
-            self._register_live(conn)
-            return conn
-
-        # Fetch historical page and start replay
-        data = await self._fetch_ohlc(start, conn)
-        if not data:
-            # No historical data - bootstrap to live stream
-            self._register_live(conn)
-            return conn
-
-        conn._replay_data = data
-        conn._replay_idx = 0
-        await self._send_next_replay_frame(conn)
+        self._register_live(conn)
         return conn
-
-    async def _handle_replay_ack(self, conn: SocketConnection) -> None:
-        """Client acknowledged the last replay frame; send the next one."""
-        if conn._replay_data is None:
-            return
-
-        data = conn._replay_data
-        idx = conn._replay_idx
-
-        if idx < len(data):
-            # Still within the current page
-            await self._send_next_replay_frame(conn)
-            return
-
-        # Current page exhausted - try to fetch the next page
-        new_start = data[-1].timestamp + conn.timeframe.get_seconds()
-        new_data = await self._fetch_ohlc(new_start, conn)
-
-        if new_data:
-            conn._replay_data = new_data
-            conn._replay_idx = 0
-            await self._send_next_replay_frame(conn)
-        else:
-            # No more historical data - bootstrap to live stream
-            conn._replay_data = None
-            conn._replay_idx = 0
-            self._register_live(conn)
-
-    async def _send_next_replay_frame(self, conn: SocketConnection) -> None:
-        """Send the candle at the current replay cursor and advance it."""
-        candle = conn._replay_data[conn._replay_idx]
-        conn._replay_idx += 1
-        await conn.send(self._candle_payload(candle=candle, is_live=False))
 
     def _register_live(self, conn: SocketConnection) -> None:
         self._live_conns[conn.symbol][conn.market_type][conn.broker_type][
@@ -354,73 +286,9 @@ class OHLCFeedServer:
             conn.timeframe,
         )
 
-    async def _fetch_ohlc(self, start: int, conn: SocketConnection) -> list[OHLC]:
-        squery = (
-            select(Instrument.id)
-            .where(
-                Instrument.symbol == conn.symbol,
-                Instrument.market_type == conn.market_type,
-                Instrument.broker_type == conn.broker_type,
-            )
-            .subquery()
-        )
-
-        async with get_db_session() as db_sess:
-            res = await db_sess.execute(
-                select(OHLC)
-                .where(
-                    OHLC.instrument_id == squery.c.id,
-                    OHLC.timeframe == conn.timeframe,
-                    OHLC.timestamp >= start,
-                )
-                .order_by(OHLC.timestamp.asc())
-                .limit(self._REPLAY_PAGE)
-            )
-            return res.scalars().all()
-
     def _err(self, message: str) -> bytes:
         # return (json.dumps({"type": "error", "message": message}) + "\n").encode()
         return self._create_message({"type": "error", "message": message})
-
-    def _candle_payload(self, candle: OHLC) -> bytes:
-        """Serialise a DB OHLC row to a wire frame."""
-        # return (
-        #     json.dumps(
-        #         {
-        #             "candle": OHLCSchema(
-        #                 open=candle.open,
-        #                 high=candle.high,
-        #                 low=candle.low,
-        #                 close=candle.close,
-        #                 volume=candle.volume,
-        #                 timestamp=candle.timestamp,
-        #                 timeframe=candle.timeframe,
-        #                 symbol=candle.symbol,
-        #                 broker=candle.source,
-        #                 market_type=candle.market_type,
-        #             ).model_dump(mode="json"),
-        #             "is_live": False,
-        #         }
-        #     )
-        #     + "\n"
-        # ).encode()
-        return self._create_message(
-            {
-                "candle": OHLCSchema(
-                    open=candle.open,
-                    high=candle.high,
-                    low=candle.low,
-                    close=candle.close,
-                    volume=candle.volume,
-                    timestamp=candle.timestamp,
-                    timeframe=candle.timeframe,
-                    symbol=candle.symbol,
-                    broker=candle.source,
-                    market_type=candle.market_type,
-                ).model_dump(mode="json"),
-                "is_live": False,
-            }
-        )
 
     def _ohlcmodel_payload(self, candle: OHLCSchema, is_live: bool = True) -> bytes:
         """Serialise a live OHLCSchema (from a feed) to a wire frame."""

@@ -8,7 +8,6 @@ from uuid import uuid4
 
 from module.broker.enums import BrokerType
 from module.markets.enums import MarketType, Timeframe
-from module.markets.model import OHLC
 from module.markets.schema import OHLC as OHLCModel
 from module.markets.feed.base import OHLCFeed
 from module.markets.feed.manager import feed_manager
@@ -16,27 +15,6 @@ from module.markets.feed.server import (
     OHLCFeedServer,
     SocketConnection,
 )
-
-
-def make_ohlc_row(**kwargs):
-    """Build a MagicMock that looks like an OHLC DB row."""
-    defaults = {
-        "open": 100.0,
-        "high": 105.0,
-        "low": 99.0,
-        "close": 102.0,
-        "volume": 1000.0,
-        "timestamp": 1500000000,
-        "timeframe": Timeframe.m1,
-        "symbol": "AAPL",
-        "source": BrokerType.ALPACA,
-        "market_type": MarketType.STOCKS,
-    }
-    defaults.update(kwargs)
-    row = MagicMock(spec=OHLC)
-    for k, v in defaults.items():
-        setattr(row, k, v)
-    return row
 
 
 def make_ohlc_model(**kwargs):
@@ -123,24 +101,6 @@ class TestErr:
 
         assert data["type"] == "error", data
         assert data["message"] == "Something went wrong", data
-
-
-class TestCandlePayload:
-    """Unit tests for _candle_payload helper."""
-
-    def test_candle_payload_has_candle_data(self, server):
-        row = make_ohlc_row(open=150.0, close=155.0)
-        result = server._candle_payload(row)
-
-        assert isinstance(result, bytes), result
-        assert result.endswith(b"\n"), result
-
-        data = json.loads(result.decode().strip())
-
-        assert data["candle"]["open"] == 150.0, data
-        assert data["candle"]["close"] == 155.0, data
-        assert data["candle"]["symbol"] == "AAPL", data
-        assert data["is_live"] is False, data
 
 
 class TestOhlcModelPayload:
@@ -483,30 +443,6 @@ class TestOHLCFeedServerHandleClient:
         writer.close.assert_called_once()
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_handle_client_replay_ack_without_subscribe(self, server):
-        reader = MagicMock(spec=asyncio.StreamReader)
-        reader.readline = AsyncMock(
-            side_effect=[
-                json.dumps({"type": "replay_ack"}).encode() + b"\n",
-                b"",  # EOF
-            ]
-        )
-
-        writer = MagicMock(spec=asyncio.StreamWriter)
-        writer.get_extra_info = MagicMock(return_value=("10.0.0.1", 12345))
-        writer.write = MagicMock()
-        writer.drain = AsyncMock()
-        writer.close = MagicMock()
-        writer.wait_closed = AsyncMock()
-
-        await server._handle_client(reader, writer)
-
-        calls = writer.write.call_args_list
-        assert any(
-            b"Must subscribe before sending replay_ack" in c.args[0] for c in calls
-        )
-
-    @pytest.mark.asyncio(loop_scope="session")
     async def test_handle_client_cleans_up_live_conn_on_exit(self, server):
         # First register a feed so subscribe succeeds
         mock_feed = MagicMock(spec=OHLCFeed)
@@ -702,139 +638,6 @@ class TestOHLCFeedServerHandleSubscribe:
                         assert result.broker_type == BrokerType.ALPACA
                         assert result.timeframe == Timeframe.m1
 
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_handle_subscribe_success_with_start_no_data(
-        self, server, mock_writer
-    ):
-        with patch.object(feed_manager, "get_symbols", return_value={"AAPL"}):
-            with patch.object(
-                feed_manager, "get_market_types", return_value={MarketType.STOCKS}
-            ):
-                with patch.object(
-                    feed_manager, "get_brokers", return_value={BrokerType.ALPACA}
-                ):
-                    with patch.object(
-                        feed_manager, "get_timeframes", return_value={Timeframe.m1}
-                    ):
-                        with patch.object(
-                            server, "_fetch_ohlc", AsyncMock(return_value=[])
-                        ):
-                            payload = {
-                                "symbol": "AAPL",
-                                "market_type": "stocks",
-                                "broker_type": "alpaca",
-                                "timeframe": "1m",
-                                "start": 1500000000,
-                            }
-                            result = await server._handle_subscribe(
-                                payload, mock_writer
-                            )
-
-                            assert result is not None
-                            assert (
-                                result._replay_data is None
-                            )  # Bootstrapped to live, no data to be fetched
-
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_handle_subscribe_success_with_start_has_data(
-        self, server, mock_writer
-    ):
-        mock_row = make_ohlc_row()
-        with patch.object(feed_manager, "get_symbols", return_value={"AAPL"}):
-            with patch.object(
-                feed_manager, "get_market_types", return_value={MarketType.STOCKS}
-            ):
-                with patch.object(
-                    feed_manager, "get_brokers", return_value={BrokerType.ALPACA}
-                ):
-                    with patch.object(
-                        feed_manager, "get_timeframes", return_value={Timeframe.m1}
-                    ):
-                        with patch.object(
-                            server, "_fetch_ohlc", AsyncMock(return_value=[mock_row])
-                        ):
-                            with patch.object(
-                                server, "_send_next_replay_frame", AsyncMock()
-                            ) as mock_send:
-                                payload = {
-                                    "symbol": "AAPL",
-                                    "market_type": "stocks",
-                                    "broker_type": "alpaca",
-                                    "timeframe": "1m",
-                                    "start": 1500000000,
-                                }
-                                result = await server._handle_subscribe(
-                                    payload, mock_writer
-                                )
-
-                                assert result is not None
-                                assert result._replay_data == [mock_row]
-                                assert result._replay_idx == 0
-                                mock_send.assert_awaited_once_with(result)
-
-
-class TestOHLCFeedServerHandleReplayAck:
-    """Unit tests for OHLCFeedServer._handle_replay_ack."""
-
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_handle_replay_ack_no_replay_data(self, server, socket_conn):
-        socket_conn._replay_data = None
-        # Should not raise
-        await server._handle_replay_ack(socket_conn)
-
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_handle_replay_ack_within_page(self, server, socket_conn):
-        socket_conn._replay_data = [make_ohlc_row(), make_ohlc_row()]
-        socket_conn._replay_idx = 0
-
-        with patch.object(server, "_send_next_replay_frame", AsyncMock()) as mock_send:
-            await server._handle_replay_ack(socket_conn)
-            mock_send.assert_awaited_once_with(socket_conn)
-            assert socket_conn._replay_idx == 0  # _send_next_replay_frame advances it
-
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_handle_replay_ack_page_exhausted_has_next_page(
-        self, server, socket_conn
-    ):
-        row1 = make_ohlc_row(timestamp=1500000000)
-        socket_conn._replay_data = [row1]
-        socket_conn._replay_idx = 1  # Past the only element
-        socket_conn.timeframe = Timeframe.m1
-
-        row2 = make_ohlc_row(timestamp=1500000060)
-        with patch.object(
-            server, "_fetch_ohlc", AsyncMock(return_value=[row2])
-        ) as mock_fetch:
-            with patch.object(
-                server, "_send_next_replay_frame", AsyncMock()
-            ) as mock_send:
-                await server._handle_replay_ack(socket_conn)
-
-                mock_fetch.assert_awaited_once()
-                assert socket_conn._replay_data == [row2]
-                assert socket_conn._replay_idx == 0
-                mock_send.assert_awaited_once_with(socket_conn)
-
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_handle_replay_ack_page_exhausted_no_more_data(
-        self, server, socket_conn
-    ):
-        row1 = make_ohlc_row(timestamp=1500000000)
-        socket_conn._replay_data = [row1]
-        socket_conn._replay_idx = 1
-        socket_conn.timeframe = Timeframe.m1
-
-        with patch.object(
-            server, "_fetch_ohlc", AsyncMock(return_value=[])
-        ) as mock_fetch:
-            with patch.object(server, "_register_live") as mock_register:
-                await server._handle_replay_ack(socket_conn)
-
-                mock_fetch.assert_awaited_once()
-                assert socket_conn._replay_data is None
-                assert socket_conn._replay_idx == 0
-                mock_register.assert_called_once_with(socket_conn)
-
 
 class TestOHLCFeedServerRegisterLive:
     """Unit tests for OHLCFeedServer._register_live."""
@@ -866,77 +669,12 @@ class TestOHLCFeedServerRegisterLive:
         assert conn2 in conns
 
 
-class TestOHLCFeedServerFetchOhlc:
-    """Unit tests for OHLCFeedServer._fetch_ohlc."""
-
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_fetch_ohlc_returns_records(self, server, socket_conn):
-        mock_row1 = make_ohlc_row(timestamp=1500000000)
-        mock_row2 = make_ohlc_row(timestamp=1500000060)
-
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = [mock_row1, mock_row2]
-
-        mock_sess = AsyncMock()
-        mock_sess.execute = AsyncMock(return_value=mock_result)
-
-        with patch("module.markets.feed.server.get_db_session") as mock_get_db:
-            mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_sess)
-            mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
-
-            result = await server._fetch_ohlc(1500000000, socket_conn)
-
-            assert len(result) == 2
-            assert result[0].timestamp == 1500000000
-            assert result[1].timestamp == 1500000060
-
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_fetch_ohlc_empty_result(self, server, socket_conn):
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = []
-
-        mock_sess = AsyncMock()
-        mock_sess.execute = AsyncMock(return_value=mock_result)
-
-        with patch("module.markets.feed.server.get_db_session") as mock_get_db:
-            mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_sess)
-            mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
-
-            result = await server._fetch_ohlc(1500000000, socket_conn)
-
-            assert result == []
-
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_fetch_ohlc_respects_page_limit(self, server, socket_conn):
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = []
-
-        mock_sess = AsyncMock()
-        mock_sess.execute = AsyncMock(return_value=mock_result)
-
-        with patch("module.markets.feed.server.get_db_session") as mock_get_db:
-            mock_get_db.return_value.__aenter__ = AsyncMock(return_value=mock_sess)
-            mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
-
-            await server._fetch_ohlc(1500000000, socket_conn)
-
-            # Verify the query has limit set to _REPLAY_PAGE
-            call_args = mock_sess.execute.await_args
-            stmt = call_args.args[0]
-            # SQLAlchemy compile to check limit
-            compiled = stmt.compile(compile_kwargs={"literal_binds": True})
-            assert (
-                str(server._REPLAY_PAGE) in str(compiled)
-                or "LIMIT" in str(compiled).upper()
-            )
-
-
 class TestIntegration:
     """Integration-style tests for OHLCFeedServer."""
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_full_subscription_flow(self, server, mock_writer):
-        """Test subscribe -> replay -> live bootstrap flow."""
+        """Test subscribe -> live bootstrap flow."""
         # Setup feed manager mocks
         with patch.object(feed_manager, "get_symbols", return_value={"AAPL"}):
             with patch.object(
@@ -948,7 +686,6 @@ class TestIntegration:
                     with patch.object(
                         feed_manager, "get_timeframes", return_value={Timeframe.m1}
                     ):
-                        # Subscribe without start -> live
                         payload = {
                             "symbol": "AAPL",
                             "market_type": "stocks",
@@ -958,7 +695,6 @@ class TestIntegration:
                         conn = await server._handle_subscribe(payload, mock_writer)
 
                         assert conn is not None
-                        assert conn._replay_data is None
 
                         # Verify connection is in live set
                         live_set = server._live_conns["AAPL"][MarketType.STOCKS][

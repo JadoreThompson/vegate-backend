@@ -60,20 +60,6 @@ class TestProperties:
     def test_cur_candle_property_none(self, backtest_client):
         assert backtest_client.cur_candle is None
 
-    def test_start_property(self, backtest_client):
-        assert backtest_client.start == 1000
-
-    def test_start_property_after_subscribe_update(self, backtest_client):
-        backtest_client.subscribe(
-            symbol="AAPL",
-            market_type=MarketType.STOCKS,
-            broker_type=BrokerType.ALPACA,
-            timeframe=Timeframe.m1,
-            start=1500,
-        )
-        # start should be max of original (1000) and provided (1500)
-        assert backtest_client.start == 1500
-
 
 class TestSubscribe:
     """Unit tests for the subscribe method."""
@@ -113,36 +99,6 @@ class TestSubscribe:
             timeframe=Timeframe.m1,
         )
         assert backtest_client._timeframe == Timeframe.m1
-
-    def test_subscribe_with_start_updates_start(self, backtest_client):
-        backtest_client.subscribe(
-            symbol="AAPL",
-            market_type=MarketType.STOCKS,
-            broker_type=BrokerType.ALPACA,
-            timeframe=Timeframe.m1,
-            start=1500,
-        )
-        assert backtest_client._start == 1500
-
-    def test_subscribe_with_start_less_than_original(self, backtest_client):
-        # Original start is 1000, providing 500 should keep 1000 (max)
-        backtest_client.subscribe(
-            symbol="AAPL",
-            market_type=MarketType.STOCKS,
-            broker_type=BrokerType.ALPACA,
-            timeframe=Timeframe.m1,
-            start=500,
-        )
-        assert backtest_client._start == 1000
-
-    def test_subscribe_without_start_keeps_original(self, backtest_client):
-        backtest_client.subscribe(
-            symbol="AAPL",
-            market_type=MarketType.STOCKS,
-            broker_type=BrokerType.ALPACA,
-            timeframe=Timeframe.m1,
-        )
-        assert backtest_client._start == 1000
 
     def test_subscribe_crypto_symbol(self, backtest_client):
         backtest_client.subscribe(
@@ -249,7 +205,6 @@ class TestIntegration:
             market_type=MarketType.STOCKS,
             broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
-            start=1500,
         )
 
         candles = list(backtest_client.candles())
@@ -309,17 +264,16 @@ class TestIntegration:
             market_type=MarketType.STOCKS,
             broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
-            start=1400,
         )
         backtest_client._end = 1800
 
         candles = list(backtest_client.candles())
 
         # Should only get 1400, 1600, 1800
-        assert len(candles) == 3
-        assert candles[0].timestamp == 1400
-        assert candles[1].timestamp == 1600
-        assert candles[2].timestamp == 1800
+        assert len(candles) == 5
+        assert candles[2].timestamp == 1400
+        assert candles[3].timestamp == 1600
+        assert candles[4].timestamp == 1800
 
         # Cleanup
         with get_db_sess_sync() as db_sess:

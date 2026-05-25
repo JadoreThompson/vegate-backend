@@ -58,9 +58,10 @@ class DeploymentsService:
 
     async def start(self, deployment_id: UUID, user_id: UUID, db_sess: AsyncSession):
         deployment = await self._get_user_deployment(deployment_id, user_id, db_sess)
-        if deployment.status == StrategyDeploymentStatus.RUNNING:
+        if deployment.status in {StrategyDeploymentStatus.RUNNING, StrategyDeploymentStatus.PENDING}:
             raise DeploymentAlreadyRunningException(deployment_id)
 
+        deployment.status = StrategyDeploymentStatus.PENDING
         await self._deployment_executor.run(deployment_id)
 
     async def stop(self, deployment_id: UUID, user_id: UUID, db_sess: AsyncSession):
@@ -70,10 +71,6 @@ class DeploymentsService:
             StrategyDeploymentStatus.STOP_REQUESTED,
             StrategyDeploymentStatus.STOPPED,
         }:
-            return
-        
-        if deployment.status == StrategyDeploymentStatus.PENDING:
-            deployment.status = StrategyDeploymentStatus.STOPPED
             return
 
         deployment.status = StrategyDeploymentStatus.STOP_REQUESTED

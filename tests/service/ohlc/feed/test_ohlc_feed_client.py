@@ -210,7 +210,6 @@ class TestSubscribe:
             market_type=MarketType.STOCKS,
             broker_type=BrokerType.ALPACA,
             timeframe=Timeframe.m1,
-            start=1500000000,
         )
 
         assert client._subscribe_payload == {
@@ -219,36 +218,7 @@ class TestSubscribe:
             "market_type": "stocks",
             "broker_type": "alpaca",
             "timeframe": "1m",
-            "start": 1500000000,
         }
-
-    def test_subscribe_sets_in_replay_when_start_provided(self, client):
-        client._socket = MagicMock(spec=socket.socket)
-        client._socket.sendall = MagicMock()
-
-        client.subscribe(
-            symbol="AAPL",
-            market_type=MarketType.STOCKS,
-            broker_type=BrokerType.ALPACA,
-            timeframe=Timeframe.m1,
-            start=1500000000,
-        )
-
-        assert client._in_replay is True
-
-    def test_subscribe_no_replay_when_start_none(self, client):
-        client._socket = MagicMock(spec=socket.socket)
-        client._socket.sendall = MagicMock()
-
-        client.subscribe(
-            symbol="AAPL",
-            market_type=MarketType.STOCKS,
-            broker_type=BrokerType.ALPACA,
-            timeframe=Timeframe.m1,
-            start=None,
-        )
-
-        assert client._in_replay is False
 
     def test_subscribe_sends_payload(self, client):
         client._socket = MagicMock(spec=socket.socket)
@@ -277,11 +247,9 @@ class TestSubscribe:
                 market_type=MarketType.STOCKS,
                 broker_type=BrokerType.ALPACA,
                 timeframe=Timeframe.m1,
-                start=1500000000,
             )
 
         assert "Subscribed: AAPL" in caplog.text
-        assert "start=1500000000" in caplog.text
 
 
 class TestSend:
@@ -717,41 +685,4 @@ class TestIntegration:
             client.close()
             assert client.is_connected is False
 
-    def test_replay_flow(self, client):
-        """Test subscribe with start -> replay_ack -> live transition."""
-        replay_frame = make_server_frame(is_live=False)
-        live_frame = make_server_frame(is_live=True)
 
-        with patch("socket.create_connection") as mock_create:
-            mock_sock = MagicMock(spec=socket.socket)
-            mock_reader = MagicMock()
-            mock_sock.makefile = MagicMock(return_value=mock_reader)
-            mock_create.return_value = mock_sock
-
-            client.connect()
-            client.subscribe(
-                symbol="AAPL",
-                market_type=MarketType.STOCKS,
-                broker_type=BrokerType.ALPACA,
-                timeframe=Timeframe.m1,
-                start=1500000000,
-            )
-
-            # First replay candle, then live candle, then EOF
-            mock_reader.readline.side_effect = [
-                (json.dumps(replay_frame) + "\n").encode(),
-                (json.dumps(live_frame) + "\n").encode(),
-                b"",
-            ]
-
-            candles = list(client.candles())
-
-            assert len(candles) == 2
-            # First is replay
-            assert client._in_replay is False  # After parsing live frame
-            # replay_ack should have been sent after first candle
-            calls = mock_sock.sendall.call_args_list
-            # First call is subscribe, second should be replay_ack
-            assert len(calls) >= 2
-            ack_data = json.loads(calls[1].args[0].decode().strip())
-            assert ack_data["type"] == "replay_ack"

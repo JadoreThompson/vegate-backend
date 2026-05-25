@@ -94,7 +94,6 @@ class OHLCFeedClient:
         market_type: MarketType,
         broker_type: BrokerType,
         timeframe: Timeframe,
-        start: int | None = None,
     ) -> None:
         payload = {
             "type": "subscribe",
@@ -102,21 +101,18 @@ class OHLCFeedClient:
             "market_type": market_type.value,
             "broker_type": broker_type.value,
             "timeframe": timeframe.value,
-            "start": start,
         }
 
         self._subscribe_payload = payload
-        self._in_replay = start is not None
 
         self._send(payload)
 
         self._logger.info(
-            "Subscribed: %s / %s / %s / %s start=%s",
+            "Subscribed: %s / %s / %s / %s",
             symbol,
             market_type,
             broker_type,
             timeframe,
-            start,
         )
 
     def candles(self) -> Generator[OHLC, None, None]:

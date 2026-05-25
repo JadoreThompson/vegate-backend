@@ -43,14 +43,11 @@ class BacktestOHLCFeedClient(OHLCFeedClient):
         market_type: MarketType,
         broker_type: BrokerType,
         timeframe: Timeframe,
-        start: int | None = None,
     ) -> None:
         self._symbol = symbol
         self._market_type = market_type
         self._broker_type = broker_type
         self._timeframe = timeframe
-        if start is not None:
-            self._start = max(self._start, start)
 
         self._name = (
             f"{self.__class__.__name__}-"
@@ -61,12 +58,11 @@ class BacktestOHLCFeedClient(OHLCFeedClient):
 
         self._logger.info(
             "Subscribed to backtest feed: "
-            "symbol=%s market_type=%s broker=%s timeframe=%s start=%s",
+            "symbol=%s market_type=%s broker=%s timeframe=%s",
             symbol,
             market_type,
             broker_type,
             timeframe,
-            start,
         )
 
     def candles(self) -> Generator[OHLCSchema, None, None]:
