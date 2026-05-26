@@ -34,10 +34,10 @@ async def authenticated_client(client, faker):
         "email": f"{username}@email.com",
         "password": "PAssword1@@1",
     }
-    rsp = await client.post("/auth/register", json=register_payload)
+    rsp = await client.post("/api/v1/auth/register", json=register_payload)
     assert 200 <= rsp.status_code <= 299
 
-    rsp = await client.post("/auth/verify-email", json={"code": code})
+    rsp = await client.post("/api/v1/auth/verify-email", json={"code": code})
     assert 200 <= rsp.status_code <= 299
 
     yield client

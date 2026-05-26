@@ -1,16 +1,12 @@
-import pytest
-from datetime import datetime, UTC
+from datetime import datetime
 from unittest.mock import MagicMock, patch
-from uuid import uuid4
 
-from sqlalchemy import delete, insert
+import pytest
 
 from module.broker.enums import BrokerType
 from module.markets.enums import MarketType, Timeframe
-from module.markets.model import OHLC, Instrument
 from module.markets.schema import OHLC as OHLCSchema
 from module.markets.historical import HistoricalDataClient
-from core.db import get_db_sess_sync, get_db_session
 
 MODULE_PATH = "module.markets.historical.client"
 
@@ -18,69 +14,86 @@ MODULE_PATH = "module.markets.historical.client"
 class TestHistoricalDataClientInit:
 
     def test_init_sets_name(self):
-        client = HistoricalDataClient()
+        client = HistoricalDataClient(base_url="http://localhost:8000")
         assert client._name == "HistoricalDataClient"
 
     def test_init_sets_logger(self):
-        client = HistoricalDataClient()
+        client = HistoricalDataClient(base_url="http://localhost:8000")
         assert client._logger is not None
         assert client._logger.name == "HistoricalDataClient"
 
     def test_fetch_returns_generator(self):
-        client = HistoricalDataClient()
-        result = client.fetch(
-            symbol="AAPL",
-            market_type=MarketType.STOCKS,
-            broker_type=BrokerType.ALPACA,
-            timeframe=Timeframe.D1,
-            start_time=1000,
-            end_time=2000,
-        )
         from types import GeneratorType
-        assert isinstance(result, GeneratorType)
+
+        client = HistoricalDataClient(base_url="http://localhost:8000")
+        with patch.object(client._client, "get") as mock_get:
+            mock_resp = MagicMock()
+            mock_resp.ok = True
+            mock_resp.json.return_value = {
+                "data": [],
+                "page": 1,
+                "size": 0,
+                "has_next": False,
+            }
+            mock_get.return_value = mock_resp
+            result = client.fetch(
+                symbol="AAPL",
+                market_type=MarketType.STOCKS,
+                broker_type=BrokerType.ALPACA,
+                timeframe=Timeframe.D1,
+                start_date=datetime(1970, 1, 1),
+                end_date=datetime(2023, 1, 1),
+            )
+            assert isinstance(result, GeneratorType)
 
 
 class TestHistoricalDataClientFetch:
 
     class TestUnitTest:
 
+        def _make_mock_response(self, data: list[dict], has_next: bool = False):
+            mock_resp = MagicMock()
+            mock_resp.ok = True
+            mock_resp.json.return_value = {
+                "data": data,
+                "page": 1,
+                "size": len(data),
+                "has_next": has_next,
+            }
+            return mock_resp
+
         def test_fetch_yields_ohlc_schema_objects(self):
-            mock_instrument = MagicMock()
-            mock_instrument.symbol = "AAPL"
-            mock_instrument.broker_type = BrokerType.ALPACA
-            mock_instrument.market_type = MarketType.STOCKS
+            mock_resp = self._make_mock_response(
+                [
+                    {
+                        "open": 100.0,
+                        "high": 105.0,
+                        "low": 99.0,
+                        "close": 102.0,
+                        "volume": 1000.0,
+                        "timestamp": 1500,
+                        "timeframe": "1d",
+                        "symbol": "AAPL",
+                        "broker": "alpaca",
+                        "market_type": "stocks",
+                    }
+                ]
+            )
 
-            mock_candle = MagicMock()
-            mock_candle.open = 100.0
-            mock_candle.high = 105.0
-            mock_candle.low = 99.0
-            mock_candle.close = 102.0
-            mock_candle.volume = 1000.0
-            mock_candle.timeframe = Timeframe.D1
-            mock_candle.timestamp = 1500
-
-            mock_row = MagicMock()
-            mock_row.tuple.return_value = (mock_candle, mock_instrument)
-
-            mock_result = MagicMock()
-            mock_result.yield_per.return_value = [mock_row]
-
-            mock_db_sess = MagicMock()
-            mock_db_sess.execute.return_value = mock_result
-
-            with patch(f"{MODULE_PATH}.get_db_sess_sync") as mock_get_db:
-                mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
-                mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
-
-                client = HistoricalDataClient()
-                candles = list(client.fetch(
-                    symbol="AAPL",
-                    market_type=MarketType.STOCKS,
-                    broker_type=BrokerType.ALPACA,
-                    timeframe=Timeframe.D1,
-                    start_time=1000,
-                    end_time=2000,
-                ))
+            client = HistoricalDataClient(base_url="http://localhost:8000")
+            with patch.object(
+                client._client, "get", return_value=mock_resp
+            ) as mock_get:
+                candles = list(
+                    client.fetch(
+                        symbol="AAPL",
+                        market_type=MarketType.STOCKS,
+                        broker_type=BrokerType.ALPACA,
+                        timeframe=Timeframe.D1,
+                        start_date=datetime(1970, 1, 1),
+                        end_date=datetime(2023, 1, 1),
+                    )
+                )
 
             assert len(candles) == 1
             assert isinstance(candles[0], OHLCSchema)
@@ -96,45 +109,35 @@ class TestHistoricalDataClientFetch:
             assert candles[0].timestamp == 1500
 
         def test_fetch_yields_multiple_candles(self):
-            mock_instrument = MagicMock()
-            mock_instrument.symbol = "AAPL"
-            mock_instrument.broker_type = BrokerType.ALPACA
-            mock_instrument.market_type = MarketType.STOCKS
+            rows = [
+                {
+                    "open": 100.0 + i,
+                    "high": 105.0 + i,
+                    "low": 99.0 + i,
+                    "close": 102.0 + i,
+                    "volume": 1000.0,
+                    "timestamp": 1000 + i,
+                    "timeframe": "1d",
+                    "symbol": "AAPL",
+                    "broker": "alpaca",
+                    "market_type": "stocks",
+                }
+                for i in range(5)
+            ]
+            mock_resp = self._make_mock_response(rows)
 
-            rows = []
-            for i in range(5):
-                candle = MagicMock()
-                candle.open = 100.0 + i
-                candle.high = 105.0 + i
-                candle.low = 99.0 + i
-                candle.close = 102.0 + i
-                candle.volume = 1000.0
-                candle.timeframe = Timeframe.D1
-                candle.timestamp = 1000 + i
-
-                row = MagicMock()
-                row.tuple.return_value = (candle, mock_instrument)
-                rows.append(row)
-
-            mock_result = MagicMock()
-            mock_result.yield_per.return_value = rows
-
-            mock_db_sess = MagicMock()
-            mock_db_sess.execute.return_value = mock_result
-
-            with patch(f"{MODULE_PATH}.get_db_sess_sync") as mock_get_db:
-                mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
-                mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
-
-                client = HistoricalDataClient()
-                candles = list(client.fetch(
-                    symbol="AAPL",
-                    market_type=MarketType.STOCKS,
-                    broker_type=BrokerType.ALPACA,
-                    timeframe=Timeframe.D1,
-                    start_time=1000,
-                    end_time=2000,
-                ))
+            client = HistoricalDataClient(base_url="http://localhost:8000")
+            with patch.object(client._client, "get", return_value=mock_resp):
+                candles = list(
+                    client.fetch(
+                        symbol="AAPL",
+                        market_type=MarketType.STOCKS,
+                        broker_type=BrokerType.ALPACA,
+                        timeframe=Timeframe.D1,
+                        start_date=datetime(1970, 1, 1),
+                        end_date=datetime(2023, 1, 1),
+                    )
+                )
 
             assert len(candles) == 5
             for i, candle in enumerate(candles):
@@ -142,230 +145,134 @@ class TestHistoricalDataClientFetch:
                 assert candle.timestamp == 1000 + i
 
         def test_fetch_no_results_returns_empty(self):
-            mock_result = MagicMock()
-            mock_result.yield_per.return_value = []
+            mock_resp = self._make_mock_response([])
 
-            mock_db_sess = MagicMock()
-            mock_db_sess.execute.return_value = mock_result
-
-            with patch(f"{MODULE_PATH}.get_db_sess_sync") as mock_get_db:
-                mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
-                mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
-
-                client = HistoricalDataClient()
-                candles = list(client.fetch(
-                    symbol="NONEXISTENT",
-                    market_type=MarketType.STOCKS,
-                    broker_type=BrokerType.ALPACA,
-                    timeframe=Timeframe.D1,
-                    start_time=1000,
-                    end_time=2000,
-                ))
-
-            assert len(candles) == 0
-
-        def test_fetch_passes_yield_per(self):
-            mock_instrument = MagicMock()
-            mock_instrument.symbol = "AAPL"
-            mock_instrument.broker_type = BrokerType.ALPACA
-            mock_instrument.market_type = MarketType.STOCKS
-
-            mock_candle = MagicMock()
-            mock_candle.open = 100.0
-            mock_candle.high = 101.0
-            mock_candle.low = 99.0
-            mock_candle.close = 100.5
-            mock_candle.volume = 1000.0
-            mock_candle.timeframe = Timeframe.D1
-            mock_candle.timestamp = 1500
-
-            mock_row = MagicMock()
-            mock_row.tuple.return_value = (mock_candle, mock_instrument)
-
-            mock_result = MagicMock()
-            mock_result.yield_per.return_value = [mock_row]
-
-            mock_db_sess = MagicMock()
-            mock_db_sess.execute.return_value = mock_result
-
-            with patch(f"{MODULE_PATH}.get_db_sess_sync") as mock_get_db:
-                mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
-                mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
-
-                client = HistoricalDataClient()
-                list(client.fetch(
-                    symbol="AAPL",
-                    market_type=MarketType.STOCKS,
-                    broker_type=BrokerType.ALPACA,
-                    timeframe=Timeframe.D1,
-                    start_time=1000,
-                    end_time=2000,
-                ))
-
-            mock_result.yield_per.assert_called_once_with(1000)
-
-        def test_fetch_instrument_not_found_returns_empty(self):
-            mock_result = MagicMock()
-            mock_result.yield_per.return_value = []
-
-            mock_db_sess = MagicMock()
-            mock_db_sess.execute.return_value = mock_result
-
-            with patch(f"{MODULE_PATH}.get_db_sess_sync") as mock_get_db:
-                mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
-                mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
-
-                client = HistoricalDataClient()
-                candles = list(client.fetch(
-                    symbol="FAKE_SYMBOL",
-                    market_type=MarketType.STOCKS,
-                    broker_type=BrokerType.ALPACA,
-                    timeframe=Timeframe.D1,
-                    start_time=1000,
-                    end_time=2000,
-                ))
-
-            assert len(candles) == 0
-
-    class TestIntegration:
-
-        def test_fetch_returns_seeded_data(self):
-            symbol = "HISTTEST"
-            broker = BrokerType.ALPACA
-            market_type = MarketType.STOCKS
-            timeframe = Timeframe.m1
-
-            with get_db_sess_sync() as db_sess:
-                db_sess.execute(
-                    delete(Instrument).where(
-                        Instrument.symbol == symbol,
-                        Instrument.native_symbol == symbol,
-                        Instrument.broker_type == broker,
-                        Instrument.market_type == market_type,
+            client = HistoricalDataClient(base_url="http://localhost:8000")
+            with patch.object(client._client, "get", return_value=mock_resp):
+                candles = list(
+                    client.fetch(
+                        symbol="NONEXISTENT",
+                        market_type=MarketType.STOCKS,
+                        broker_type=BrokerType.ALPACA,
+                        timeframe=Timeframe.D1,
                     )
                 )
 
-                instrument = db_sess.execute(
-                    insert(Instrument).values(
-                        symbol=symbol,
-                        native_symbol=symbol,
-                        broker_type=broker,
-                        market_type=market_type,
-                    ).returning(Instrument)
-                ).scalar()
+            assert len(candles) == 0
 
-                start_ts = int(datetime(2024, 1, 1, tzinfo=UTC).timestamp())
-                candles = [
-                    OHLC(
-                        timeframe=timeframe,
-                        instrument_id=instrument.id,
-                        open=float(i),
-                        high=float(i + 1),
-                        low=float(i - 1),
-                        close=float(i + 0.5),
-                        volume=1000.0,
-                        timestamp=start_ts + i * 60,
-                    )
-                    for i in range(10)
-                ]
-                db_sess.add_all(candles)
-                db_sess.commit()
+        def test_fetch_handles_pagination(self):
+            page1 = [
+                {
+                    "open": float(i),
+                    "high": float(i + 1),
+                    "low": float(i - 1),
+                    "close": float(i + 0.5),
+                    "volume": 1000.0,
+                    "timestamp": i,
+                    "timeframe": "1d",
+                    "symbol": "AAPL",
+                    "broker": "alpaca",
+                    "market_type": "stocks",
+                }
+                for i in range(2)
+            ]
+            page2 = [
+                {
+                    "open": 10.0,
+                    "high": 11.0,
+                    "low": 9.0,
+                    "close": 10.5,
+                    "volume": 1000.0,
+                    "timestamp": 10,
+                    "timeframe": "1d",
+                    "symbol": "AAPL",
+                    "broker": "alpaca",
+                    "market_type": "stocks",
+                }
+            ]
 
-            client = HistoricalDataClient()
-            result = list(client.fetch(
-                symbol=symbol,
-                market_type=market_type,
-                broker_type=broker,
-                timeframe=timeframe,
-                start_time=start_ts,
-                end_time=start_ts + 600,
-            ))
+            mock_resp1 = MagicMock()
+            mock_resp1.ok = True
+            mock_resp1.json.return_value = {
+                "data": page1,
+                "page": 1,
+                "size": 2,
+                "has_next": True,
+            }
+            mock_resp2 = MagicMock()
+            mock_resp2.ok = True
+            mock_resp2.json.return_value = {
+                "data": page2,
+                "page": 2,
+                "size": 1,
+                "has_next": False,
+            }
 
-            assert len(result) == 10
-            for i, candle in enumerate(result):
-                assert isinstance(candle, OHLCSchema)
-                assert candle.symbol == symbol
-                assert candle.broker == broker
-                assert candle.market_type == market_type
-                assert candle.timeframe == timeframe
-                assert candle.open == float(i)
-                assert candle.timestamp == start_ts + i * 60
-
-            with get_db_sess_sync() as db_sess:
-                db_sess.execute(delete(OHLC).where(OHLC.instrument_id == instrument.id))
-                db_sess.execute(delete(Instrument).where(Instrument.id == instrument.id))
-                db_sess.commit()
-
-        def test_fetch_with_time_range_filters(self):            
-            symbol = "HISTTS"
-            broker = BrokerType.ALPACA
-            market_type = MarketType.STOCKS
-            timeframe = Timeframe.m1
-
-            with get_db_sess_sync() as db_sess:
-                db_sess.execute(
-                    delete(Instrument).where(
-                        Instrument.symbol == symbol,
-                        Instrument.native_symbol == symbol,
-                        Instrument.broker_type == broker,
-                        Instrument.market_type == market_type,
+            client = HistoricalDataClient(base_url="http://localhost:8000")
+            with patch.object(client._client, "get") as mock_get:
+                mock_get.side_effect = [mock_resp1, mock_resp2]
+                candles = list(
+                    client.fetch(
+                        symbol="AAPL",
+                        market_type=MarketType.STOCKS,
+                        broker_type=BrokerType.ALPACA,
+                        timeframe=Timeframe.D1,
+                        start_date=datetime(1970, 1, 1),
+                        end_date=datetime(2023, 1, 1),
                     )
                 )
 
-                instrument = db_sess.execute(
-                    insert(Instrument).values(
-                        symbol=symbol,
-                        native_symbol=symbol,
-                        broker_type=broker,
-                        market_type=market_type,
-                    ).returning(Instrument)
-                ).scalar()
+            assert len(candles) == 3
+            assert mock_get.call_count == 2
 
-                base = int(datetime(2024, 2, 1, tzinfo=UTC).timestamp())
-                candles = [
-                    OHLC(
-                        timeframe=timeframe,
-                        instrument_id=instrument.id,
-                        open=100.0,
-                        high=101.0,
-                        low=99.0,
-                        close=100.5,
-                        volume=1000.0,
-                        timestamp=base + i * 60,
+        def test_fetch_raises_on_error(self):
+            mock_resp = MagicMock()
+            mock_resp.ok = False
+            mock_resp.status_code = 500
+            mock_resp.json.return_value = {"detail": "Server error"}
+
+            client = HistoricalDataClient(base_url="http://localhost:8000")
+            with patch.object(client._client, "get", return_value=mock_resp):
+                with pytest.raises(Exception, match="500 client error"):
+                    list(
+                        client.fetch(
+                            symbol="AAPL",
+                            market_type=MarketType.STOCKS,
+                            broker_type=BrokerType.ALPACA,
+                            timeframe=Timeframe.D1,
+                            start_date=datetime(1970, 1, 1),
+                            end_date=datetime(2023, 1, 1),
+                        )
                     )
-                    for i in range(20)
-                ]
-                db_sess.add_all(candles)
-                db_sess.commit()
 
-            client = HistoricalDataClient()
-            result = list(client.fetch(
-                symbol=symbol,
-                market_type=market_type,
-                broker_type=broker,
-                timeframe=timeframe,
-                start_time=base + 5 * 60,
-                end_time=base + 14 * 60,
-            ))
+        def test_fetch_correct_url_and_params(self):
+            mock_resp = self._make_mock_response([])
 
-            assert len(result) == 10
-            assert result[0].timestamp == base + 5 * 60
-            assert result[-1].timestamp == base + 14 * 60
+            client = HistoricalDataClient(base_url="http://localhost:8000")
+            with patch.object(
+                client._client, "get", return_value=mock_resp
+            ) as mock_get:
+                list(
+                    client.fetch(
+                        symbol="AAPL",
+                        market_type=MarketType.STOCKS,
+                        broker_type=BrokerType.ALPACA,
+                        timeframe=Timeframe.m1,
+                        start_date=datetime(1970, 1, 1),
+                        end_date=datetime(2023, 1, 1),
+                    )
+                )
 
-            with get_db_sess_sync() as db_sess:
-                db_sess.execute(delete(OHLC).where(OHLC.instrument_id == instrument.id))
-                db_sess.execute(delete(Instrument).where(Instrument.id == instrument.id))
-                db_sess.commit()
-
-        def test_fetch_nonexistent_instrument_returns_empty(self):
-            client = HistoricalDataClient()
-            result = list(client.fetch(
-                symbol="DOES_NOT_EXIST_XYZ",
-                market_type=MarketType.STOCKS,
-                broker_type=BrokerType.ALPACA,
-                timeframe=Timeframe.m1,
-                start_time=1000,
-                end_time=2000,
-            ))
-
-            assert len(result) == 0
+            mock_get.assert_called_once_with(
+                "http://localhost:8000/api/v1/markets/bars",
+                params={
+                    "symbol": "AAPL",
+                    "market_type": "stocks",
+                    "broker_type": "alpaca",
+                    "timeframe": "1m",
+                    "page": 1,
+                    "limit": 200,
+                    "start_date": datetime(1970, 1, 1),
+                    "end_date": datetime(2023, 1, 1),
+                },
+            )

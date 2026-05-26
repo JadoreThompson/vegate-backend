@@ -7,7 +7,7 @@ from uuid import UUID
 from redis import Redis
 from sqlalchemy import select
 
-from config import REDIS_STRATEGY_DEPLOYMENT_HEARTBEAT_KEY_PREFIX, SRC_PATH
+from config import HISTORICAL_BASE_URL, REDIS_STRATEGY_DEPLOYMENT_HEARTBEAT_KEY_PREFIX, SRC_PATH
 from core.db import get_db_sess_sync
 from module.deployment.enums import StrategyDeploymentStatus
 
@@ -134,7 +134,7 @@ class StrategyDeploymentRunner:
 
         from user_strategy import UserStrategy
 
-        historical_data_client = HistoricalDataClient()
+        historical_data_client = HistoricalDataClient(base_url=HISTORICAL_BASE_URL)
 
         strategy = UserStrategy(
             ohlc_feed_client=self._ohlc_feed_client,

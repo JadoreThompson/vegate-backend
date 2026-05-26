@@ -26,7 +26,7 @@ async def create_strategy(
     strategy_service = object_registry.get(StrategyService)
 
     rsp = await client.post(
-        "/strategy/",
+        "/api/v1/strategy/",
         json={"name": "Deployment router tests strategy", "description": prompt},
     )
     rsp.raise_for_status()
@@ -54,7 +54,7 @@ async def create_broker_connection(client) -> str:
         "secret_key": "test-secret-key",
     }
 
-    rsp = await client.post("/broker-connections", json=payload)
+    rsp = await client.post("/api/v1/broker-connections", json=payload)
     rsp.raise_for_status()
     return rsp.json()["id"]
 
@@ -102,7 +102,7 @@ class TestCreateDeployment:
             "broker_connection_id": broker_connection_id,
         }
 
-        rsp = await authenticated_client.post("/deployments/", json=payload)
+        rsp = await authenticated_client.post("/api/v1/deployments/", json=payload)
 
         assert rsp.status_code == 201, rsp.json()
         data = rsp.json()
@@ -116,7 +116,7 @@ class TestCreateDeployment:
             "broker_connection_id": str(uuid4()),
         }
 
-        rsp = await authenticated_client.post("/deployments/", json=payload)
+        rsp = await authenticated_client.post("/api/v1/deployments/", json=payload)
 
         assert rsp.status_code == 422
 
@@ -128,7 +128,7 @@ class TestCreateDeployment:
             "strategy_id": str(uuid4()),
         }
 
-        rsp = await authenticated_client.post("/deployments/", json=payload)
+        rsp = await authenticated_client.post("/api/v1/deployments/", json=payload)
 
         assert rsp.status_code == 422
 
@@ -139,7 +139,7 @@ class TestCreateDeployment:
             "broker_connection_id": str(uuid4()),
         }
 
-        rsp = await client.post("/deployments/", json=payload)
+        rsp = await client.post("/api/v1/deployments/", json=payload)
 
         assert rsp.status_code == 401
 
@@ -158,12 +158,12 @@ class TestGetDeployment:
             "broker_connection_id": broker_connection_id,
         }
 
-        rsp = await authenticated_client.post("/deployments/", json=payload)
+        rsp = await authenticated_client.post("/api/v1/deployments/", json=payload)
         assert rsp.status_code == 201, rsp.json()
 
         deployment_id = rsp.json()["id"]
 
-        rsp = await authenticated_client.get(f"/deployments/{deployment_id}")
+        rsp = await authenticated_client.get(f"/api/v1/deployments/{deployment_id}")
 
         assert rsp.status_code == 200, rsp.json()
         data = rsp.json()
@@ -174,13 +174,13 @@ class TestGetDeployment:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_get_deployment_not_found_returns_404(self, authenticated_client):
         fake_id = uuid4()
-        rsp = await authenticated_client.get(f"/deployments/{fake_id}")
+        rsp = await authenticated_client.get(f"/api/v1/deployments/{fake_id}")
 
         assert rsp.status_code == 404
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_get_deployment_unauthenticated_returns_401(self, client):
-        rsp = await client.get(f"/deployments/{uuid4()}")
+        rsp = await client.get(f"/api/v1/deployments/{uuid4()}")
 
         assert rsp.status_code == 401
 
@@ -189,7 +189,7 @@ class TestListDeployments:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_list_deployments_returns_200(self, authenticated_client):
-        rsp = await authenticated_client.get("/deployments/")
+        rsp = await authenticated_client.get("/api/v1/deployments/")
 
         assert rsp.status_code == 200
         data = rsp.json()
@@ -212,10 +212,10 @@ class TestListDeployments:
         }
 
         for _ in range(3):
-            rsp = await authenticated_client.post("/deployments/", json=request)
+            rsp = await authenticated_client.post("/api/v1/deployments/", json=request)
             assert rsp.status_code == 201, rsp.json()
 
-        rsp = await authenticated_client.get("/deployments/?page=1&limit=10")
+        rsp = await authenticated_client.get("/api/v1/deployments/?page=1&limit=10")
 
         assert rsp.status_code == 200, rsp.json()
         data = rsp.json()
@@ -229,14 +229,14 @@ class TestListDeployments:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_list_deployments_with_status_filter(self, authenticated_client):
         rsp = await authenticated_client.get(
-            f"/deployments/?status={StrategyDeploymentStatus.PENDING.value}"
+            f"/api/v1/deployments/?status={StrategyDeploymentStatus.PENDING.value}"
         )
 
         assert rsp.status_code == 200
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_list_deployments_unauthenticated_returns_401(self, client):
-        rsp = await client.get("/deployments/")
+        rsp = await client.get("/api/v1/deployments/")
 
         assert rsp.status_code == 401
 
@@ -255,7 +255,7 @@ class TestStartDeployment:
             "broker_connection_id": broker_connection_id,
         }
 
-        rsp = await authenticated_client.post("/deployments/", json=payload)
+        rsp = await authenticated_client.post("/api/v1/deployments/", json=payload)
         assert rsp.status_code == 201, rsp.json()
 
         deployment_id = rsp.json()["id"]
@@ -264,14 +264,14 @@ class TestStartDeployment:
         deployment.status = StrategyDeploymentStatus.STOPPED
         await db_sess.commit()
 
-        rsp = await authenticated_client.post(f"/deployments/{deployment_id}/start")
+        rsp = await authenticated_client.post(f"/api/v1/deployments/{deployment_id}/start")
 
         assert rsp.status_code == 200, rsp.json()
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_start_deployment_not_found_returns_404(self, authenticated_client):
         fake_id = uuid4()
-        rsp = await authenticated_client.post(f"/deployments/{fake_id}/start")
+        rsp = await authenticated_client.post(f"/api/v1/deployments/{fake_id}/start")
 
         assert rsp.status_code == 404
 
@@ -289,7 +289,7 @@ class TestStartDeployment:
             "broker_connection_id": broker_connection_id,
         }
 
-        rsp = await authenticated_client.post("/deployments/", json=payload)
+        rsp = await authenticated_client.post("/api/v1/deployments/", json=payload)
         assert rsp.status_code == 201, rsp.json()
 
         deployment_id = rsp.json()["id"]
@@ -298,7 +298,7 @@ class TestStartDeployment:
         deployment.status = StrategyDeploymentStatus.RUNNING
         await db_sess.commit()
 
-        rsp = await authenticated_client.post(f"/deployments/{deployment_id}/start")
+        rsp = await authenticated_client.post(f"/api/v1/deployments/{deployment_id}/start")
 
         assert rsp.status_code == 400, rsp.json()
 
@@ -317,7 +317,7 @@ class TestStopDeployment:
             "broker_connection_id": broker_connection_id,
         }
 
-        rsp = await authenticated_client.post("/deployments/", json=payload)
+        rsp = await authenticated_client.post("/api/v1/deployments/", json=payload)
         assert rsp.status_code == 201, rsp.json()
 
         deployment_id = rsp.json()["id"]
@@ -326,14 +326,14 @@ class TestStopDeployment:
         deployment.status = StrategyDeploymentStatus.RUNNING
         await db_sess.commit()
 
-        rsp = await authenticated_client.post(f"/deployments/{deployment_id}/stop")
+        rsp = await authenticated_client.post(f"/api/v1/deployments/{deployment_id}/stop")
 
         assert rsp.status_code == 200, rsp.json()
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_stop_deployment_not_found_returns_404(self, authenticated_client):
         fake_id = uuid4()
-        rsp = await authenticated_client.post(f"/deployments/{fake_id}/stop")
+        rsp = await authenticated_client.post(f"/api/v1/deployments/{fake_id}/stop")
 
         assert rsp.status_code == 404
 
@@ -351,7 +351,7 @@ class TestStopDeployment:
             "broker_connection_id": broker_connection_id,
         }
 
-        rsp = await authenticated_client.post("/deployments/", json=payload)
+        rsp = await authenticated_client.post("/api/v1/deployments/", json=payload)
         assert rsp.status_code == 201, rsp.json()
 
         deployment_id = rsp.json()["id"]
@@ -360,7 +360,7 @@ class TestStopDeployment:
         deployment.status = StrategyDeploymentStatus.STOPPED
         await db_sess.commit()
 
-        rsp = await authenticated_client.post(f"/deployments/{deployment_id}/stop")
+        rsp = await authenticated_client.post(f"/api/v1/deployments/{deployment_id}/stop")
 
         assert rsp.status_code == 200, rsp.json()
 
@@ -379,12 +379,12 @@ class TestGetDeploymentOrders:
             "broker_connection_id": broker_connection_id,
         }
 
-        rsp = await authenticated_client.post("/deployments/", json=payload)
+        rsp = await authenticated_client.post("/api/v1/deployments/", json=payload)
         assert rsp.status_code == 201, rsp.json()
 
         deployment_id = rsp.json()["id"]
 
-        rsp = await authenticated_client.get(f"/deployments/{deployment_id}/orders")
+        rsp = await authenticated_client.get(f"/api/v1/deployments/{deployment_id}/orders")
 
         assert rsp.status_code == 200, rsp.json()
         data = rsp.json()
@@ -396,7 +396,7 @@ class TestGetDeploymentOrders:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_get_orders_not_found_returns_404(self, authenticated_client):
         fake_id = uuid4()
-        rsp = await authenticated_client.get(f"/deployments/{fake_id}/orders")
+        rsp = await authenticated_client.get(f"/api/v1/deployments/{fake_id}/orders")
 
         assert rsp.status_code == 404
 
@@ -412,13 +412,13 @@ class TestGetDeploymentOrders:
             "broker_connection_id": broker_connection_id,
         }
 
-        rsp = await authenticated_client.post("/deployments/", json=payload)
+        rsp = await authenticated_client.post("/api/v1/deployments/", json=payload)
         assert rsp.status_code == 201, rsp.json()
 
         deployment_id = rsp.json()["id"]
 
         rsp = await authenticated_client.get(
-            f"/deployments/{deployment_id}/orders?page=1&limit=10"
+            f"/api/v1/deployments/{deployment_id}/orders?page=1&limit=10"
         )
 
         assert rsp.status_code == 200, rsp.json()
@@ -440,12 +440,12 @@ class TestGetDeploymentEvents:
             "broker_connection_id": broker_connection_id,
         }
 
-        rsp = await authenticated_client.post("/deployments/", json=payload)
+        rsp = await authenticated_client.post("/api/v1/deployments/", json=payload)
         assert rsp.status_code == 201, rsp.json()
 
         deployment_id = rsp.json()["id"]
 
-        rsp = await authenticated_client.get(f"/deployments/{deployment_id}/events")
+        rsp = await authenticated_client.get(f"/api/v1/deployments/{deployment_id}/events")
 
         assert rsp.status_code == 200, rsp.json()
         data = rsp.json()
@@ -457,7 +457,7 @@ class TestGetDeploymentEvents:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_get_events_not_found_returns_404(self, authenticated_client):
         fake_id = uuid4()
-        rsp = await authenticated_client.get(f"/deployments/{fake_id}/events")
+        rsp = await authenticated_client.get(f"/api/v1/deployments/{fake_id}/events")
 
         assert rsp.status_code == 404
 
@@ -471,42 +471,42 @@ class TestDeploymentEndpointsUnauthenticated:
             "broker_connection_id": str(uuid4()),
         }
 
-        rsp = await client.post("/deployments/", json=payload)
+        rsp = await client.post("/api/v1/deployments/", json=payload)
 
         assert rsp.status_code == 401
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_list_deployments_unauthenticated_returns_401(self, client):
-        rsp = await client.get("/deployments/")
+        rsp = await client.get("/api/v1/deployments/")
 
         assert rsp.status_code == 401
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_get_deployment_unauthenticated_returns_401(self, client):
-        rsp = await client.get(f"/deployments/{uuid4()}")
+        rsp = await client.get(f"/api/v1/deployments/{uuid4()}")
 
         assert rsp.status_code == 401
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_start_deployment_unauthenticated_returns_401(self, client):
-        rsp = await client.post(f"/deployments/{uuid4()}/start")
+        rsp = await client.post(f"/api/v1/deployments/{uuid4()}/start")
 
         assert rsp.status_code == 401
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_stop_deployment_unauthenticated_returns_401(self, client):
-        rsp = await client.post(f"/deployments/{uuid4()}/stop")
+        rsp = await client.post(f"/api/v1/deployments/{uuid4()}/stop")
 
         assert rsp.status_code == 401
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_get_orders_unauthenticated_returns_401(self, client):
-        rsp = await client.get(f"/deployments/{uuid4()}/orders")
+        rsp = await client.get(f"/api/v1/deployments/{uuid4()}/orders")
 
         assert rsp.status_code == 401
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_get_events_unauthenticated_returns_401(self, client):
-        rsp = await client.get(f"/deployments/{uuid4()}/events")
+        rsp = await client.get(f"/api/v1/deployments/{uuid4()}/events")
 
         assert rsp.status_code == 401

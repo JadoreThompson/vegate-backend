@@ -74,7 +74,7 @@ async def create_strategy(
     strategy_service = object_registry.get(StrategyService)
 
     rsp = await client.post(
-        "/strategy/", json={"name": "Testing Strategy", "description": prompt}
+        "/api/v1/strategy/", json={"name": "Testing Strategy", "description": prompt}
     )
     rsp.raise_for_status()
     data = StrategyResponse(**rsp.json())
@@ -105,7 +105,7 @@ class TestCreateBacktest:
             # "timeframe": "1m",
         }
 
-        rsp = await authenticated_client.post("/backtests/", json=payload)
+        rsp = await authenticated_client.post("/api/v1/backtests/", json=payload)
 
         assert rsp.status_code == 201, rsp.json()
         data = rsp.json()
@@ -116,16 +116,12 @@ class TestCreateBacktest:
         self, authenticated_client
     ):
         payload = {
-            # "symbol": "AAPL",
-            # "broker": "alpaca",
-            # "market_type": "stocks",
             "starting_balance": 10000,
             "start_date": "2026-01-01T00:00:00Z",
             "end_date": "2026-01-15T23:59:59Z",
-            # "timeframe": "1m",
         }
 
-        res = await authenticated_client.post("/backtests/", json=payload)
+        res = await authenticated_client.post("/api/v1/backtests/", json=payload)
 
         assert res.status_code == 422
 
@@ -137,16 +133,12 @@ class TestCreateBacktest:
 
         payload = {
             "strategy_id": str(strategy_id),
-            # "symbol": "AAPL",
-            # "broker": "alpaca",
-            # "market_type": "stocks",
             "starting_balance": -100,
             "start_date": "2026-01-01T00:00:00Z",
             "end_date": "2026-01-15T23:59:59Z",
-            # "timeframe": "1h",
         }
 
-        res = await authenticated_client.post("/backtests/", json=payload)
+        res = await authenticated_client.post("/api/v1/backtests/", json=payload)
 
         assert res.status_code == 422
 
@@ -164,22 +156,18 @@ class TestGetBacktest:
 
         payload = {
             "strategy_id": str(strategy_id),
-            # "symbol": "AAPL",
-            # "broker": "alpaca",
-            # "market_type": "stocks",
             "starting_balance": 10000,
             "start_date": "2026-01-01T00:00:00Z",
             "end_date": "2026-01-15T23:59:59Z",
-            # "timeframe": "1m",
         }
 
-        rsp = await authenticated_client.post("/backtests/", json=payload)
+        rsp = await authenticated_client.post("/api/v1/backtests/", json=payload)
 
         assert rsp.status_code == 201, rsp.json()
 
         backtest_id = rsp.json()["id"]
 
-        res = await authenticated_client.get(f"/backtests/{backtest_id}")
+        res = await authenticated_client.get(f"/api/v1/backtests/{backtest_id}")
 
         assert res.status_code == 200
         data = res.json()

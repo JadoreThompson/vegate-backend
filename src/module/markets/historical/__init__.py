@@ -1,1 +1,1 @@
-from .client import HistoricalDataClient
+from .client import HistoricalDataClient, HistoricalDataClientException

@@ -1,3 +1,4 @@
+from datetime import datetime, UTC
 from fastapi import APIRouter, Depends, Query
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -5,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from module.api.dependencies import depends_class, depends_db_sess
 from module.api.schema import PaginatedResponse
 from module.broker.enums import BrokerType
+from util import get_datetime
 from .enums import MarketType, Timeframe
 from .schema import InstrumentInfo, OHLC as OHLCResponse
 from .service import MarketsService
@@ -33,12 +35,14 @@ async def get_ohlc_bars(
     timeframe: Timeframe = Query(...),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
-    start_time: int | None = None,
-    end_time: int | None = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
     db_sess: AsyncSession = Depends(depends_db_sess),
     markets_service: MarketsService = Depends(depends_class(MarketsService)),
 ):
     return await markets_service.get_ohlc_bars(
+        start_date or datetime(1970, 1, 1, tzinfo=UTC),
+        end_date or get_datetime(),
         db_sess,
         symbol=symbol,
         market_type=market_type,
@@ -46,6 +50,4 @@ async def get_ohlc_bars(
         timeframe=timeframe,
         page=page,
         limit=limit,
-        start_time=start_time,
-        end_time=end_time,
     )

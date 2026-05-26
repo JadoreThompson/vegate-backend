@@ -1,18 +1,20 @@
 import logging
+from datetime import datetime
 from typing import Generator
 
-from sqlalchemy import select
+import requests
 
-from core.db import get_db_sess_sync
 from module.broker.enums import BrokerType
 from module.markets.enums import MarketType, Timeframe
-from module.markets.model import Instrument, OHLC
-from module.markets.schema import OHLC as OHLCSchema
+from module.markets.schema import OHLC
+from .exception import HistoricalDataClientException
 
 
 class HistoricalDataClient:
 
-    def __init__(self):
+    def __init__(self, base_url: str):
+        self._base_url = base_url.rstrip("/")
+        self._client = requests.Session()
         self._name = self.__class__.__name__
         self._logger = logging.getLogger(self._name)
 
@@ -22,43 +24,62 @@ class HistoricalDataClient:
         market_type: MarketType,
         broker_type: BrokerType,
         timeframe: Timeframe,
-        start_time: int,
-        end_time: int,
-    ) -> Generator[OHLCSchema, None, None]:
-        with get_db_sess_sync() as db_sess:
-            instrument_subq = (
-                select(Instrument.id)
-                .where(
-                    Instrument.symbol == symbol,
-                    Instrument.market_type == market_type,
-                    Instrument.broker_type == broker_type,
-                )
-                .subquery()
-            )
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> Generator[OHLC, None, None]:
+        page = 1
+        limit = 200
 
-            rows = db_sess.execute(
-                select(OHLC, Instrument)
-                .where(
-                    Instrument.id == instrument_subq.c.id,
-                    OHLC.timeframe == timeframe,
-                    OHLC.timestamp >= start_time,
-                    OHLC.timestamp <= end_time,
-                )
-                .order_by(OHLC.timestamp.asc())
-            )
+        while True:
+            params = {
+                "symbol": symbol,
+                "market_type": market_type,
+                "broker_type": broker_type,
+                "timeframe": timeframe,
+                "page": page,
+                "limit": limit
+            }
 
-            for row in rows.yield_per(1000):
-                ohlc, instrument = row.tuple()
-                candle = OHLCSchema(
-                    open=ohlc.open,
-                    high=ohlc.high,
-                    low=ohlc.low,
-                    close=ohlc.close,
-                    volume=ohlc.volume,
-                    symbol=instrument.symbol,
-                    broker=instrument.broker_type,
-                    market_type=instrument.market_type,
-                    timeframe=ohlc.timeframe,
-                    timestamp=ohlc.timestamp,
+            if start_date is not None:
+                params["start_date"] = start_date
+            if end_date is not None:
+                params["end_date"] = end_date
+
+            response = self._client.get(
+                f"{self._base_url}/api/v1/markets/bars",
+                params=params,
+            )
+            self._raise_for_status(response)
+
+            body = response.json()
+            for c in body.get("data", []):
+                yield OHLC(
+                    open=c["open"],
+                    high=c["high"],
+                    low=c["low"],
+                    close=c["close"],
+                    volume=c["volume"],
+                    timestamp=c["timestamp"],
+                    timeframe=Timeframe(c["timeframe"]),
+                    symbol=c["symbol"],
+                    broker=BrokerType(c["broker"]),
+                    market_type=MarketType(c["market_type"]),
                 )
-                yield candle
+
+            if not body.get("has_next", False):
+                break
+            page += 1
+
+    def close(self):
+        self._client.close()
+
+    def _raise_for_status(self, response: requests.Response):
+        if not response.ok:
+            data = None
+            try:
+                data = response.json()
+            except Exception:
+                pass
+            raise HistoricalDataClientException(
+                f"{response.status_code} client error - {data}"
+            )

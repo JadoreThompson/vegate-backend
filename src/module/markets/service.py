@@ -117,6 +117,8 @@ class MarketsService:
 
     async def get_ohlc_bars(
         self,
+        start_date: datetime,
+        end_date: datetime,
         db_sess: AsyncSession,
         *,
         symbol: str,
@@ -125,8 +127,8 @@ class MarketsService:
         timeframe: Timeframe,
         page: int = 1,
         limit: int = 50,
-        start_time: int | None = None,
-        end_time: int | None = None,
+        # start_time: int | None = None,
+        # end_time: int | None = None,
     ) -> PaginatedResponse[OHLCResponse]:
         stmt = (
             select(
@@ -147,16 +149,18 @@ class MarketsService:
                 Instrument.market_type == market_type,
                 Instrument.broker_type == broker_type,
                 OHLC.timeframe == timeframe,
+                OHLC.timestamp >= int(start_date.timestamp()),
+                OHLC.timestamp <= int(end_date.timestamp()),
             )
             .order_by(OHLC.timestamp.asc())
             .offset((page - 1) * limit)
             .limit(limit + 1)
         )
 
-        if start_time is not None:
-            stmt = stmt.where(OHLC.timestamp >= start_time)
-        if end_time is not None:
-            stmt = stmt.where(OHLC.timestamp <= end_time)
+        # if start_time is not None:
+        #     stmt = stmt.where(OHLC.timestamp >= start_time)
+        # if end_time is not None:
+        #     stmt = stmt.where(OHLC.timestamp <= end_time)
 
         result = await db_sess.execute(stmt)
         rows = result.all()

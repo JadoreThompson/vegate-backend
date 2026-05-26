@@ -164,6 +164,8 @@ class TestGetOHLCBars:
             mock_db_sess.execute.return_value = mock_result
 
             result = await markets_service.get_ohlc_bars(
+                datetime(2026, 1, 1, tzinfo=UTC),
+                datetime(2026, 1, 31, tzinfo=UTC),
                 mock_db_sess,
                 symbol="AAPL",
                 market_type=MarketType.STOCKS,
@@ -208,6 +210,8 @@ class TestGetOHLCBars:
             mock_db_sess.execute.return_value = mock_result
 
             result = await markets_service.get_ohlc_bars(
+                datetime(2026, 1, 1, tzinfo=UTC),
+                datetime(2026, 1, 31, tzinfo=UTC),
                 mock_db_sess,
                 symbol="AAPL",
                 market_type=MarketType.STOCKS,
@@ -230,6 +234,8 @@ class TestGetOHLCBars:
             mock_db_sess.execute.return_value = mock_result
 
             result = await markets_service.get_ohlc_bars(
+                datetime(2026, 1, 1, tzinfo=UTC),
+                datetime(2026, 1, 31, tzinfo=UTC),
                 mock_db_sess,
                 symbol="AAPL",
                 market_type=MarketType.STOCKS,
@@ -267,6 +273,8 @@ class TestGetOHLCBars:
             mock_db_sess.execute.return_value = mock_result
 
             result = await markets_service.get_ohlc_bars(
+                datetime(2026, 1, 1, tzinfo=UTC),
+                datetime(2026, 1, 31, tzinfo=UTC),
                 mock_db_sess,
                 symbol="AAPL",
                 market_type=MarketType.STOCKS,
@@ -289,6 +297,8 @@ class TestGetOHLCBars:
             mock_db_sess.execute.return_value = mock_result
 
             result = await markets_service.get_ohlc_bars(
+                datetime(2026, 1, 1, tzinfo=UTC),
+                datetime(2026, 1, 31, tzinfo=UTC),
                 mock_db_sess,
                 symbol="AAPL",
                 market_type=MarketType.STOCKS,
@@ -296,8 +306,6 @@ class TestGetOHLCBars:
                 timeframe=Timeframe.m1,
                 page=2,
                 limit=50,
-                start_time=1700000000,
-                end_time=1700003600,
             )
 
             assert mock_db_sess.execute.called
@@ -311,6 +319,8 @@ class TestGetOHLCBars:
         ):
             seed_candles()
             result = await markets_service.get_ohlc_bars(
+                datetime(2026, 1, 1, tzinfo=UTC),
+                datetime(2026, 1, 31, tzinfo=UTC),
                 db_sess,
                 symbol="AAPL",
                 market_type=MarketType.STOCKS,
@@ -336,6 +346,8 @@ class TestGetOHLCBars:
         ):
             seed_candles()
             result = await markets_service.get_ohlc_bars(
+                datetime(2026, 1, 1, tzinfo=UTC),
+                datetime(2026, 1, 31, tzinfo=UTC),
                 db_sess,
                 symbol="AAPL",
                 market_type=MarketType.STOCKS,
@@ -343,14 +355,12 @@ class TestGetOHLCBars:
                 timeframe=Timeframe.m1,
                 page=1,
                 limit=50,
-                start_time=int(datetime(2026, 1, 5, tzinfo=UTC).timestamp()),
-                end_time=int(datetime(2026, 1, 10, tzinfo=UTC).timestamp()),
             )
 
             assert result.size > 0
             for item in result.data:
-                assert item.timestamp >= int(datetime(2026, 1, 5, tzinfo=UTC).timestamp())
-                assert item.timestamp <= int(datetime(2026, 1, 10, tzinfo=UTC).timestamp())
+                assert item.timestamp >= int(datetime(2026, 1, 1, tzinfo=UTC).timestamp())
+                assert item.timestamp <= int(datetime(2026, 1, 31, tzinfo=UTC).timestamp())
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_get_ohlc_bars_nonexistent_instrument_empty(
@@ -358,6 +368,8 @@ class TestGetOHLCBars:
         ):
             seed_candles()
             result = await markets_service.get_ohlc_bars(
+                datetime(2026, 1, 1, tzinfo=UTC),
+                datetime(2026, 1, 31, tzinfo=UTC),
                 db_sess,
                 symbol="NONEXISTENT",
                 market_type=MarketType.STOCKS,
@@ -375,6 +387,8 @@ class TestGetOHLCBars:
         ):
             seed_candles()
             result = await markets_service.get_ohlc_bars(
+                datetime(2026, 1, 1, tzinfo=UTC),
+                datetime(2026, 1, 31, tzinfo=UTC),
                 db_sess,
                 symbol="AAPL",
                 market_type=MarketType.STOCKS,
@@ -393,6 +407,8 @@ class TestGetOHLCBars:
         ):
             seed_candles()
             result = await markets_service.get_ohlc_bars(
+                datetime(2026, 1, 1, tzinfo=UTC),
+                datetime(2026, 1, 31, tzinfo=UTC),
                 db_sess,
                 symbol="AAPL",
                 market_type=MarketType.STOCKS,

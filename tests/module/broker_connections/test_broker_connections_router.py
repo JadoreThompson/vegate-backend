@@ -28,7 +28,7 @@ class TestCreateBrokerConnection:
             "secret_key": "test-secret-key",
         }
 
-        res = await client.post("/broker-connections", json=payload)
+        res = await client.post("/api/v1/broker-connections", json=payload)
         assert res.status_code == 401, res.json()
 
     @pytest.mark.asyncio(loop_scope="session")
@@ -44,7 +44,7 @@ class TestCreateBrokerConnection:
             "secret_key": "test-secret-key",
         }
 
-        res = await authenticated_client.post("/broker-connections", json=payload)
+        res = await authenticated_client.post("/api/v1/broker-connections", json=payload)
 
         assert res.status_code == 200, res.json()
         data = res.json()
@@ -61,7 +61,7 @@ class TestCreateBrokerConnection:
             "secret_key": "test-secret",
         }
 
-        res = await authenticated_client.post("/broker-connections", json=payload)
+        res = await authenticated_client.post("/api/v1/broker-connections", json=payload)
 
         assert res.status_code == 422
 
@@ -74,7 +74,7 @@ class TestCreateBrokerConnection:
             "api_key": "test-key",
         }
 
-        res = await authenticated_client.post("/broker-connections", json=payload)
+        res = await authenticated_client.post("/api/v1/broker-connections", json=payload)
 
         assert res.status_code == 422
 
@@ -83,7 +83,7 @@ class TestListBrokerConnections:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_list_broker_connections_returns_200(self, authenticated_client):
-        res = await authenticated_client.get("/broker-connections")
+        res = await authenticated_client.get("/api/v1/broker-connections")
 
         assert res.status_code == 200
         data = res.json()
@@ -101,7 +101,7 @@ class TestListBrokerConnections:
                 )
             )
             await authenticated_client.post(
-                "/broker-connections",
+                "/api/v1/broker-connections",
                 json={
                     "broker": "alpaca",
                     "api_key": "test-api-key",
@@ -109,7 +109,7 @@ class TestListBrokerConnections:
                 },
             )
 
-        res = await authenticated_client.get("/broker-connections?page=1&limit=10")
+        res = await authenticated_client.get("/api/v1/broker-connections?page=1&limit=10")
 
         assert res.status_code == 200, res.json()
         data = res.json()
@@ -128,7 +128,7 @@ class TestListBrokerConnections:
                 )
             )
             await authenticated_client.post(
-                "/broker-connections",
+                "/api/v1/broker-connections",
                 json={
                     "broker": "alpaca",
                     "api_key": "test-api-key",
@@ -136,7 +136,7 @@ class TestListBrokerConnections:
                 },
             )
 
-        res = await authenticated_client.get("/broker-connections?page=2&limit=10")
+        res = await authenticated_client.get("/api/v1/broker-connections?page=2&limit=10")
 
         assert res.status_code == 200, res.json()
         data = res.json()
@@ -155,7 +155,7 @@ class TestListBrokerConnections:
                 )
             )
             await authenticated_client.post(
-                "/broker-connections",
+                "/api/v1/broker-connections",
                 json={
                     "broker": "alpaca",
                     "api_key": "test-api-key",
@@ -163,7 +163,7 @@ class TestListBrokerConnections:
                 },
             )
 
-        res = await authenticated_client.get("/broker-connections?page=1&limit=10")
+        res = await authenticated_client.get("/api/v1/broker-connections?page=1&limit=10")
 
         assert res.status_code == 200, res.json()
         data = res.json()
@@ -179,7 +179,7 @@ class TestGetBrokerConnection:
         self, authenticated_client
     ):
         fake_id = uuid4()
-        res = await authenticated_client.get(f"/broker-connections/{fake_id}")
+        res = await authenticated_client.get(f"/api/v1/broker-connections/{fake_id}")
 
         assert res.status_code == 404
 
@@ -188,7 +188,7 @@ class TestDeleteBrokerConnection:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_delete_broker_connection_unauthenticated_throws_401(self, client):
-        res = await client.delete(f"/broker-connections/{uuid4()}")
+        res = await client.delete(f"/api/v1/broker-connections/{uuid4()}")
         assert res.status_code == 401, res.json()
 
     @pytest.mark.asyncio(loop_scope="session")
@@ -203,13 +203,13 @@ class TestDeleteBrokerConnection:
             "secret_key": "test-secret-key",
         }
 
-        res = await authenticated_client.post("/broker-connections", json=payload)
+        res = await authenticated_client.post("/api/v1/broker-connections", json=payload)
         assert res.status_code == 200, res.json()
 
         data = res.json()
         connection_id = data["id"]
 
-        res = await authenticated_client.delete(f"/broker-connections/{connection_id}")
+        res = await authenticated_client.delete(f"/api/v1/broker-connections/{connection_id}")
 
         assert res.status_code == 204
 
@@ -220,7 +220,7 @@ class TestDeleteBrokerConnection:
         broker_connections_service.delete_broker_connection = AsyncMock(return_value=False)
 
         fake_id = uuid4()
-        res = await authenticated_client.delete(f"/broker-connections/{fake_id}")
+        res = await authenticated_client.delete(f"/api/v1/broker-connections/{fake_id}")
 
         assert res.status_code == 404
 
@@ -229,7 +229,7 @@ class TestAlpacaOauthUrl:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_get_alpaca_oauth_url_returns_200(self, authenticated_client):
-        res = await authenticated_client.get("/broker-connections/alpaca/oauth")
+        res = await authenticated_client.get("/api/v1/broker-connections/alpaca/oauth")
 
         assert res.status_code == 200
         data = res.json()
@@ -237,7 +237,7 @@ class TestAlpacaOauthUrl:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_get_alpaca_oauth_url_unauthenticated_returns_401(self, client):
-        res = await client.get("/broker-connections/alpaca/oauth")
+        res = await client.get("/api/v1/broker-connections/alpaca/oauth")
 
         assert res.status_code == 401
 
@@ -249,7 +249,7 @@ class TestAlpacaOauthCallback:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_oauth_callback_with_code_redirects(self, authenticated_client):
         res = await authenticated_client.get(
-            "/broker-connections/alpaca/oauth/callback",
+            "/api/v1/broker-connections/alpaca/oauth/callback",
             params={"code": "test-code", "state": "test-state"},
         )
 
@@ -259,7 +259,7 @@ class TestAlpacaOauthCallback:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_oauth_callback_with_error_redirects(self, authenticated_client):
         res = await authenticated_client.get(
-            "/broker-connections/alpaca/oauth/callback",
+            "/api/v1/broker-connections/alpaca/oauth/callback",
             params={"error": "access_denied"},
         )
 

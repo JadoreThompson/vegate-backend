@@ -47,7 +47,7 @@ class TestRegisterEndpoint:
             "password": "PAssword1@@1",
         }
 
-        res = await client.post("/auth/register", json=payload)
+        res = await client.post("/api/v1/auth/register", json=payload)
 
         assert res.status_code == 201
 
@@ -59,7 +59,7 @@ class TestRegisterEndpoint:
             # missing password
         }
 
-        res = await client.post("/auth/register", json=payload)
+        res = await client.post("/api/v1/auth/register", json=payload)
 
         assert res.status_code == 422
 
@@ -80,7 +80,7 @@ class TestRegisterEndpoint:
         ]
 
         for payload in payloads:
-            res = await client.post("/auth/register", json=payload)
+            res = await client.post("/api/v1/auth/register", json=payload)
             assert res.status_code == 422
 
     @pytest.mark.asyncio(loop_scope="session")
@@ -95,7 +95,7 @@ class TestRegisterEndpoint:
         ]
 
         for payload in payloads:
-            res = await client.post("/auth/register", json=payload)
+            res = await client.post("/api/v1/auth/register", json=payload)
             assert res.status_code == 422
 
 
@@ -108,13 +108,13 @@ class TestLoginEndpoint:
             "email": "logintest@email.com",
             "password": "PAssword1@@1",
         }
-        await client.post("/auth/register", json=register_payload)
+        await client.post("/api/v1/auth/register", json=register_payload)
 
         login_payload = {
             "username": "logintest-user",
             "password": "PAssword1@@1",
         }
-        res = await client.post("/auth/login", json=login_payload)
+        res = await client.post("/api/v1/auth/login", json=login_payload)
 
         assert res.status_code == 200
 
@@ -125,13 +125,13 @@ class TestLoginEndpoint:
             "email": "logintest2@email.com",
             "password": "PAssword1@@1",
         }
-        await client.post("/auth/register", json=register_payload)
+        await client.post("/api/v1/auth/register", json=register_payload)
 
         login_payload = {
             "email": "logintest2@email.com",
             "password": "PAssword1@@1",
         }
-        res = await client.post("/auth/login", json=login_payload)
+        res = await client.post("/api/v1/auth/login", json=login_payload)
 
         assert res.status_code == 200
 
@@ -140,7 +140,7 @@ class TestLoginEndpoint:
         login_payload = {
             "password": "PAssword1@@1",
         }
-        res = await client.post("/auth/login", json=login_payload)
+        res = await client.post("/api/v1/auth/login", json=login_payload)
 
         assert res.status_code == 422
 
@@ -149,7 +149,7 @@ class TestLoginEndpoint:
         login_payload = {
             "username": "someuser",
         }
-        res = await client.post("/auth/login", json=login_payload)
+        res = await client.post("/api/v1/auth/login", json=login_payload)
 
         assert res.status_code == 422
 
@@ -160,13 +160,13 @@ class TestLoginEndpoint:
             "email": "logintest3@email.com",
             "password": "PAssword1@@1",
         }
-        await client.post("/auth/register", json=register_payload)
+        await client.post("/api/v1/auth/register", json=register_payload)
 
         login_payload = {
             "username": "logintest3-user",
             "password": "WrongPassword1@@",
         }
-        res = await client.post("/auth/login", json=login_payload)
+        res = await client.post("/api/v1/auth/login", json=login_payload)
 
         assert res.status_code == 422
 
@@ -176,7 +176,7 @@ class TestLoginEndpoint:
             "username": "nonexistent-user",
             "password": "PAssword1@@1",
         }
-        res = await client.post("/auth/login", json=login_payload)
+        res = await client.post("/api/v1/auth/login", json=login_payload)
 
         assert res.status_code == 422
 
@@ -190,9 +190,9 @@ class TestVerifyEmailRequestEndpoint:
             "email": "verifyreq@email.com",
             "password": "PAssword1@@1",
         }
-        await client.post("/auth/register", json=register_payload)
+        await client.post("/api/v1/auth/register", json=register_payload)
 
-        res = await client.post("/auth/verify-email/request")
+        res = await client.post("/api/v1/auth/verify-email/request")
 
         assert res.status_code == 201
 
@@ -206,10 +206,10 @@ class TestVerifyEmailEndpoint:
             "email": "verify@email.com",
             "password": "PAssword1@@1",
         }
-        await client.post("/auth/register", json=register_payload)
+        await client.post("/api/v1/auth/register", json=register_payload)
 
         verify_payload = {"code": "invalid"}
-        res = await client.post("/auth/verify-email", json=verify_payload)
+        res = await client.post("/api/v1/auth/verify-email", json=verify_payload)
 
         assert res.status_code == 400
 
@@ -223,9 +223,9 @@ class TestLogoutEndpoint:
             "email": "logout@email.com",
             "password": "PAssword1@@1",
         }
-        await client.post("/auth/register", json=register_payload)
+        await client.post("/api/v1/auth/register", json=register_payload)
 
-        res = await client.post("/auth/logout")
+        res = await client.post("/api/v1/auth/logout")
 
         assert res.status_code == 200
 
@@ -242,12 +242,12 @@ class TestChangeUsernameRequestEndpoint:
             "email": "changeuser@email.com",
             "password": "PAssword1@@1",
         }
-        res = await client.post("/auth/register", json=register_payload)
+        res = await client.post("/api/v1/auth/register", json=register_payload)
 
-        res = await client.post("/auth/verify-email", json={"code": verification_code})
+        res = await client.post("/api/v1/auth/verify-email", json={"code": verification_code})
 
         payload = {"username": "new-username"}
-        res = await client.post("/auth/change-username/request", json=payload)
+        res = await client.post("/api/v1/auth/change-username/request", json=payload)
 
         assert res.status_code == 201, res.json()
 
@@ -263,12 +263,12 @@ class TestChangeUsernameRequestEndpoint:
             "email": "changeuser2@email.com",
             "password": "PAssword1@@1",
         }
-        await client.post("/auth/register", json=register_payload)
+        await client.post("/api/v1/auth/register", json=register_payload)
 
-        res = await client.post("/auth/verify-email", json={"code": verification_code})
+        res = await client.post("/api/v1/auth/verify-email", json={"code": verification_code})
 
         payload = {"username": "changeuser2-user"}
-        res = await client.post("/auth/change-username/request", json=payload)
+        res = await client.post("/api/v1/auth/change-username/request", json=payload)
 
         assert res.status_code == 400
 
@@ -279,10 +279,10 @@ class TestChangeUsernameRequestEndpoint:
             "email": "changeuser@email.com",
             "password": "PAssword1@@1",
         }
-        res = await client.post("/auth/register", json=register_payload)
+        res = await client.post("/api/v1/auth/register", json=register_payload)
 
         payload = {"username": "new-username"}
-        res = await client.post("/auth/change-username/request", json=payload)
+        res = await client.post("/api/v1/auth/change-username/request", json=payload)
 
         assert res.status_code == 401, res.json()
 
@@ -299,12 +299,12 @@ class TestChangeUsernameEndpoint:
             "email": "changeuser3@email.com",
             "password": "PAssword1@@1",
         }
-        await client.post("/auth/register", json=register_payload)
+        await client.post("/api/v1/auth/register", json=register_payload)
 
-        await client.post("/auth/verify-email", json={"code": verification_code})
+        await client.post("/api/v1/auth/verify-email", json={"code": verification_code})
 
         payload = {"code": "invalid"}
-        res = await client.post("/auth/change-username", json=payload)
+        res = await client.post("/api/v1/auth/change-username", json=payload)
 
         assert res.status_code == 400
 
@@ -321,17 +321,17 @@ class TestChangeUsernameEndpoint:
             "email": "changeuser4@email.com",
             "password": "PAssword1@@1",
         }
-        await client.post("/auth/register", json=register_payload)
+        await client.post("/api/v1/auth/register", json=register_payload)
 
-        res = await client.post("/auth/verify-email", json={"code": verification_code})
+        res = await client.post("/api/v1/auth/verify-email", json={"code": verification_code})
         assert res.status_code == 200, res.json()
 
         await client.post(
-            "/auth/change-username/request", json={"username": "changeuser5-user"}
+            "/api/v1/auth/change-username/request", json={"username": "changeuser5-user"}
         )
 
         res = await client.post(
-            "/auth/change-username", json={"code": change_username_code}
+            "/api/v1/auth/change-username", json={"code": change_username_code}
         )
 
         assert res.status_code == 202, res.json()
@@ -343,10 +343,10 @@ class TestChangeUsernameEndpoint:
             "email": "changeuser6@email.com",
             "password": "PAssword1@@1",
         }
-        res = await client.post("/auth/register", json=register_payload)
+        res = await client.post("/api/v1/auth/register", json=register_payload)
 
         payload = {"username": "new-username"}
-        res = await client.post("/auth/change-username", json=payload)
+        res = await client.post("/api/v1/auth/change-username", json=payload)
 
         assert res.status_code == 401, res.json()
 
@@ -363,12 +363,12 @@ class TestChangePasswordRequestEndpoint:
             "email": "changepw@email.com",
             "password": "PAssword1@@1",
         }
-        await client.post("/auth/register", json=register_payload)
+        await client.post("/api/v1/auth/register", json=register_payload)
 
-        await client.post("/auth/verify-email", json={"code": verification_code})
+        await client.post("/api/v1/auth/verify-email", json={"code": verification_code})
 
         payload = {"password": "NewP@ssword1@@1"}
-        res = await client.post("/auth/change-password/request", json=payload)
+        res = await client.post("/api/v1/auth/change-password/request", json=payload)
 
         assert res.status_code == 201
 
@@ -384,12 +384,12 @@ class TestChangePasswordRequestEndpoint:
             "email": "changepw2@email.com",
             "password": "PAssword1@@1",
         }
-        await client.post("/auth/register", json=register_payload)
+        await client.post("/api/v1/auth/register", json=register_payload)
 
-        await client.post("/auth/verify-email", json={"code": verification_code})
+        await client.post("/api/v1/auth/verify-email", json={"code": verification_code})
 
         payload = {"password": "weak"}
-        res = await client.post("/auth/change-password/request", json=payload)
+        res = await client.post("/api/v1/auth/change-password/request", json=payload)
 
         assert res.status_code == 422
 
@@ -400,10 +400,10 @@ class TestChangePasswordRequestEndpoint:
             "email": "changepw3@email.com",
             "password": "PAssword1@@1",
         }
-        res = await client.post("/auth/register", json=register_payload)
+        res = await client.post("/api/v1/auth/register", json=register_payload)
 
         payload = {"username": "new-username"}
-        res = await client.post("/auth/change-password", json=payload)
+        res = await client.post("/api/v1/auth/change-password", json=payload)
 
         assert res.status_code == 401, res.json()
 
@@ -420,12 +420,12 @@ class TestChangePasswordEndpoint:
             "email": "changepw4@email.com",
             "password": "PAssword1@@1",
         }
-        await client.post("/auth/register", json=register_payload)
+        await client.post("/api/v1/auth/register", json=register_payload)
 
-        await client.post("/auth/verify-email", json={"code": verification_code})
+        await client.post("/api/v1/auth/verify-email", json={"code": verification_code})
 
         payload = {"code": "invalid"}
-        res = await client.post("/auth/change-password", json=payload)
+        res = await client.post("/api/v1/auth/change-password", json=payload)
 
         assert res.status_code == 400
 
@@ -436,10 +436,10 @@ class TestChangePasswordEndpoint:
             "email": "changepw5@email.com",
             "password": "PAssword1@@1",
         }
-        res = await client.post("/auth/register", json=register_payload)
+        res = await client.post("/api/v1/auth/register", json=register_payload)
 
         payload = {"password": "new-username"}
-        res = await client.post("/auth/change-password", json=payload)
+        res = await client.post("/api/v1/auth/change-password", json=payload)
 
         assert res.status_code == 401, res.json()
 
@@ -456,12 +456,12 @@ class TestChangeEmailRequestEndpoint:
             "email": "changeemail@email.com",
             "password": "PAssword1@@1",
         }
-        await client.post("/auth/register", json=register_payload)
+        await client.post("/api/v1/auth/register", json=register_payload)
 
-        await client.post("/auth/verify-email", json={"code": verification_code})
+        await client.post("/api/v1/auth/verify-email", json={"code": verification_code})
 
         payload = {"email": "newemail@email.com"}
-        res = await client.post("/auth/change-email/request", json=payload)
+        res = await client.post("/api/v1/auth/change-email/request", json=payload)
 
         assert res.status_code == 202
 
@@ -472,10 +472,10 @@ class TestChangeEmailRequestEndpoint:
             "email": "changeemail2@email.com",
             "password": "PAssword1@@1",
         }
-        res = await client.post("/auth/register", json=register_payload)
+        res = await client.post("/api/v1/auth/register", json=register_payload)
 
         payload = {"emailsername": "new@email.com"}
-        res = await client.post("/auth/change-email", json=payload)
+        res = await client.post("/api/v1/auth/change-email", json=payload)
 
         assert res.status_code == 401, res.json()
 
@@ -492,12 +492,12 @@ class TestChangeEmailEndpoint:
             "email": "changeemail3@email.com",
             "password": "PAssword1@@1",
         }
-        await client.post("/auth/register", json=register_payload)
+        await client.post("/api/v1/auth/register", json=register_payload)
 
-        await client.post("/auth/verify-email", json={"code": verification_code})
+        await client.post("/api/v1/auth/verify-email", json={"code": verification_code})
 
         payload = {"code": "invalid"}
-        res = await client.post("/auth/change-email", json=payload)
+        res = await client.post("/api/v1/auth/change-email", json=payload)
 
         assert res.status_code == 400
 
@@ -508,10 +508,10 @@ class TestChangeEmailEndpoint:
             "email": "changeemail4@email.com",
             "password": "PAssword1@@1",
         }
-        res = await client.post("/auth/register", json=register_payload)
+        res = await client.post("/api/v1/auth/register", json=register_payload)
 
         payload = {"email": "new-email@email.com"}
-        res = await client.post("/auth/change-email", json=payload)
+        res = await client.post("/api/v1/auth/change-email", json=payload)
 
         assert res.status_code == 401, res.json()
 
@@ -525,17 +525,17 @@ class TestResetPasswordRequestEndpoint:
             "email": "resetpw@email.com",
             "password": "PAssword1@@1",
         }
-        await client.post("/auth/register", json=register_payload)
+        await client.post("/api/v1/auth/register", json=register_payload)
 
         payload = {"email": "resetpw@email.com"}
-        res = await client.post("/auth/reset-password/request", json=payload)
+        res = await client.post("/api/v1/auth/reset-password/request", json=payload)
 
         assert res.status_code == 201
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_reset_password_request_nonexistent_email_returns_201(self, client):
         payload = {"email": "nonexistent@email.com"}
-        res = await client.post("/auth/reset-password/request", json=payload)
+        res = await client.post("/api/v1/auth/reset-password/request", json=payload)
 
         assert res.status_code == 201
 
@@ -545,13 +545,13 @@ class TestResetPasswordEndpoint:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_reset_password_invalid_code_returns_400(self, client):
         payload = {"code": "invalid", "password": "PAssword1@@1"}
-        res = await client.patch("/auth/reset-password", json=payload)
+        res = await client.patch("/api/v1/auth/reset-password", json=payload)
 
         assert res.status_code == 400
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_reset_password_invalid_password_returns_422(self, client):
         payload = {"code": "somedummycode", "password": "weak"}
-        res = await client.patch("/auth/reset-password", json=payload)
+        res = await client.patch("/api/v1/auth/reset-password", json=payload)
 
         assert res.status_code == 422

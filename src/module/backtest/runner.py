@@ -7,7 +7,7 @@ from uuid import UUID
 
 from redis import Redis
 
-from config import REDIS_BACKTEST_HEARTBEAT_KEY_PREFIX, SRC_PATH
+from config import HISTORICAL_BASE_URL, REDIS_BACKTEST_HEARTBEAT_KEY_PREFIX, SRC_PATH
 from core.db import get_db_sess_sync
 from module.backtest.engine import BacktestEngine
 from module.backtest.enums import BacktestStatus
@@ -160,7 +160,7 @@ class BacktestRunner:
         """
         from user_strategy import UserStrategy  # type: ignore
 
-        historical_data_client = HistoricalDataClient()
+        historical_data_client = HistoricalDataClient(base_url=HISTORICAL_BASE_URL)
 
         return UserStrategy(
             ohlc_feed_client=ohlc_feed_client,

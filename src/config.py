@@ -128,6 +128,9 @@ OHLC_FEED_PORT = int(os.getenv("OHLC_FEED_PORT", "8001"))
 OMS_BASE_URL = os.getenv("OMS_BASE_URL", "http://localhost:8082")
 OMS_SESSION_PREFIX = os.getenv("OMS_SESSION_PREFIX", "oms:session:")
 
+# Historical Data
+HISTORICAL_BASE_URL = os.getenv("HISTORICAL_BASE_URL", "http://localhost:8000")
+
 # Logging
 logging.basicConfig(
     filename="app.log",
