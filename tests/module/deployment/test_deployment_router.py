@@ -10,7 +10,7 @@ from module.deployment.model import StrategyDeployments
 from module.strategy import StrategyService
 from module.strategy.schema import StrategyResponse
 from module.strategy.agents.strategy_gen import StrategyGenOutput
-from api.routes.util import seed_candles
+from module.util import seed_candles
 from module.deployment.enums import StrategyDeploymentStatus
 from core.db import get_db_sess_sync, get_db_session
 from module.broker_connections.model import BrokerConnections

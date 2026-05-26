@@ -7,7 +7,7 @@ import pytest_asyncio
 from sqlalchemy import delete
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from api.routes.util import create_user
+from module.util import create_user
 from core.db import get_db_sess_sync, get_db_session
 from module.backtest.enums import BacktestStatus
 from module.broker.enums import BrokerType, OrderSide, OrderStatus, OrderType

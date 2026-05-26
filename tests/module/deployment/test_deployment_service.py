@@ -26,7 +26,7 @@ from module.strategy.model import Strategy
 from module.broker_connections.model import BrokerConnections
 from module.user.model import User
 from core.db import get_db_sess_sync, get_db_session
-from api.routes.util import create_user, seed_candles
+from module.util import create_user, seed_candles
 
 
 @pytest.fixture

@@ -6,7 +6,7 @@ import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy import delete
 
-from api.routes.util import seed_candles
+from module.util import seed_candles
 from core.db import get_db_sess_sync, get_db_session
 from core.redis import REDIS_CLIENT
 from module.backtest.enums import BacktestStatus

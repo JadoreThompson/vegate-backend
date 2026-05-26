@@ -15,7 +15,7 @@ from module.strategy.exception import (
     StrategyGenerationError,
 )
 from module.strategy.model import Strategy
-from api.routes.util import create_user
+from module.util import create_user
 from core.db import get_db_sess_sync, get_db_session
 
 

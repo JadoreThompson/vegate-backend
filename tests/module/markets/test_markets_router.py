@@ -2,7 +2,7 @@ import pytest
 import pytest_asyncio
 from httpx import AsyncClient
 
-from api.routes.util import seed_candles
+from module.util import seed_candles
 from core.db import get_db_sess_sync
 from module.markets.model import OHLC, Instrument
 from module.markets.service import MarketsService

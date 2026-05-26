@@ -13,7 +13,7 @@ from module.markets.model import OHLC, Instrument
 from module.markets.schema import InstrumentInfo
 from module.markets.service import MarketsService
 from core.db import get_db_session, get_db_sess_sync
-from api.routes.util import seed_candles
+from module.util import seed_candles
 
 
 @pytest.fixture
