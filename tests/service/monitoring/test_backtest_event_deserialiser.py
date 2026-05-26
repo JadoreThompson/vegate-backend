@@ -1,0 +1,121 @@
+import json
+from uuid import uuid4
+
+import pytest
+
+from module.backtest.enums import BacktestStatus
+from module.backtest.event import (
+    BacktestEventType,
+    BacktestStatusChangedEvent,
+    BacktestCompletedEvent,
+)
+from module.backtest.event.deserialiser import BacktestEventDeserialiser
+from module.backtest.schema import BacktestMetricsSchema
+
+
+@pytest.fixture
+def deserialiser():
+    return BacktestEventDeserialiser()
+
+
+class TestBacktestEventDeserialiser:
+
+    def test_deserialise_status_changed(self, deserialiser):
+        backtest_id = uuid4()
+        event = BacktestStatusChangedEvent(
+            backtest_id=backtest_id,
+            status=BacktestStatus.IN_PROGRESS,
+        )
+
+        data = event.model_dump(mode="json")
+        restored = deserialiser.deserialise(data)
+
+        assert restored.type == BacktestEventType.STATUS_CHANGED
+        assert restored.backtest_id == backtest_id
+        assert restored.status == BacktestStatus.IN_PROGRESS
+
+    def test_deserialise_completed(self, deserialiser):
+        backtest_id = uuid4()
+        event = BacktestCompletedEvent(
+            backtest_id=backtest_id,
+            metrics=BacktestMetricsSchema(
+                realised_pnl=1.0,
+                unrealised_pnl=2.0,
+                total_return_pct=3.0,
+                profit_factor=1.5,
+                total_orders=10,
+                equity_curve=[],
+            ),
+        )
+
+        data = event.model_dump(mode="json")
+        restored = deserialiser.deserialise(data)
+
+        assert restored.type == BacktestEventType.COMPLETED
+        assert restored.backtest_id == backtest_id
+        assert restored.metrics.realised_pnl == 1.0
+
+    def test_deserialise_json_from_string(self, deserialiser):
+        backtest_id = uuid4()
+        event = BacktestStatusChangedEvent(
+            backtest_id=backtest_id,
+            status=BacktestStatus.FAILED,
+        )
+
+        payload = event.model_dump_json()
+        restored = deserialiser.deserialise_json(payload)
+
+        assert restored.type == BacktestEventType.STATUS_CHANGED
+        assert restored.backtest_id == backtest_id
+        assert restored.status == BacktestStatus.FAILED
+
+    def test_deserialise_json_from_bytes(self, deserialiser):
+        backtest_id = uuid4()
+        event = BacktestStatusChangedEvent(
+            backtest_id=backtest_id,
+            status=BacktestStatus.SUSPICIOUS,
+        )
+
+        payload = event.model_dump_json().encode()
+        restored = deserialiser.deserialise_json(payload)
+
+        assert restored.type == BacktestEventType.STATUS_CHANGED
+        assert restored.backtest_id == backtest_id
+        assert restored.status == BacktestStatus.SUSPICIOUS
+
+    def test_deserialise_unknown_type_raises(self, deserialiser):
+        data = {
+            "id": str(uuid4()),
+            "type": "backtest.unknown",
+            "backtest_id": str(uuid4()),
+            "timestamp": 1234567890,
+        }
+
+        with pytest.raises(ValueError, match="Unknown event type"):
+            deserialiser.deserialise(data)
+
+    def test_deserialise_missing_type_raises(self, deserialiser):
+        data = {
+            "id": str(uuid4()),
+            "backtest_id": str(uuid4()),
+            "timestamp": 1234567890,
+        }
+
+        with pytest.raises(ValueError, match="Missing event type"):
+            deserialiser.deserialise(data)
+
+    def test_round_trip_via_json(self, deserialiser):
+        backtest_id = uuid4()
+        original = BacktestStatusChangedEvent(
+            backtest_id=backtest_id,
+            status=BacktestStatus.PENDING,
+        )
+
+        payload = original.model_dump_json()
+        restored = deserialiser.deserialise_json(payload)
+
+        assert restored.id == original.id
+        assert restored.backtest_id == original.backtest_id
+        assert restored.status == original.status
+        assert restored.type == original.type
+        assert restored.timestamp == original.timestamp

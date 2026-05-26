@@ -7,6 +7,7 @@ class BacktestStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
     IN_PROGRESS = "in_progress"
+    SUSPICIOUS = "suspicious"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"

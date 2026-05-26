@@ -8,9 +8,10 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.db import Base, uuid_pk, datetime_tz
-from module.backtest.enums import BacktestStatus
 from module.broker.enums import OrderStatus
 from util import get_datetime
+from .enums import BacktestStatus
+from .event import BacktestEventType
 
 
 class Backtest(Base):
@@ -92,3 +93,23 @@ class BacktestOrder(Base):
 
     # Relationships
     backtest: Mapped["Backtest"] = relationship(back_populates="orders")
+
+
+class BacktestEvent(Base):
+    __tablename__ = "backtest_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+    )
+    backtest_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("backtests.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    event_type: Mapped[BacktestEventType] = mapped_column(
+        String,
+        nullable=True,
+    )
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    timestamp: Mapped[int] = mapped_column(Integer, nullable=True)

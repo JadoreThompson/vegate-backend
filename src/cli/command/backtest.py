@@ -1,9 +1,14 @@
-import sys
+import asyncio
 import logging
+import sys
 
 import click
 
+from core.redis import REDIS_CLIENT
+from module.backtest.event.deserialiser import BacktestEventDeserialiser
+from module.backtest.monitor import BacktestMonitor
 from module.backtest.runner import BacktestRunner
+from module.event_bus import EventPublisher
 
 logger = logging.getLogger("commands.backtest")
 
@@ -42,3 +47,21 @@ def backtest_run(backtest_id, verbose):
         click.echo(f"Error running backtest: {e}", err=True)
         logger.exception("Backtest failed")
         sys.exit(1)
+
+
+@backtest.group(name="monitor")
+def backtest_monitor():
+    """Backtest monitor command group."""
+    return
+
+
+@backtest_monitor.command(name="run")
+def run():
+    monitor_service = BacktestMonitor(
+        deserialiser=BacktestEventDeserialiser(),
+        redis_client=REDIS_CLIENT,
+        event_publisher=EventPublisher(),
+    )
+
+    monitor_service.setup()
+    asyncio.run(monitor_service.run())
