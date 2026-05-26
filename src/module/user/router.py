@@ -7,7 +7,7 @@ from module.jwt import JWTPayload
 from .model import User
 from .schema import UserResponse
 
-router = APIRouter(prefix="/users", tags=["Users"])
+router = APIRouter(prefix="/api/v1/users", tags=["Users"])
 
 
 @router.get("/me", response_model=UserResponse)

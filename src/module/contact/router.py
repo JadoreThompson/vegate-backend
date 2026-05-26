@@ -5,7 +5,7 @@ from module.email import BrevoEmailService
 from .schema import ContactForm
 
 
-router = APIRouter(prefix="/contact", tags=["Public"])
+router = APIRouter(prefix="/api/v1/contact", tags=["Public"])
 email_service = BrevoEmailService("Vegate", "support@jadore.dev")
 
 

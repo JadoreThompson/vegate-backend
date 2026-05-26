@@ -1,6 +1,5 @@
 from typing import Type, TypeVar
 
-# from lib.protocol import Closeable, AsyncCloseable
 from core.protocol import Closeable, AsyncCloseable
 
 T = TypeVar("T")
@@ -22,7 +21,7 @@ class ObjectRegistry:
                 if obj:
                     return obj
             raise KeyError(f"Subclass of type {clazz} not found")
-        # print(self._registry)
+
         return self._registry[clazz]
 
     async def close(self):

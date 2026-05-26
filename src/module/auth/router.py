@@ -18,7 +18,7 @@ from .schema import (
 )
 from .service import AuthService
 
-router = APIRouter(prefix="/auth", tags=["Auth"])
+router = APIRouter(prefix="/api/v1/auth", tags=["Auth"])
 
 
 @router.post("/register")

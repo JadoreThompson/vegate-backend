@@ -43,6 +43,7 @@ from module.strategy.exception import StrategyNotFoundException
 from module.strategy.router import router as strategies_router
 from module.user.router import router as user_router
 from .middleware import RateLimitMiddleware
+from .router import router as api_router
 from .object_registry import ObjectRegistry
 
 
@@ -109,6 +110,7 @@ app.add_middleware(
 )
 app.add_middleware(RateLimitMiddleware)
 
+app.include_router(api_router)
 app.include_router(auth_router)
 app.include_router(backtests_router)
 app.include_router(broker_connections_router)

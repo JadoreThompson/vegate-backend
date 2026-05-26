@@ -20,7 +20,7 @@ from .service import BrokerConnectionsService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/broker-connections", tags=["Broker Connections"])
+router = APIRouter(prefix="/api/v1/broker-connections", tags=["Broker Connections"])
 alpaca_oauth_service = AlpacaOauthService()
 
 

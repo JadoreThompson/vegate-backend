@@ -25,7 +25,7 @@ from .schema import (
 )
 from .service import DeploymentsService
 
-router = APIRouter(prefix="/deployments", tags=["Deployments"])
+router = APIRouter(prefix="/api/v1/deployments", tags=["Deployments"])
 
 
 @router.post(

@@ -15,7 +15,7 @@ from .schema import (
 )
 from .service import BacktestsService
 
-router = APIRouter(prefix="/backtests", tags=["Backtests"])
+router = APIRouter(prefix="/api/v1/backtests", tags=["Backtests"])
 
 
 @router.post("/", response_model=CreateBacktestResponse, status_code=201)

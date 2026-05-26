@@ -18,7 +18,7 @@ from .schema import (
 )
 from .service import StrategyService
 
-router = APIRouter(prefix="/strategy", tags=["Strategy"])
+router = APIRouter(prefix="/api/v1/strategy", tags=["Strategy"])
 
 
 @router.post("/", response_model=StrategyResponse, status_code=200)

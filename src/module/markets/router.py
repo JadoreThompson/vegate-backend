@@ -9,7 +9,7 @@ from .enums import MarketType, Timeframe
 from .schema import InstrumentInfo, OHLC as OHLCResponse
 from .service import MarketsService
 
-router = APIRouter(prefix="/markets", tags=["markets"])
+router = APIRouter(prefix="/api/v1/markets", tags=["markets"])
 
 
 @router.get("/info", response_model=PaginatedResponse[InstrumentInfo])
