@@ -1,8 +1,6 @@
 import uuid
 from datetime import datetime
 
-# from uuid import UUID
-
 from sqlalchemy import ForeignKey, String, Text, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -23,8 +21,9 @@ class Strategy(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = datetime_tz()
     updated_at: Mapped[datetime] = datetime_tz(nullable=False, onupdate=get_datetime)
-    prompt: Mapped[str] = mapped_column(Text, nullable=True)
-    code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    cur_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
 
 
 class StrategyVersion(Base):

@@ -39,7 +39,11 @@ from module.markets import MarketsService
 from module.markets.exception import SymbolNotFoundException
 from module.markets.router import router as markets_router
 from module.strategy import StrategyService
-from module.strategy.exception import StrategyNotFoundException
+from module.strategy.exception import (
+    StrategyNotFoundException,
+    StrategyVersionNotFoundException,
+    VersionForkDetectedException,
+)
 from module.strategy.router import router as strategies_router
 from module.user.router import router as user_router
 from .middleware import RateLimitMiddleware
@@ -191,6 +195,20 @@ async def handle_strategy_not_found_exception(
     req: Request, exc: StrategyNotFoundException
 ):
     return _error_response(404, str(exc))
+
+
+@app.exception_handler(StrategyVersionNotFoundException)
+async def handle_strategy_version_not_found_exception(
+    req: Request, exc: StrategyVersionNotFoundException
+):
+    return _error_response(404, str(exc))
+
+
+@app.exception_handler(VersionForkDetectedException)
+async def handle_version_fork_detected_exception(
+    req: Request, exc: VersionForkDetectedException
+):
+    return _error_response(409, str(exc))
 
 
 @app.exception_handler(SymbolNotFoundException)

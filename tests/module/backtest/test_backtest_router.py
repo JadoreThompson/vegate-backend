@@ -96,13 +96,9 @@ class TestCreateBacktest:
 
         payload = {
             "strategy_id": str(strategy_id),
-            # "symbol": "AAPL",
-            # "broker": "alpaca",
-            # "market_type": "stocks",
             "starting_balance": 10000,
             "start_date": "2026-01-01T00:00:00Z",
             "end_date": "2026-01-15T23:59:00Z",
-            # "timeframe": "1m",
         }
 
         rsp = await authenticated_client.post("/api/v1/backtests/", json=payload)

@@ -20,7 +20,7 @@ if config.config_file_name is not None:
 from core.db import Base
 from core.db import Base
 from module.user.model import User
-from module.strategy.model import Strategy
+from module.strategy.model import Strategy, StrategyVersion
 from module.markets.model import Instrument, OHLC
 from module.deployment.model import (
     StrategyDeployments,

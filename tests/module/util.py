@@ -3,9 +3,9 @@ from datetime import datetime, UTC
 from sqlalchemy import insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
+from core.db import get_db_sess_sync, get_db_session
 from module.broker.enums import BrokerType
 from module.markets.enums import MarketType, Timeframe
-from core.db import get_db_sess_sync, get_db_session
 from module.markets.model import OHLC, Instrument
 from module.user.model import User
 
@@ -48,7 +48,7 @@ def seed_candles():
                 )
                 .returning(Instrument.id)
             )
-            print("Instrument id:", instrument_id)
+
             if instrument_id is None:
                 continue
 
@@ -71,5 +71,4 @@ def seed_candles():
             ]
             db_sess.add_all(candles)
 
-        # db_sess.flush()
         db_sess.commit()

@@ -20,13 +20,17 @@ class StrategyResponse(CustomBaseModel):
     id: UUID
     name: str
     description: str | None = None
-    prompt: str | None = None
     created_at: datetime
     updated_at: datetime
-    code: str | None = None
+    cur_version_id: UUID | None = None
 
 
 class StrategyCodeResponse(CustomBaseModel):
+    code: str
+
+
+class CreateVersionRequest(CustomBaseModel):
+    prev_version_id: UUID
     code: str
 
 
@@ -39,3 +43,12 @@ class StrategyMetrics(BaseModel):
     @field_validator("realised_pnl", "unrealised_pnl", "total_return_pct", mode="after")
     def round_values(cls, v: float) -> float:
         return round(v, 2)
+
+
+class StrategyVersionResponse(CustomBaseModel):
+    id: UUID
+    strategy_id: UUID
+    prev_version: UUID | None = None
+    code: str | None = None
+    created_at: datetime
+    updated_at: datetime

@@ -343,8 +343,6 @@ class TestIntegrationTests:
             user_id=user_id,
             name="Delete Test Strategy",
             description="Test description",
-            prompt="test prompt",
-            code="class Strategy: pass",
         )
         db_sess.add(strategy)
         await db_sess.flush()
@@ -389,8 +387,6 @@ class TestIntegrationTests:
             user_id=user_id,
             name="Orders Test Strategy",
             description="Test description",
-            prompt="test prompt",
-            code="class Strategy: pass",
         )
         db_sess.add(strategy)
 
@@ -398,8 +394,6 @@ class TestIntegrationTests:
             user_id=other_user_id,
             name="Other Strategy",
             description="Other description",
-            prompt="other prompt",
-            code="class Strategy: pass",
         )
         db_sess.add(other_strategy)
 

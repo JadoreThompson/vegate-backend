@@ -12,8 +12,10 @@ from module.deployment.schema import StrategyDeploymentResponse
 from module.jwt import JWTPayload
 from .schema import (
     CreateStrategyRequest,
+    CreateVersionRequest,
     StrategyCodeResponse,
     StrategyResponse,
+    StrategyVersionResponse,
     UpdateStrategyRequest,
 )
 from .service import StrategyService
@@ -34,10 +36,9 @@ async def create_strategy(
         id=strategy.strategy_id,
         name=strategy.name,
         description=strategy.description,
-        prompt=strategy.prompt,
-        code=strategy.code,
         created_at=strategy.created_at,
         updated_at=strategy.updated_at,
+        cur_version_id=strategy.cur_version_id,
     )
 
 
@@ -49,17 +50,14 @@ async def get_strategy(
     strategy_service: StrategyService = Depends(depends_class(StrategyService)),
 ):
     """Get a strategy by ID with full details including code."""
-
     strategy = await strategy_service.get_strategy(strategy_id, jwt.sub, db_sess)
-
     return StrategyResponse(
         id=strategy.strategy_id,
         name=strategy.name,
         description=strategy.description,
-        code=strategy.code,
-        prompt=strategy.prompt,
         created_at=strategy.created_at,
         updated_at=strategy.updated_at,
+        cur_version_id=strategy.cur_version_id,
     )
 
 
@@ -133,14 +131,14 @@ async def update_strategy(
         id=strategy.strategy_id,
         name=strategy.name,
         description=strategy.description,
-        prompt=strategy.prompt,
         created_at=strategy.created_at,
         updated_at=strategy.updated_at,
+        cur_version_id=strategy.cur_version_id,
     )
 
 
-@router.put("/{strategy_id}/code")
-async def update_strategy_code(
+@router.put("/{strategy_id}/code", response_model=StrategyVersionResponse)
+async def update_strategy_code_put(
     strategy_id: UUID,
     jwt: JWTPayload = Depends(depends_jwt()),
     db_sess: AsyncSession = Depends(depends_db_sess),
@@ -151,8 +149,16 @@ async def update_strategy_code(
         raise HTTPException(status_code=400, detail="File must have a .py extension")
 
     code = (await file.read()).decode()
-    strategy = await strategy_service.update_code(strategy_id, jwt.sub, code, db_sess)
+    version = await strategy_service.update_code(strategy_id, jwt.sub, code, db_sess)
     await db_sess.commit()
+    return StrategyVersionResponse(
+        id=version.id,
+        strategy_id=version.strategy_id,
+        prev_version=version.prev_version,
+        code=version.code,
+        created_at=version.created_at,
+        updated_at=version.updated_at,
+    )
 
 
 @router.get("/{strategy_id}/code", response_model=StrategyCodeResponse)
@@ -162,13 +168,18 @@ async def get_strategy_code(
     db_sess: AsyncSession = Depends(depends_db_sess),
     strategy_service: StrategyService = Depends(depends_class(StrategyService)),
 ):
-    """Get the code of a strategy."""
+    """Get the code of a strategy (from current version)."""
     strategy = await strategy_service.get_user_strategy(strategy_id, jwt.sub, db_sess)
-    return StrategyCodeResponse(code=strategy.code)
+    if strategy.cur_version_id is None:
+        raise HTTPException(status_code=404, detail="No code uploaded yet")
+    version = await strategy_service.get_version(
+        strategy.cur_version_id, strategy_id, jwt.sub, db_sess
+    )
+    return StrategyCodeResponse(code=version.code or "")
 
 
-@router.patch("/{strategy_id}/code")
-async def update_strategy_code(
+@router.patch("/{strategy_id}/code", response_model=StrategyVersionResponse)
+async def update_strategy_code_patch(
     strategy_id: UUID,
     jwt: JWTPayload = Depends(depends_jwt()),
     db_sess: AsyncSession = Depends(depends_db_sess),
@@ -193,8 +204,16 @@ async def update_strategy_code(
             )
         code = (await file.read()).decode()
 
-    strategy = await strategy_service.update_code(strategy_id, jwt.sub, code, db_sess)
+    version = await strategy_service.update_code(strategy_id, jwt.sub, code, db_sess)
     await db_sess.commit()
+    return StrategyVersionResponse(
+        id=version.id,
+        strategy_id=version.strategy_id,
+        prev_version=version.prev_version,
+        code=version.code,
+        created_at=version.created_at,
+        updated_at=version.updated_at,
+    )
 
 
 @router.delete("/{strategy_id}", status_code=204)
@@ -207,3 +226,74 @@ async def delete_strategy(
     """Delete a strategy."""
     await strategy_service.delete(strategy_id, jwt.sub, db_sess)
     await db_sess.commit()
+
+
+# Version endpoints
+
+
+@router.get(
+    "/{strategy_id}/versions",
+    response_model=PaginatedResponse[StrategyVersionResponse],
+)
+async def list_versions(
+    strategy_id: UUID,
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=100),
+    jwt: JWTPayload = Depends(depends_jwt()),
+    db_sess: AsyncSession = Depends(depends_db_sess),
+    strategy_service: StrategyService = Depends(depends_class(StrategyService)),
+):
+    """List all versions for a strategy."""
+    return await strategy_service.get_versions(
+        strategy_id, jwt.sub, db_sess, page=page, limit=limit
+    )
+
+
+@router.post(
+    "/{strategy_id}/versions", response_model=StrategyVersionResponse, status_code=201
+)
+async def create_version(
+    strategy_id: UUID,
+    body: CreateVersionRequest,
+    jwt: JWTPayload = Depends(depends_jwt()),
+    db_sess: AsyncSession = Depends(depends_db_sess),
+    strategy_service: StrategyService = Depends(depends_class(StrategyService)),
+):
+    """Create a new version with code."""
+    version = await strategy_service.create_version(
+        strategy_id, jwt.sub, body.prev_version_id, body.code, db_sess
+    )
+    await db_sess.commit()
+    return StrategyVersionResponse(
+        id=version.id,
+        strategy_id=version.strategy_id,
+        prev_version=version.prev_version,
+        code=version.code,
+        created_at=version.created_at,
+        updated_at=version.updated_at,
+    )
+
+
+@router.get(
+    "/{strategy_id}/versions/{version_id}",
+    response_model=StrategyVersionResponse
+)
+async def get_version(
+    strategy_id: UUID,
+    version_id: UUID,
+    jwt: JWTPayload = Depends(depends_jwt()),
+    db_sess: AsyncSession = Depends(depends_db_sess),
+    strategy_service: StrategyService = Depends(depends_class(StrategyService)),
+):
+    """Get a specific version."""
+    version = await strategy_service.get_version(
+        version_id, strategy_id, jwt.sub, db_sess
+    )
+    return StrategyVersionResponse(
+        id=version.id,
+        strategy_id=version.strategy_id,
+        prev_version=version.prev_version,
+        code=version.code,
+        created_at=version.created_at,
+        updated_at=version.updated_at,
+    )

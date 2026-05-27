@@ -152,8 +152,6 @@ class TestGetDeployment:
                 user_id=user_a.user_id,
                 name="User A Strategy",
                 description="Test",
-                prompt="test",
-                code="class Strategy: pass",
             )
             db_sess.add(strategy)
             await db_sess.flush()

@@ -20,3 +20,13 @@ class StrategyValidationException(Exception):
 class StrategyNotFoundException(Exception):
     def __init__(self):
         super().__init__("Strategy not found")
+
+
+class StrategyVersionNotFoundException(Exception):
+    def __init__(self):
+        super().__init__("Strategy version not found")
+
+
+class VersionForkDetectedException(Exception):
+    def __init__(self):
+        super().__init__("Version fork detected: the current version has changed since you last fetched it")

@@ -12,9 +12,16 @@ from .exception import (
     StrategyGenerationError,
     StrategyValidationException,
     StrategyNotFoundException,
+    StrategyVersionNotFoundException,
+    VersionForkDetectedException,
 )
-from .model import Strategy
-from .schema import CreateStrategyRequest, UpdateStrategyRequest, StrategyResponse
+from .model import Strategy, StrategyVersion
+from .schema import (
+    CreateStrategyRequest,
+    StrategyResponse,
+    StrategyVersionResponse,
+    UpdateStrategyRequest,
+)
 
 
 class StrategyService:
@@ -32,10 +39,13 @@ class StrategyService:
         )
 
         db_sess.add(new_strategy)
-
         await db_sess.flush()
-        await db_sess.refresh(new_strategy)
 
+        new_version = StrategyVersion(strategy_id=new_strategy.strategy_id)
+        db_sess.add(new_version)
+        await db_sess.flush()
+
+        new_strategy.cur_version_id = new_version.id
         return new_strategy
 
     @deprecated(
@@ -91,10 +101,9 @@ class StrategyService:
                 id=strategy.strategy_id,
                 name=strategy.name,
                 description=strategy.description,
-                prompt=strategy.prompt,
-                code=strategy.code,
                 created_at=strategy.created_at,
                 updated_at=strategy.updated_at,
+                cur_version_id=strategy.cur_version_id,
             )
             for strategy in result.scalars().all()
         ]
@@ -129,10 +138,11 @@ class StrategyService:
         user_id: UUID,
         code: str,
         db_sess: AsyncSession,
-    ) -> Strategy:
+    ) -> StrategyVersion:
         strategy = await self.get_user_strategy(strategy_id, user_id, db_sess)
-        strategy.code = code
-        return strategy
+        return await self.create_version(
+            strategy_id, user_id, strategy.cur_version_id, code, db_sess
+        )
 
     async def delete(
         self, strategy_id: UUID, user_id: UUID, db_sess: AsyncSession
@@ -151,3 +161,85 @@ class StrategyService:
         if strategy is None:
             raise StrategyNotFoundException()
         return strategy
+
+    async def get_versions(
+        self,
+        strategy_id: UUID,
+        user_id: UUID,
+        db_sess: AsyncSession,
+        *,
+        page: int = 1,
+        limit: int = 50,
+    ) -> PaginatedResponse[StrategyVersionResponse]:
+        await self.get_user_strategy(strategy_id, user_id, db_sess)
+
+        stmt = (
+            select(StrategyVersion)
+            .where(StrategyVersion.strategy_id == strategy_id)
+            .order_by(StrategyVersion.created_at.desc())
+            .offset((page - 1) * limit)
+            .limit(limit + 1)
+        )
+
+        result = await db_sess.execute(stmt)
+        versions = [
+            StrategyVersionResponse(
+                id=v.id,
+                strategy_id=v.strategy_id,
+                prev_version=v.prev_version,
+                code=v.code,
+                created_at=v.created_at,
+                updated_at=v.updated_at,
+            )
+            for v in result.scalars().all()
+        ]
+
+        return PaginatedResponse[StrategyVersionResponse](
+            page=page,
+            size=min(limit, len(versions)),
+            has_next=len(versions) > limit,
+            data=versions[:limit],
+        )
+
+    async def get_version(
+        self,
+        version_id: UUID,
+        strategy_id: UUID,
+        user_id: UUID,
+        db_sess: AsyncSession,
+    ) -> StrategyVersion:
+        await self.get_user_strategy(strategy_id, user_id, db_sess)
+
+        version = await db_sess.scalar(
+            select(StrategyVersion).where(
+                StrategyVersion.id == version_id,
+                StrategyVersion.strategy_id == strategy_id,
+            )
+        )
+        if version is None:
+            raise StrategyVersionNotFoundException()
+        return version
+
+    async def create_version(
+        self,
+        strategy_id: UUID,
+        user_id: UUID,
+        prev_version_id: UUID,
+        code: str,
+        db_sess: AsyncSession,
+    ) -> StrategyVersion:
+        strategy = await self.get_user_strategy(strategy_id, user_id, db_sess)
+
+        if strategy.cur_version_id != prev_version_id:
+            raise VersionForkDetectedException()
+
+        new_version = StrategyVersion(
+            strategy_id=strategy_id,
+            prev_version=prev_version_id,
+            code=code,
+        )
+        db_sess.add(new_version)
+        await db_sess.flush()
+
+        strategy.cur_version_id = new_version.id
+        return new_version
