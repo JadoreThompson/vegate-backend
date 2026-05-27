@@ -10,7 +10,6 @@ from ..schema import BacktestMetricsSchema
 
 class BacktestEventType(str, Enum):
     STATUS_CHANGED = "backtest.status_changed"
-    COMPLETED = "backtest.completed"
     ERROR = "backtest.error"
 
 
@@ -26,9 +25,4 @@ class BacktestStatusChangedEvent(BacktestEvent):
     status: BacktestStatus
 
 
-class BacktestCompletedEvent(BacktestEvent):
-    type: Literal[BacktestEventType.COMPLETED] = BacktestEventType.COMPLETED
-    metrics: BacktestMetricsSchema
-
-
-BacktestEventT = BacktestStatusChangedEvent | BacktestCompletedEvent
+BacktestEventT = BacktestStatusChangedEvent

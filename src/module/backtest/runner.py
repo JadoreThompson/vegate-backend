@@ -1,3 +1,4 @@
+from dataclasses import asdict
 import logging
 import os
 import time
@@ -6,23 +7,23 @@ from threading import Thread
 from uuid import UUID
 
 from redis import Redis
+from sqlalchemy import insert
 
 from config import HISTORICAL_BASE_URL, REDIS_BACKTEST_HEARTBEAT_KEY_PREFIX, SRC_PATH
 from core.db import get_db_sess_sync
-from module.backtest.engine import BacktestEngine
-from module.backtest.enums import BacktestStatus
-from module.backtest.event.event import BacktestCompletedEvent
-from module.backtest.schema import EquityCurvePoint
 from module.event_bus import SyncEventPublisher
 from module.markets.historical import HistoricalDataClient
-from module.strategy.model import Strategy
+from module.strategy.model import StrategyVersion
 from module.strategy.strategy import BaseStrategy
+from .engine import BacktestEngine
 from .engine.ohlc_feed_client import BacktestOHLCFeedClient
 from .engine.ohlc_feed_client_proxy import BacktestOHLCFeedClientProxy
 from .engine.oms_client import BacktestOMSClient
-from .event import BacktestStatusChangedEvent
 from .engine.schema import BacktestMetrics as BacktestMetricsDto
-from .model import Backtest
+from .enums import BacktestStatus
+from .event import BacktestStatusChangedEvent
+from .model import Backtest, BacktestMetrics, BacktestOrder
+from .schema import BacktestMetricsSchema, EquityCurvePoint
 
 
 class BacktestRunner:
@@ -79,15 +80,13 @@ class BacktestRunner:
                 db_sess.flush()
                 db_sess.expunge(db_backtest)
 
-                db_strategy = db_sess.get(Strategy, db_backtest.strategy_id)
-                if db_strategy is None:
-                    self._logger.error(f"Strategy for backtest {self._backtest_id}")
+                db_strategy_version = db_sess.get(StrategyVersion, db_backtest.version_id)
+                if db_strategy_version is None:
+                    self._logger.error(f"Strategy version for backtest {self._backtest_id}")
                     return
 
-                self._logger.info("Strategy object found")
-                db_sess.expunge(db_strategy)
-
-                db_sess.commit()
+                self._logger.info("Strategy version object found")
+                db_sess.expunge(db_strategy_version)
 
             self._event_publisher.enqueue(
                 BacktestStatusChangedEvent(
@@ -96,7 +95,7 @@ class BacktestRunner:
             )
 
             # Create broker and run backtest
-            self._write_strategy_code(db_strategy.code)
+            self._write_strategy_code(db_strategy_version.code)
 
             ohlc_feed_client = BacktestOHLCFeedClient(
                 int(db_backtest.start_date.timestamp()),
@@ -118,14 +117,8 @@ class BacktestRunner:
 
             # Store results to database
             self._logger.info("Storing results...")
-            self._emit_results(result)
+            self._store_results(result)
             self._logger.info("Finished storing results")
-
-            self._event_publisher.enqueue(
-                BacktestStatusChangedEvent(
-                    backtest_id=self._backtest_id, status=BacktestStatus.COMPLETED
-                )
-            )
 
         except Exception as e:
             self._logger.error(
@@ -169,7 +162,7 @@ class BacktestRunner:
             historical_data_client=historical_data_client,
         )
 
-    def _emit_results(self, result: BacktestMetricsDto) -> None:
+    def _store_results(self, result: BacktestMetricsDto) -> None:
         """Emit backtest results as events.
 
         Args:
@@ -190,27 +183,26 @@ class BacktestRunner:
             indices = [0, n * 1 // 4, n * 2 // 4, n * 3 // 4, n - 1]
             equity_curve = [equity_curve[i] for i in indices]
     
-        self._event_publisher.enqueue(
-            BacktestCompletedEvent(
+        with get_db_sess_sync() as db_sess:
+            db_sess.execute(insert(BacktestOrder), records)
+            db_sess.execute(insert(BacktestMetrics).values(
                 backtest_id=self._backtest_id,
-                metrics=BacktestMetricsDto(
-                    realised_pnl=result.realised_pnl,
-                    unrealised_pnl=result.unrealised_pnl,
-                    total_return_pct=result.total_return_pct,
-                    profit_factor=result.profit_factor,
-                    total_orders=result.total_orders,
-                    equity_curve=[
-                        EquityCurvePoint(
-                            timestamp=curve.timestamp,
-                            balance=curve.balance,
-                            equity=curve.equity,
-                        )
-                        for curve in result.equity_curve
-                    ],
-                    orders=result.orders,
+                realised_pnl=result.realised_pnl,
+                unrealised_pnl=result.unrealised_pnl,
+                total_return_pct=result.total_return_pct,
+                profit_factor=result.profit_factor,
+                total_orders=result.total_orders,
+                equity_curve=[asdict(curve) for curve in equity_curve]
+            ))
+
+            self._event_publisher.enqueue(
+                BacktestStatusChangedEvent(
+                    backtest_id=self._backtest_id, status=BacktestStatus.COMPLETED
                 ),
+                db_sess
             )
-        )
+
+            db_sess.commit()
 
     def _heartbeat_loop(self):
         while self._is_running:

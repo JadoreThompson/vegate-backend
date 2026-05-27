@@ -117,6 +117,19 @@ class UserStrategy(BaseStrategy):
     return mock_strategy
 
 
+def _make_mock_strategy_version(version_id):
+    mock_strategy = MagicMock()
+    mock_strategy.id = version_id
+    mock_strategy.code = """
+from module.strategy.strategy import BaseStrategy
+
+class UserStrategy(BaseStrategy):
+    def on_candle(self, candle):
+        pass
+"""
+    return mock_strategy
+
+
 class TestBacktestRunnerWithRealRun:
 
     def test_run_starts_heartbeat_and_performs_it(
@@ -127,7 +140,7 @@ class TestBacktestRunnerWithRealRun:
         verifying that the heartbeat loop fires Redis set calls during execution.
         """
         from module.backtest.model import Backtest as BacktestModel
-        from module.strategy.model import Strategy as StrategyModel
+        from module.strategy.model import StrategyVersion
 
         backtest_id = uuid4()
         strategy_id = uuid4()
@@ -138,12 +151,15 @@ class TestBacktestRunnerWithRealRun:
 
         mock_backtest = _make_mock_backtest(backtest_id, strategy_id, start_ts, end_ts)
         mock_strategy = _make_mock_strategy(strategy_id)
+        mock_strategy_version = _make_mock_strategy_version(uuid4())
 
         mock_db_sess = MagicMock()
         mock_db_sess.get.side_effect = lambda model, pk: (
-            mock_backtest if model == BacktestModel else
-            mock_strategy if model == StrategyModel else
-            None
+            mock_backtest
+            if model == BacktestModel
+            else
+            # mock_strategy if model == StrategyModel else
+            mock_strategy_version if model == StrategyVersion else None
         )
         mock_db_sess.commit = MagicMock(return_value=None)
         mock_db_sess.flush = MagicMock(return_value=None)
@@ -164,7 +180,7 @@ class TestBacktestRunnerWithRealRun:
                 mock_result.profit_factor = 0.0
                 mock_result.total_orders = 0
                 mock_engine = MagicMock()
-                mock_engine.run.side_effect = lambda: time.sleep(0.3) or mock_result
+                mock_engine.run.side_effect = lambda: time.sleep(1) or mock_result
                 MockBacktestEngine.return_value = mock_engine
 
                 runner = BacktestRunner(
@@ -182,7 +198,10 @@ class TestBacktestRunnerWithRealRun:
                     runner.run()
 
         expected_key = f"{REDIS_BACKTEST_HEARTBEAT_KEY_PREFIX}{backtest_id}"
-        mock_redis_client.set.assert_called()
+        # mock_redis_client.set.assert_called()
+        assert (
+            mock_redis_client.set.call_count >= 1
+        ), "Expected at least one heartbeat set call"
         args, kwargs = mock_redis_client.set.call_args
         assert args[0] == expected_key
         assert kwargs == {"ex": 15}
@@ -195,7 +214,7 @@ class TestBacktestRunnerWithRealRun:
         the runner emits a FAILED event.
         """
         from module.backtest.model import Backtest as BacktestModel
-        from module.strategy.model import Strategy as StrategyModel
+        from module.strategy.model import Strategy as StrategyModel, StrategyVersion
 
         backtest_id = uuid4()
         strategy_id = uuid4()
@@ -206,12 +225,14 @@ class TestBacktestRunnerWithRealRun:
 
         mock_backtest = _make_mock_backtest(backtest_id, strategy_id, start_ts, end_ts)
         mock_strategy = _make_mock_strategy(strategy_id)
+        mock_strategy_version = _make_mock_strategy_version(uuid4())
 
         mock_db_sess = MagicMock()
         mock_db_sess.get.side_effect = lambda model, pk: (
-            mock_backtest if model == BacktestModel else
-            mock_strategy if model == StrategyModel else
-            None
+            mock_backtest
+            if model == BacktestModel
+            # else mock_strategy if model == StrategyModel else None
+            else mock_strategy_version if model == StrategyVersion else None
         )
         mock_db_sess.commit = MagicMock(return_value=None)
         mock_db_sess.flush = MagicMock(return_value=None)
@@ -227,7 +248,9 @@ class TestBacktestRunnerWithRealRun:
                     runner._is_running = False
                     yield MagicMock()
 
-            with patch(f"{MODULE_PATH}.BacktestOHLCFeedClient") as MockBacktestOHLCFeedClient:
+            with patch(
+                f"{MODULE_PATH}.BacktestOHLCFeedClient"
+            ) as MockBacktestOHLCFeedClient:
                 mock_feed_client = MagicMock()
                 mock_feed_client.candles.return_value = candles_generator()
                 MockBacktestOHLCFeedClient.return_value = mock_feed_client

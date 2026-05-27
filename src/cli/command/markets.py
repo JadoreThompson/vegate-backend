@@ -1,26 +1,37 @@
 import asyncio
 import logging
 import sys
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import click
 
 from cli.param.enum import EnumParam
+from config import ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_API_KEY, CONFIG_YAML
 from module.broker.enums import BrokerType
 from module.markets.enums import MarketType, Timeframe
+from module.markets.feed.alpaca.service import AlpacaOHLCFeed
+from module.markets.feed.base import OHLCFeed
+from module.markets.feed.manager import FeedManager
+from module.markets.feed.server import OHLCFeedServer
 from module.markets.loader.alpaca import AlpacaOHLCLoader
 from util import get_datetime
 
-logger = logging.getLogger("commands.ohlc_loader")
+logger = logging.getLogger("commands.markets")
 
 
-@click.group(name="ohlc_loader")
-def ohlc_loader():
+@click.group(name="markets")
+def markets():
+    """Manage market data."""
+    pass
+
+
+@markets.group(name="loader")
+def loader():
     """Manage historical data loading."""
     pass
 
 
-@ohlc_loader.command(name="run")
+@loader.command(name="run")
 @click.option(
     "--broker",
     type=EnumParam(BrokerType),
@@ -67,7 +78,7 @@ def ohlc_loader():
     help="Alpaca secret key (or set ALPACA_SECRET_KEY env var)",
 )
 @click.option("--verbose", is_flag=True, help="Enable verbose output")
-def loader_run(
+def run(
     broker,
     symbol,
     market_type,
@@ -125,3 +136,69 @@ def loader_run(
         click.echo(f"Error loading data: {e}", err=True)
         logger.exception("Loader failed")
         sys.exit(1)
+
+
+@markets.group(name="feed")
+def feed():
+    """Manage live OHLC feeds."""
+    pass
+
+
+async def _wrapper(coro):
+    try:
+        await coro
+    except asyncio.CancelledError:
+        pass
+
+
+@feed.command(name="run")
+@click.option("--host", type=str, required=True, help="Server host")
+@click.option("--port", type=int, required=True, help="Server port")
+def run(host, port):
+    async def _run():
+        feeds: list[OHLCFeed] = []
+        for item in CONFIG_YAML["ohlc_feed"]:
+            broker = BrokerType(item["broker"])
+            market_type = MarketType(item["market_type"])
+            symbol = item["symbol"]
+
+            for tf in item["timeframes"]:
+                timeframe = Timeframe(tf)
+                if broker == BrokerType.ALPACA:
+                    feed = AlpacaOHLCFeed(
+                        symbol=symbol,
+                        market_type=market_type,
+                        timeframe=timeframe,
+                        api_key=ALPACA_API_KEY,
+                        secret_key=ALPACA_SECRET_KEY,
+                    )
+
+                    loader = AlpacaOHLCLoader(
+                        api_key=ALPACA_API_KEY, secret_key=ALPACA_SECRET_KEY
+                    )
+                else:
+                    raise ValueError(f"Unsupported broker type '{broker}'")
+
+                await loader.load_candles(
+                    symbol,
+                    market_type,
+                    timeframe,
+                    item["start_date"],
+                    datetime.now() + timedelta(days=1),
+                )
+                asyncio.create_task(_wrapper(feed.run()))
+                feeds.append(feed)
+
+        feed_manager = FeedManager()
+        server = OHLCFeedServer(feed_manager, host, port)
+        try:
+            await server.init(feeds)
+            await server.run()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            await server.stop()
+            for feed in feeds:
+                await feed.stop()
+
+    asyncio.run(_run())

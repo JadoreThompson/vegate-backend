@@ -253,18 +253,18 @@ class TestCreateVersion:
         assert v2.json()["prev_version"] == v1_id
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_create_version_wrong_prev_version_returns_409(self, authenticated_client):
+    async def test_create_version_non_existent_prev_version_returns_404(self, authenticated_client):
         strat_res = await authenticated_client.post(
-            "/api/v1/strategy/", json={"name": "Fork Test"}
+            "/api/v1/strategy/", json={"name": "Non existent Test"}
         )
         data = strat_res.json()
         strategy_id = data["id"]
 
         res = await authenticated_client.post(
             f"/api/v1/strategy/{strategy_id}/versions",
-            json={"prev_version_id": "00000000-0000-0000-0000-000000000000", "code": "forked"},
+            json={"prev_version_id": "00000000-0000-0000-0000-000000000000", "code": "Non existent forked"},
         )
-        assert res.status_code == 409
+        assert res.status_code == 404
 
 
 class TestListVersions:

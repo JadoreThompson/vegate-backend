@@ -1,10 +1,15 @@
+import asyncio
 import logging
 from uuid import UUID
 
 import click
 
 from core.redis import REDIS_CLIENT_SYNC
+from core.redis.client import REDIS_CLIENT
+from module.deployment.event.deserialiser import DeploymentEventDeserialiser
+from module.deployment.monitor import DeploymentEventMonitorService
 from module.event_bus import SyncEventPublisher
+from module.event_bus.publisher.publisher import EventPublisher
 from module.markets.feed import OHLCFeedClient
 from module.deployment.runner import StrategyDeploymentRunner
 from module.deployment.oms import OMSClient
@@ -45,3 +50,21 @@ def run(deployment_id, ohlc_feed_host, ohlc_feed_port, oms_base_url, verbose):
         redis_client=REDIS_CLIENT_SYNC,
     )
     runner.run()
+
+
+@deployment.group(name="monitor")
+def monitor():
+    """Monitor live strategy deployments."""
+    return
+
+
+@monitor.command(name="run")
+def run():
+    monitor_service = DeploymentEventMonitorService(
+        deserialiser=DeploymentEventDeserialiser(),
+        redis_client=REDIS_CLIENT,
+        event_publisher=EventPublisher(),
+    )
+
+    monitor_service.setup()
+    asyncio.run(monitor_service.run())

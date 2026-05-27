@@ -98,7 +98,7 @@ class TestCreateDeployment:
         broker_connection_id = await create_broker_connection(authenticated_client)
 
         payload = {
-            "strategy_id": str(strategy.id),
+            "version_id": str(strategy.cur_version_id),
             "broker_connection_id": broker_connection_id,
         }
 
@@ -109,7 +109,7 @@ class TestCreateDeployment:
         assert "id" in data
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_create_deployment_missing_strategy_id_returns_422(
+    async def test_create_deployment_missing_version_id_returns_422(
         self, authenticated_client
     ):
         payload = {
@@ -125,7 +125,7 @@ class TestCreateDeployment:
         self, authenticated_client
     ):
         payload = {
-            "strategy_id": str(uuid4()),
+            "version_id": str(uuid4()),
         }
 
         rsp = await authenticated_client.post("/api/v1/deployments/", json=payload)
@@ -135,7 +135,7 @@ class TestCreateDeployment:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_create_deployment_unauthenticated_returns_401(self, client):
         payload = {
-            "strategy_id": str(uuid4()),
+            "version_id": str(uuid4()),
             "broker_connection_id": str(uuid4()),
         }
 
@@ -154,7 +154,7 @@ class TestGetDeployment:
         broker_connection_id = await create_broker_connection(authenticated_client)
 
         payload = {
-            "strategy_id": str(strategy.id),
+            "version_id": str(strategy.cur_version_id),
             "broker_connection_id": broker_connection_id,
         }
 
@@ -169,7 +169,7 @@ class TestGetDeployment:
         data = rsp.json()
         assert "id" in data
         assert "status" in data
-        assert "strategy_id" in data
+        assert "version_id" in data
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_get_deployment_not_found_returns_404(self, authenticated_client):
@@ -207,7 +207,7 @@ class TestListDeployments:
         broker_connection_id = await create_broker_connection(authenticated_client)
 
         request = {
-            "strategy_id": str(strategy.id),
+            "version_id": str(strategy.cur_version_id),
             "broker_connection_id": broker_connection_id,
         }
 
@@ -251,7 +251,7 @@ class TestStartDeployment:
         broker_connection_id = await create_broker_connection(authenticated_client)
 
         payload = {
-            "strategy_id": str(strategy.id),
+            "version_id": str(strategy.cur_version_id),
             "broker_connection_id": broker_connection_id,
         }
 
@@ -285,7 +285,7 @@ class TestStartDeployment:
         broker_connection_id = await create_broker_connection(authenticated_client)
 
         payload = {
-            "strategy_id": str(strategy.id),
+            "version_id": str(strategy.cur_version_id),
             "broker_connection_id": broker_connection_id,
         }
 
@@ -313,7 +313,7 @@ class TestStopDeployment:
         broker_connection_id = await create_broker_connection(authenticated_client)
 
         payload = {
-            "strategy_id": str(strategy.id),
+            "version_id": str(strategy.cur_version_id),
             "broker_connection_id": broker_connection_id,
         }
 
@@ -347,7 +347,7 @@ class TestStopDeployment:
         broker_connection_id = await create_broker_connection(authenticated_client)
 
         payload = {
-            "strategy_id": str(strategy.id),
+            "version_id": str(strategy.cur_version_id),
             "broker_connection_id": broker_connection_id,
         }
 
@@ -375,7 +375,7 @@ class TestGetDeploymentOrders:
         broker_connection_id = await create_broker_connection(authenticated_client)
 
         payload = {
-            "strategy_id": str(strategy.id),
+            "version_id": str(strategy.cur_version_id),
             "broker_connection_id": broker_connection_id,
         }
 
@@ -408,7 +408,7 @@ class TestGetDeploymentOrders:
         broker_connection_id = await create_broker_connection(authenticated_client)
 
         payload = {
-            "strategy_id": str(strategy.id),
+            "version_id": str(strategy.cur_version_id),
             "broker_connection_id": broker_connection_id,
         }
 
@@ -436,7 +436,7 @@ class TestGetDeploymentEvents:
         broker_connection_id = await create_broker_connection(authenticated_client)
 
         payload = {
-            "strategy_id": str(strategy.id),
+            "version_id": str(strategy.cur_version_id),
             "broker_connection_id": broker_connection_id,
         }
 
@@ -467,7 +467,7 @@ class TestDeploymentEndpointsUnauthenticated:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_create_deployment_unauthenticated_returns_401(self, client):
         payload = {
-            "strategy_id": str(uuid4()),
+            "version_id": str(uuid4()),
             "broker_connection_id": str(uuid4()),
         }
 

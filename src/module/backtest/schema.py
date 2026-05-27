@@ -10,7 +10,7 @@ from core.schema import CustomBaseModel
 
 
 class CreateBacktestRequest(BaseModel):
-    strategy_id: UUID
+    version_id: UUID
     starting_balance: int = Field(gt=0, le=100_000)
     start_date: datetime
     end_date: datetime
@@ -39,7 +39,7 @@ class BacktestMetricsSchema(BaseModel):
 
 class BacktestResponse(CustomBaseModel):
     id: UUID
-    strategy_id: UUID
+    version_id: UUID
     starting_balance: float
     start_date: date
     end_date: date

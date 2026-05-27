@@ -15,7 +15,7 @@ from .oms import OMSClient
 from module.event_bus import SyncEventPublisher
 from module.markets.feed import OHLCFeedClient
 from module.markets.historical import HistoricalDataClient
-from module.strategy.model import Strategy
+from module.strategy.model import Strategy, StrategyVersion
 from module.strategy.strategy import BaseStrategy
 from .event import DeploymentStatusChangedEvent
 from .model import StrategyDeployments
@@ -44,27 +44,25 @@ class StrategyDeploymentRunner:
 
         self._alive = False
         self._heartbeat_th: Thread | None = None
+        self._strategy: BaseStrategy | None = None
         self._fpath = os.path.join(SRC_PATH, "user_strategy.py")
         self._logger = logging.getLogger(self.__class__.__name__)
 
     def setup(self):
         with get_db_sess_sync() as db_sess:
             res = db_sess.execute(
-                select(StrategyDeployments, Strategy)
-                .join(
-                    Strategy,
-                    StrategyDeployments.strategy_id == Strategy.strategy_id,
-                )
+                select(StrategyDeployments, StrategyVersion)
+                .join(StrategyVersion, StrategyVersion.id == StrategyDeployments.version_id)
                 .where(StrategyDeployments.deployment_id == self._deployment_id)
             )
 
-            data: tuple[StrategyDeployments, Strategy] = res.first()
+            data: tuple[StrategyDeployments, StrategyVersion] = res.first()
             if data is None:
                 raise ValueError(
                     f"Deployment with id '{self._deployment_id}' not found"
                 )
 
-        deployment, strategy = data
+        deployment, strategy_version = data
         if deployment is None:
             raise ValueError(f"Deployment with id '{self._deployment_id}' not found")
 
@@ -76,7 +74,7 @@ class StrategyDeploymentRunner:
                 f"Deployment with id '{self._deployment_id}' is not stopped. Aborting deployment"
             )
 
-        self._write_code(strategy.code)
+        self._write_code(strategy_version.code)
         self._strategy = self._load_strategy()
 
     def run(self) -> None:

@@ -6,8 +6,7 @@ import pytest
 from module.backtest.enums import BacktestStatus
 from module.backtest.event import (
     BacktestEventType,
-    BacktestStatusChangedEvent,
-    BacktestCompletedEvent,
+    BacktestStatusChangedEvent
 )
 from module.backtest.event.deserialiser import BacktestEventDeserialiser
 from module.backtest.schema import BacktestMetricsSchema
@@ -33,27 +32,6 @@ class TestBacktestEventDeserialiser:
         assert restored.type == BacktestEventType.STATUS_CHANGED
         assert restored.backtest_id == backtest_id
         assert restored.status == BacktestStatus.IN_PROGRESS
-
-    def test_deserialise_completed(self, deserialiser):
-        backtest_id = uuid4()
-        event = BacktestCompletedEvent(
-            backtest_id=backtest_id,
-            metrics=BacktestMetricsSchema(
-                realised_pnl=1.0,
-                unrealised_pnl=2.0,
-                total_return_pct=3.0,
-                profit_factor=1.5,
-                total_orders=10,
-                equity_curve=[],
-            ),
-        )
-
-        data = event.model_dump(mode="json")
-        restored = deserialiser.deserialise(data)
-
-        assert restored.type == BacktestEventType.COMPLETED
-        assert restored.backtest_id == backtest_id
-        assert restored.metrics.realised_pnl == 1.0
 
     def test_deserialise_json_from_string(self, deserialiser):
         backtest_id = uuid4()

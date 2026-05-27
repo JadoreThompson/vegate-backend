@@ -81,6 +81,7 @@ class BacktestOHLCFeedClient(OHLCFeedClient):
                     [subscription["symbol"] for subscription in self._subscriptions]
                 )
                 last_row = None
+
                 for row in rows.yield_per(1000):
                     new_symbols = set(
                         [subscription["symbol"] for subscription in self._subscriptions]

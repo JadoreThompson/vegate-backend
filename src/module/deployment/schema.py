@@ -12,7 +12,7 @@ from core.schema import CustomBaseModel
 class CreateDeploymentRequest(BaseModel):
     """Request model for deploying a strategy."""
 
-    strategy_id: UUID
+    version_id: UUID
     broker_connection_id: UUID
 
 class CreateStrategyDeploymentResponse(CustomBaseModel):
@@ -29,7 +29,7 @@ class StrategyDeploymentMetricsResponse(BaseModel):
 
 class StrategyDeploymentResponse(CustomBaseModel):
     id: UUID
-    strategy_id: UUID
+    version_id: UUID
     broker_connection_id: UUID
     status: StrategyDeploymentStatus
     error_message: str | None
@@ -41,7 +41,7 @@ class StrategyDeploymentResponse(CustomBaseModel):
 
 class StrategyDeploymentOrderResponse(BaseModel):
     id: UUID
-    broker_order_id: UUID
+    broker_order_id: UUID | None = None
     deployment_id: UUID
     symbol: str
     side: str

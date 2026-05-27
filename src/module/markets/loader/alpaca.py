@@ -54,7 +54,7 @@ class AlpacaOHLCLoader(OHLCLoader):
                 instrument_id, symbol, timeframe, records
             )
 
-            batch_start_date = datetime.fromtimestamp(records[-1]['timestamp'])
+            batch_start_date = datetime.fromtimestamp(records[0]['timestamp'])
             batch_end_date = datetime.fromtimestamp(records[-1]['timestamp'])
 
             self._logger.info(

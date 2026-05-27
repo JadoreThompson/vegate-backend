@@ -285,11 +285,11 @@ class TestCreateVersion:
                 CreateStrategyRequest(name="Test"), user_id, db_sess
             )
 
-            from module.strategy.exception import VersionForkDetectedException
+            from module.strategy.exception import StrategyVersionNotFoundException
 
-            with pytest.raises(VersionForkDetectedException):
+            with pytest.raises(StrategyVersionNotFoundException):
                 await strategy_service.create_version(
-                    strat.strategy_id, user_id, uuid4(), "forked", db_sess
+                    strat.strategy_id, user_id, uuid4(), "non-existent", db_sess
                 )
 
 

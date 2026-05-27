@@ -22,7 +22,7 @@ from module.markets.enums import MarketType, Timeframe
 from module.markets.model import Instrument
 from module.markets.schema import InstrumentInfo
 from module.markets.service import MarketsService
-from module.strategy.model import Strategy
+from module.strategy.model import Strategy, StrategyVersion
 from module.broker_connections.model import BrokerConnections
 from module.user.model import User
 from core.db import get_db_sess_sync, get_db_session
@@ -97,7 +97,7 @@ class TestCreateDeployment:
             mock_db_sess.refresh = AsyncMock(side_effect=lambda obj: None)
 
             request = CreateDeploymentRequest(
-                strategy_id=uuid4(),
+                version_id=uuid4(),
                 broker_connection_id=uuid4(),
             )
 
@@ -156,6 +156,10 @@ class TestGetDeployment:
             db_sess.add(strategy)
             await db_sess.flush()
 
+            version = StrategyVersion(strategy_id=strategy.strategy_id)
+            db_sess.add(version)
+            await db_sess.flush()
+
             broker_connection = BrokerConnections(
                 user_id=user_b.user_id,
                 broker=BrokerType.ALPACA,
@@ -169,7 +173,7 @@ class TestGetDeployment:
             await db_sess.refresh(broker_connection)
 
             deployment = StrategyDeployments(
-                strategy_id=strategy.strategy_id,
+                version_id=version.id,
                 broker_connection_id=broker_connection.connection_id,
             )
             db_sess.add(deployment)
@@ -192,7 +196,7 @@ class TestGetAllDeployments:
 
             mock_deployment = MagicMock()
             mock_deployment.deployment_id = uuid4()
-            mock_deployment.strategy_id = uuid4()
+            mock_deployment.version_id = uuid4()
             mock_deployment.broker_connection_id = uuid4()
             mock_deployment.status = StrategyDeploymentStatus.PENDING
             mock_deployment.error_message = None
@@ -239,7 +243,7 @@ class TestGetAllDeployments:
             for _ in range(11):
                 d = MagicMock()
                 d.deployment_id = uuid4()
-                d.strategy_id = uuid4()
+                d.version_id = uuid4()
                 d.broker_connection_id = uuid4()
                 d.status = StrategyDeploymentStatus.PENDING
                 d.error_message = None

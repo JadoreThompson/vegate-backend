@@ -6,8 +6,7 @@ from cli.command.backtest import backtest
 from cli.command.db import db
 from cli.command.feed import feed
 from cli.command.http import http
-from cli.command.monitor import monitor
-from cli.command.ohlc_loader import ohlc_loader
+from cli.command.markets import markets
 from cli.command.oms import oms
 from cli.command.outbox import outbox
 from cli.command.deployment import deployment
@@ -32,8 +31,7 @@ cli.add_command(backtest)
 cli.add_command(db)
 cli.add_command(feed)
 cli.add_command(http)
-cli.add_command(monitor)
-cli.add_command(ohlc_loader)
+cli.add_command(markets)
 cli.add_command(oms)
 cli.add_command(outbox)
 cli.add_command(deployment)

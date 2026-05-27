@@ -275,8 +275,7 @@ async def create_version(
 
 
 @router.get(
-    "/{strategy_id}/versions/{version_id}",
-    response_model=StrategyVersionResponse
+    "/{strategy_id}/versions/{version_id}", response_model=StrategyVersionResponse
 )
 async def get_version(
     strategy_id: UUID,
@@ -296,4 +295,50 @@ async def get_version(
         code=version.code,
         created_at=version.created_at,
         updated_at=version.updated_at,
+    )
+
+
+@router.get(
+    "/{strategy_id}/versions/{version_id}/backtests",
+    response_model=PaginatedResponse[BacktestResponse],
+)
+async def get_version_backtests(
+    strategy_id: UUID,
+    version_id: UUID,
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=100),
+    jwt: JWTPayload = Depends(depends_jwt()),
+    db_sess: AsyncSession = Depends(depends_db_sess),
+    strategy_service: StrategyService = Depends(depends_class(StrategyService)),
+    backtest_service: BacktestsService = Depends(depends_class(BacktestsService)),
+):
+    """Get a specific version."""
+    version = await strategy_service.get_user_strategy_version(
+        version_id, jwt.sub, db_sess
+    )
+    return await backtest_service.get_by_version_id(
+        version.id, db_sess, page=1, limit=100
+    )
+
+
+@router.get(
+    "/{strategy_id}/versions/{version_id}/deployments",
+    response_model=PaginatedResponse[StrategyDeploymentResponse],
+)
+async def get_version_deployments(
+    strategy_id: UUID,
+    version_id: UUID,
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=100),
+    jwt: JWTPayload = Depends(depends_jwt()),
+    db_sess: AsyncSession = Depends(depends_db_sess),
+    strategy_service: StrategyService = Depends(depends_class(StrategyService)),
+    deployment_service: DeploymentsService = Depends(depends_class(DeploymentsService)),
+):
+    """Get a specific version."""
+    version = await strategy_service.get_user_strategy_version(
+        version_id, jwt.sub, db_sess
+    )
+    return await deployment_service.get_by_version_id(
+        version.id, db_sess, page=1, limit=100
     )

@@ -30,9 +30,10 @@ class StrategyDeployments(Base):
     __tablename__ = "strategy_deployments"
 
     deployment_id: Mapped[uuid.UUID] = uuid_pk()
-    strategy_id: Mapped[uuid.UUID] = mapped_column(
+
+    version_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("strategy.strategy_id", ondelete="CASCADE"),
+        ForeignKey("strategy_versions.id", name="fk_strategy_versions_id", ondelete="CASCADE"),
         nullable=False,
     )
     broker_connection_id: Mapped[uuid.UUID] = mapped_column(

@@ -9,7 +9,7 @@ from module.deployment.enums import StrategyDeploymentStatus
 from module.broker_connections import BrokerConnectionsService
 from module.markets import MarketsService
 from module.markets.model import Instrument
-from module.strategy.model import Strategy
+from module.strategy.model import Strategy, StrategyVersion
 from .event import DeploymentEventT
 from .event.deserialiser import DeploymentEventDeserialiser
 from .executor import DeploymentExecutor
@@ -44,7 +44,7 @@ class DeploymentsService:
         self, request: CreateDeploymentRequest, db_sess: AsyncSession
     ) -> StrategyDeployments:
         deployment = StrategyDeployments(
-            strategy_id=request.strategy_id,
+            version_id=request.version_id,
             broker_connection_id=request.broker_connection_id,
         )
 
@@ -101,7 +101,8 @@ class DeploymentsService:
     ):
         stmt = (
             select(StrategyDeployments, StrategyDeploymentMetrics)
-            .join(Strategy, Strategy.strategy_id == StrategyDeployments.strategy_id)
+            .join(StrategyVersion, StrategyVersion.id == StrategyDeployments.version_id)
+            .join(Strategy, Strategy.strategy_id == StrategyVersion.strategy_id)
             .outerjoin(StrategyDeploymentMetrics)
             .where(Strategy.user_id == user_id)
         )
@@ -133,13 +134,43 @@ class DeploymentsService:
     ):
         res = await db_sess.execute(
             select(StrategyDeployments, StrategyDeploymentMetrics)
-            .join(Strategy, StrategyDeployments.strategy_id == Strategy.strategy_id)
             .outerjoin(
                 StrategyDeploymentMetrics,
                 StrategyDeploymentMetrics.deployment_id
                 == StrategyDeployments.deployment_id,
             )
+            .join(StrategyVersion, StrategyVersion.id == StrategyDeployments.version_id)
+            .join(Strategy, Strategy.strategy_id == StrategyVersion.strategy_id)
             .where(Strategy.strategy_id == strategy_id)
+            .order_by(StrategyDeployments.created_at.desc())
+            .offset((page - 1) * limit)
+            .limit(limit + 1)
+        )
+
+        rows = res.all()
+
+        return PaginatedResponse[StrategyDeploymentResponse](
+            page=page,
+            size=min(limit, len(rows)),
+            has_next=len(rows) >= limit,
+            data=[
+                self.to_response(deployment, metrics)
+                for deployment, metrics in rows[:limit]
+            ],
+        )
+    
+    async def get_by_version_id(
+        self, version_id: UUID, db_sess: AsyncSession, *, page: int, limit: int
+    ):
+        res = await db_sess.execute(
+            select(StrategyDeployments, StrategyDeploymentMetrics)
+            .outerjoin(
+                StrategyDeploymentMetrics,
+                StrategyDeploymentMetrics.deployment_id
+                == StrategyDeployments.deployment_id,
+            )
+            .join(StrategyVersion, StrategyVersion.id == StrategyDeployments.version_id)
+            .where(StrategyVersion.id == version_id)
             .order_by(StrategyDeployments.created_at.desc())
             .offset((page - 1) * limit)
             .limit(limit + 1)
@@ -237,8 +268,9 @@ class DeploymentsService:
     ) -> StrategyDeployments:
         deployment = await db_sess.scalar(
             select(StrategyDeployments)
+            .join(StrategyVersion, StrategyVersion.id == StrategyDeployments.version_id)
+            .join(Strategy, Strategy.strategy_id == StrategyVersion.strategy_id)
             .where(StrategyDeployments.deployment_id == deployment_id)
-            .join(Strategy, Strategy.strategy_id == StrategyDeployments.strategy_id)
             .where(Strategy.user_id == user_id)
             .options(selectinload(StrategyDeployments.metrics))
         )
@@ -255,7 +287,7 @@ class DeploymentsService:
     ):
         return StrategyDeploymentResponse(
             id=deployment.deployment_id,
-            strategy_id=deployment.strategy_id,
+            version_id=deployment.version_id,
             broker_connection_id=deployment.broker_connection_id,
             status=StrategyDeploymentStatus(deployment.status),
             error_message=deployment.error_message,

@@ -1,13 +1,15 @@
 from multiprocessing import Process
 from uuid import UUID
 
+from core.redis import REDIS_CLIENT_SYNC
+from module.event_bus import SyncEventPublisher
 from .base import BacktestExecutor
 
 
 def _run_backtest(backtest_id: UUID):
     from module.backtest.runner import BacktestRunner
 
-    runner = BacktestRunner(backtest_id)
+    runner = BacktestRunner(backtest_id, event_publisher=SyncEventPublisher(), redis_client=REDIS_CLIENT_SYNC)
     runner.run()
 
 

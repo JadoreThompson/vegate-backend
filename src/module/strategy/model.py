@@ -14,7 +14,7 @@ class Strategy(Base):
     strategy_id: Mapped[uuid.UUID] = uuid_pk()
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.user_id", ondelete="CASCADE"),
+        ForeignKey("users.user_id", name="strategy_user_id_fkey", ondelete="CASCADE"),
         nullable=False,
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
@@ -22,22 +22,36 @@ class Strategy(Base):
     created_at: Mapped[datetime] = datetime_tz()
     updated_at: Mapped[datetime] = datetime_tz(nullable=False, onupdate=get_datetime)
     cur_version_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True
+        UUID(as_uuid=True),
+        ForeignKey(
+            "strategy_versions.id",
+            name="strategy_cur_version_id_fkey",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
     )
 
 
 class StrategyVersion(Base):
-    __tablename__ = "strategy_version"
+    __tablename__ = "strategy_versions"
 
     id: Mapped[UUID] = uuid_pk()
     strategy_id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("strategy.strategy_id", ondelete="CASCADE"),
+        ForeignKey(
+            "strategy.strategy_id",
+            name="strategy_versions_strategy_id_fkey",
+            ondelete="CASCADE",
+        ),
         nullable=False,
     )
     prev_version: Mapped[UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("strategy_version.id", ondelete="SET NULL"),
+        ForeignKey(
+            "strategy_versions.id",
+            name="strategy_versions_prev_version_fkey",
+            ondelete="SET NULL",
+        ),
         nullable=True,
     )
     code: Mapped[str | None] = mapped_column(Text, nullable=True)

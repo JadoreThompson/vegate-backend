@@ -20,9 +20,12 @@ from module.backtest.exception import (
 )
 from module.backtest.schema import BacktestResponse, CreateBacktestRequest
 from module.markets.model import Instrument
-from module.strategy.exception import StrategyNotFoundException
+from module.strategy.exception import (
+    StrategyNotFoundException,
+    StrategyVersionNotFoundException,
+)
 from module.strategy import StrategyService
-from module.strategy.model import Strategy
+from module.strategy.model import Strategy, StrategyVersion
 
 
 @pytest.fixture
@@ -77,23 +80,23 @@ class TestCreateBacktest:
     class TestUnitTest:
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_create_strategy_not_found_raises(
+        async def test_create_version_not_found_raises(
             self, backtest_service, mock_strategy_service
         ):
             mock_db_sess = AsyncMock()
 
-            mock_strategy_service.get_user_strategy.side_effect = (
-                StrategyNotFoundException()
+            mock_strategy_service.get_user_strategy_version.side_effect = (
+                StrategyVersionNotFoundException()
             )
 
             request = CreateBacktestRequest(
-                strategy_id=uuid4(),
+                version_id=uuid4(),
                 starting_balance=10000,
                 start_date=date(2024, 1, 1),
                 end_date=date(2024, 12, 31),
             )
 
-            with pytest.raises(StrategyNotFoundException):
+            with pytest.raises(StrategyVersionNotFoundException):
                 await backtest_service.create(request, uuid4(), mock_db_sess)
 
         @pytest.mark.asyncio(loop_scope="session")
@@ -105,7 +108,7 @@ class TestCreateBacktest:
         ):
             mock_db_sess = AsyncMock()
 
-            mock_strategy_service.get_user_strategy = AsyncMock()
+            mock_strategy_service.get_user_strategy_version = AsyncMock()
 
             mock_result = MagicMock()
             mock_result.first.return_value = True
@@ -118,7 +121,7 @@ class TestCreateBacktest:
             mock_backtest_executor.run_backtest = AsyncMock()
 
             request = CreateBacktestRequest(
-                strategy_id=uuid4(),
+                version_id=uuid4(),
                 starting_balance=10000,
                 start_date=date(2024, 1, 1),
                 end_date=date(2024, 12, 31),
@@ -148,7 +151,7 @@ class TestGetBacktest:
 
             mock_backtest = MagicMock()
             mock_backtest.id = uuid4()
-            mock_backtest.strategy_id = uuid4()
+            mock_backtest.version_id = uuid4()
             mock_backtest.starting_balance = 10000
             mock_backtest.start_date = date(2024, 1, 1)
             mock_backtest.end_date = date(2024, 12, 31)
@@ -179,7 +182,7 @@ class TestGetBacktests:
 
             mock_backtest = MagicMock()
             mock_backtest.id = uuid4()
-            mock_backtest.strategy_id = uuid4()
+            mock_backtest.version_id = uuid4()
             mock_backtest.starting_balance = 10000
             mock_backtest.start_date = date(2024, 1, 1)
             mock_backtest.end_date = date(2024, 12, 31)
@@ -347,8 +350,12 @@ class TestIntegrationTests:
         db_sess.add(strategy)
         await db_sess.flush()
 
+        version = StrategyVersion(strategy_id=strategy.strategy_id)
+        db_sess.add(version)
+        await db_sess.flush()
+
         backtest = Backtest(
-            strategy_id=strategy.strategy_id,
+            version_id=version.id,
             starting_balance=10000,
             start_date=date(2024, 1, 1),
             end_date=date(2024, 12, 31),
@@ -399,8 +406,14 @@ class TestIntegrationTests:
 
         await db_sess.flush()
 
+        version = StrategyVersion(strategy_id=strategy.strategy_id)
+        db_sess.add(version)
+        other_version = StrategyVersion(strategy_id=other_strategy.strategy_id)
+        db_sess.add(other_version)
+        await db_sess.flush()
+
         backtest = Backtest(
-            strategy_id=strategy.strategy_id,
+            version_id=version.id,
             starting_balance=10000,
             start_date=date(2024, 1, 1),
             end_date=date(2024, 12, 31),
@@ -409,7 +422,7 @@ class TestIntegrationTests:
         db_sess.add(backtest)
 
         other_backtest = Backtest(
-            strategy_id=other_strategy.strategy_id,
+            version_id=other_version.id,
             starting_balance=5000,
             start_date=date(2024, 1, 1),
             end_date=date(2024, 12, 31),

@@ -5,8 +5,7 @@ from core.protocol import EventDeserialiser
 from .event import (
     BacktestEvent,
     BacktestEventType,
-    BacktestStatusChangedEvent,
-    BacktestCompletedEvent,
+    BacktestStatusChangedEvent
 )
 
 
@@ -14,8 +13,7 @@ class BacktestEventDeserialiser(EventDeserialiser[BacktestEvent]):
 
     def __init__(self):
         self._registry: dict[BacktestEventType, Type[BacktestEvent]] = {
-            BacktestEventType.STATUS_CHANGED: BacktestStatusChangedEvent,
-            BacktestEventType.COMPLETED: BacktestCompletedEvent,
+            BacktestEventType.STATUS_CHANGED: BacktestStatusChangedEvent
         }
 
     def deserialise_json(self, payload: str | bytes):

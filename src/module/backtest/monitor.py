@@ -5,6 +5,7 @@ from uuid import UUID
 from redis.asyncio import Redis as AsyncRedis
 from sqlalchemy import or_, select, update
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import (
     REDIS_BACKTEST_HEARTBEAT_KEY_PREFIX,
@@ -16,7 +17,7 @@ from module.event_bus import EventPublisher
 from .enums import BacktestStatus
 from .event import BacktestEvent, BacktestEventType, BacktestStatusChangedEvent
 from .event.deserialiser import BacktestEventDeserialiser
-from .model import Backtest, BacktestEvent as BacktestEventModel
+from .model import Backtest, BacktestEvent as BacktestEventModel, BacktestMetrics
 
 
 class BacktestMonitor:
@@ -56,9 +57,7 @@ class BacktestMonitor:
     def setup(self):
         with get_db_sess_sync() as db_sess:
             res = db_sess.execute(
-                select(
-                    Backtest.id, Backtest.status
-                ).where(
+                select(Backtest.id, Backtest.status).where(
                     or_(
                         Backtest.status == BacktestStatus.IN_PROGRESS,
                         Backtest.status == BacktestStatus.SUSPICIOUS,
@@ -83,13 +82,13 @@ class BacktestMonitor:
             raise ExceptionGroup("", res)
 
     async def _persist(self, event: BacktestEvent) -> None:
-        async with get_db_session() as session:
-            backtest = await session.get(Backtest, event.backtest_id)
+        async with get_db_session() as db_sess:
+            backtest = await db_sess.get(Backtest, event.backtest_id)
             if backtest is None:
                 self._logger.info(f"Backtest with id '{event.backtest_id}' not found.")
                 return
 
-            await session.execute(
+            await db_sess.execute(
                 insert(BacktestEventModel)
                 .values(
                     id=event.id,
@@ -102,13 +101,20 @@ class BacktestMonitor:
             )
 
             if event.type == BacktestEventType.STATUS_CHANGED:
-                await session.execute(
-                    update(Backtest)
-                    .where(Backtest.id == event.backtest_id)
-                    .values(status=event.status)
+                await self._handle_status_change(
+                    BacktestStatusChangedEvent.model_validate(event), db_sess
                 )
 
-            await session.commit()
+            await db_sess.commit()
+
+    async def _handle_status_change(
+        self, event: BacktestStatusChangedEvent, db_sess: AsyncSession
+    ):
+        await db_sess.execute(
+            update(Backtest)
+            .where(Backtest.id == event.backtest_id)
+            .values(status=event.status)
+        )
 
     async def _listen_loop(self):
         self._kafka_consumer = AsyncKafkaConsumer(
@@ -132,12 +138,12 @@ class BacktestMonitor:
                         async with self._lock:
                             self._running_backtests.add(event.backtest_id)
                     elif event.status in (
-                        BacktestStatus.COMPLETED,
                         BacktestStatus.FAILED,
                         BacktestStatus.CANCELLED,
+                        BacktestStatus.COMPLETED,
                     ):
                         self._logger.info(
-                            f"Removing backtest with id '{event.backtest_id}' from watchlist"
+                            f"Removing backtest with id '{event.backtest_id}' from watchlist due to status change to {event.status}"
                         )
                         async with self._lock:
                             self._running_backtests.discard(event.backtest_id)
@@ -183,8 +189,8 @@ class BacktestMonitor:
                                 f"Pushing backtest '{backtest_id}' to suspicious"
                             )
                             to_suspicious.append(backtest_id)
-                    elif i < len(suspicious_backtests):
-                        backtest_id = suspicious_backtests[i]
+                    else:
+                        backtest_id = suspicious_backtests[i - len(running_backtests)]
                         if not res:
                             self._logger.info(
                                 f"Pushing backtest '{backtest_id}' to failed"

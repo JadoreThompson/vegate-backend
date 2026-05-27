@@ -148,7 +148,8 @@ class DeploymentEventMonitorService:
                 async with self._lock:
                     running_deployments = list(self._running_deployments)
                     suspicious_deployments = list(self._suspicious_deployments)
-
+                self._logger.info(f"Running deployments: {running_deployments}")
+                self._logger.info(f"Suspicious deployments: {suspicious_deployments}")
                 if not running_deployments and not suspicious_deployments:
                     continue
 
@@ -173,8 +174,8 @@ class DeploymentEventMonitorService:
                                 f"Pushing deployment '{deployment_id}' to suspicious"
                             )
                             to_suspicious.append(deployment_id)
-                    elif i < len(suspicious_deployments):
-                        deployment_id = suspicious_deployments[i]
+                    else:
+                        deployment_id = suspicious_deployments[i - len(running_deployments)]
                         if not res:
                             self._logger.info(
                                 f"Pushing deployment '{deployment_id}' to stopped"

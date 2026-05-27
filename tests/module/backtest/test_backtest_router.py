@@ -87,7 +87,7 @@ class TestCreateBacktest:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_create_backtest_returns_201(self, authenticated_client):
         strategy = await create_strategy(authenticated_client)
-        strategy_id = strategy.id
+        version_id = strategy.cur_version_id
 
         from module.api.app import app
 
@@ -95,7 +95,7 @@ class TestCreateBacktest:
         backtests_service._backtest_executor.run = AsyncMock()
 
         payload = {
-            "strategy_id": str(strategy_id),
+            "version_id": str(version_id),
             "starting_balance": 10000,
             "start_date": "2026-01-01T00:00:00Z",
             "end_date": "2026-01-15T23:59:00Z",
@@ -108,7 +108,7 @@ class TestCreateBacktest:
         assert "id" in data
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_create_backtest_missing_strategy_id_returns_422(
+    async def test_create_backtest_missing_version_id_returns_422(
         self, authenticated_client
     ):
         payload = {
@@ -125,10 +125,10 @@ class TestCreateBacktest:
     async def test_create_backtest_invalid_balance_returns_422(
         self, authenticated_client
     ):
-        strategy_id = uuid4()
+        version_id = uuid4()
 
         payload = {
-            "strategy_id": str(strategy_id),
+            "version_id": str(version_id),
             "starting_balance": -100,
             "start_date": "2026-01-01T00:00:00Z",
             "end_date": "2026-01-15T23:59:59Z",
@@ -143,7 +143,7 @@ class TestGetBacktest:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_get_backtest_returns_200(self, authenticated_client, db_sess):
         strategy = await create_strategy(authenticated_client)
-        strategy_id = strategy.id
+        version_id = strategy.cur_version_id
 
         from module.api.app import app
 
@@ -151,7 +151,7 @@ class TestGetBacktest:
         api_backtests_service._backtest_executor.run = AsyncMock()
 
         payload = {
-            "strategy_id": str(strategy_id),
+            "version_id": str(version_id),
             "starting_balance": 10000,
             "start_date": "2026-01-01T00:00:00Z",
             "end_date": "2026-01-15T23:59:59Z",

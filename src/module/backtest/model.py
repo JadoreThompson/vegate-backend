@@ -18,9 +18,13 @@ class Backtest(Base):
     __tablename__ = "backtests"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    strategy_id: Mapped[uuid.UUID] = mapped_column(
+    version_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("strategy.strategy_id", ondelete="CASCADE"),
+        ForeignKey(
+            "strategy_versions.id",
+            name="backtests_strategy_version_id_fkey",
+            ondelete="CASCADE",
+        ),
         nullable=False,
     )
     # Broker is needed to know which data source to use for backtesting
@@ -50,7 +54,9 @@ class BacktestMetrics(Base):
     id: Mapped[uuid.UUID] = uuid_pk()
     backtest_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("backtests.id", ondelete="CASCADE"),
+        ForeignKey(
+            "backtests.id", name="backtest_metrics_backtest_id_fkey", ondelete="CASCADE"
+        ),
         nullable=False,
         unique=True,
     )
@@ -72,7 +78,9 @@ class BacktestOrder(Base):
     id: Mapped[uuid.UUID] = uuid_pk()
     backtest_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("backtests.id", ondelete="CASCADE"),
+        ForeignKey(
+            "backtests.id", name="backtest_orders_backtest_id_fkey", ondelete="CASCADE"
+        ),
         nullable=False,
     )
     symbol: Mapped[str] = mapped_column(String, nullable=False)
@@ -104,7 +112,9 @@ class BacktestEvent(Base):
     )
     backtest_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("backtests.id", ondelete="CASCADE"),
+        ForeignKey(
+            "backtests.id", name="backtest_events_backtest_id_fkey", ondelete="CASCADE"
+        ),
         nullable=False,
     )
     event_type: Mapped[BacktestEventType] = mapped_column(

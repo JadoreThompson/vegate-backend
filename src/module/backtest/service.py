@@ -9,7 +9,7 @@ from module.api.schema import PaginatedResponse
 from module.markets import MarketsService
 from module.markets.model import Instrument
 from module.strategy import StrategyService
-from module.strategy.model import Strategy
+from module.strategy.model import Strategy, StrategyVersion
 from .enums import BacktestStatus
 from .exception import BacktestNotFoundException, BacktestInProgressException
 from .executor import BacktestExecutor
@@ -39,12 +39,10 @@ class BacktestsService:
     async def create(
         self, request: CreateBacktestRequest, user_id: UUID, db_sess: AsyncSession
     ) -> Backtest:
-        await self._strategy_service.get_user_strategy(
-            request.strategy_id, user_id, db_sess
-        )
+        version = await self._strategy_service.get_user_strategy_version(request.version_id, user_id, db_sess)
 
         backtest = Backtest(
-            strategy_id=request.strategy_id,
+            version_id=version.id,
             starting_balance=request.starting_balance,
             start_date=request.start_date,
             end_date=request.end_date,
@@ -73,7 +71,8 @@ class BacktestsService:
         backtest = await db_sess.scalar(
             select(Backtest)
             .where(Backtest.id == id)
-            .join(Strategy, Backtest.strategy_id == Strategy.strategy_id)
+            .join(StrategyVersion, StrategyVersion.id == Backtest.version_id)
+            .join(Strategy, Strategy.strategy_id == StrategyVersion.strategy_id)
             .where(Strategy.user_id == user_id)
         )
         if backtest is None:
@@ -92,9 +91,9 @@ class BacktestsService:
     ) -> PaginatedResponse[BacktestResponse]:
         stmt = (
             select(Backtest, BacktestMetrics, Instrument)
-            # .join(Instrument, Instrument.id == Backtest.instrument_id)
             .outerjoin(BacktestMetrics)
-            .join(Strategy, Strategy.strategy_id == Backtest.strategy_id)
+            .join(StrategyVersion, StrategyVersion.id == Backtest.version_id)
+            .join(Strategy, Strategy.strategy_id == StrategyVersion.strategy_id)
             .where(Strategy.user_id == user_id)
             .offset((page - 1) * limit)
             .limit(limit + 1)
@@ -109,8 +108,6 @@ class BacktestsService:
         res = await db_sess.execute(stmt)
 
         backtests = [
-            # self.to_response(backtest, instrument, metrics)
-            # for backtest, metrics, instrument in res.all()
             self.to_response(backtest, metrics)
             for backtest, metrics in res.all()
         ]
@@ -126,13 +123,14 @@ class BacktestsService:
         self, strategy_id: UUID, db_sess: AsyncSession, *, page: int, limit: int
     ):
         res = await db_sess.execute(
-            # select(Backtest, BacktestMetrics, Instrument)
             select(Backtest, BacktestMetrics)
             .outerjoin(BacktestMetrics)
-            # .join(Instrument, Instrument.id == Backtest.instrument_id)
-            .where(Backtest.strategy_id == strategy_id)
+            .join(StrategyVersion, StrategyVersion.id == Backtest.version_id)
+            .join(Strategy, Strategy.strategy_id == StrategyVersion.strategy_id)
+            .where(Strategy.strategy_id == strategy_id)
             .offset((page - 1) * limit)
             .limit(limit + 1)
+            .order_by(Backtest.created_at.desc())
         )
 
         rows = res.all()
@@ -141,9 +139,30 @@ class BacktestsService:
             size=min(limit, len(rows)),
             has_next=len(rows) > limit,
             data=[
-                # self.to_response(backtest, instrument, metrics)
                 self.to_response(backtest, metrics)
-                # for backtest, metrics, instrument in rows[:limit]
+                for backtest, metrics in rows[:limit]
+            ],
+        )
+    
+    async def get_by_version_id(
+        self, version_id: UUID, db_sess: AsyncSession, *, page: int, limit: int
+    ):
+        res = await db_sess.execute(
+            select(Backtest, BacktestMetrics)
+            .outerjoin(BacktestMetrics)
+            .where(Backtest.version_id == version_id)
+            .offset((page - 1) * limit)
+            .limit(limit + 1)
+            .order_by(Backtest.created_at.desc())
+        )
+
+        rows = res.all()
+        return PaginatedResponse[BacktestResponse](
+            page=page,
+            size=min(limit, len(rows)),
+            has_next=len(rows) > limit,
+            data=[
+                self.to_response(backtest, metrics)
                 for backtest, metrics in rows[:limit]
             ],
         )
@@ -151,12 +170,11 @@ class BacktestsService:
     def to_response(
         self,
         backtest: Backtest,
-        # instrument: Instrument,
         metrics: BacktestMetrics | None,
     ) -> BacktestResponse:
         return BacktestResponse(
             id=backtest.id,
-            strategy_id=backtest.strategy_id,
+            version_id=backtest.version_id,
             starting_balance=backtest.starting_balance,
             start_date=date(
                 year=backtest.start_date.year,
@@ -197,13 +215,12 @@ class BacktestsService:
         res = await db_sess.execute(
             select(BacktestOrder)
             .join(Backtest)
-            # .join(Strategy)
-            .join(Strategy, Strategy.strategy_id == Backtest.strategy_id)
-            .where(BacktestOrder.backtest_id == id)
-            .where(Strategy.user_id == user_id)
+            .join(StrategyVersion, StrategyVersion.id == Backtest.version_id)
+            .join(Strategy, Strategy.strategy_id == StrategyVersion.strategy_id)
+            .where(BacktestOrder.backtest_id == id, Strategy.user_id == user_id)
             .offset((page - 1) * limit)
             .limit(limit)
-            .order_by(BacktestOrder.submitted_at.asc())
+            .order_by(BacktestOrder.submitted_at.desc())
         )
 
         backtests = [

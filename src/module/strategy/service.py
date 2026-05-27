@@ -162,6 +162,18 @@ class StrategyService:
             raise StrategyNotFoundException()
         return strategy
 
+    async def get_user_strategy_version(
+        self, version_id: UUID, user_id: UUID, db_sess: AsyncSession
+    ) -> StrategyVersion:
+        version = await db_sess.scalar(
+            select(StrategyVersion)
+            .join(Strategy, Strategy.strategy_id == StrategyVersion.strategy_id)
+            .where(StrategyVersion.id == version_id, Strategy.user_id == user_id)
+        )
+        if version is None:
+            raise StrategyVersionNotFoundException()
+        return version
+
     async def get_versions(
         self,
         strategy_id: UUID,
@@ -229,9 +241,14 @@ class StrategyService:
         db_sess: AsyncSession,
     ) -> StrategyVersion:
         strategy = await self.get_user_strategy(strategy_id, user_id, db_sess)
-
-        if strategy.cur_version_id != prev_version_id:
-            raise VersionForkDetectedException()
+        prev_version = await db_sess.scalar(
+            select(StrategyVersion).where(
+                StrategyVersion.id == prev_version_id,
+                StrategyVersion.strategy_id == strategy_id,
+            )
+        )
+        if prev_version is None:
+            raise StrategyVersionNotFoundException()
 
         new_version = StrategyVersion(
             strategy_id=strategy_id,

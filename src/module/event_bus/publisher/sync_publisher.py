@@ -14,6 +14,7 @@ class SyncEventPublisher:
         self._kafka_producer.send(
             event.topic, event.model_dump_json().encode(), headers=build_headers(event)
         )
+        self._kafka_producer.flush()
 
     def enqueue(self, event: BaseEvent, db_sess: AsyncSession | None = None):
         self.publish(event)

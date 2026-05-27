@@ -65,3 +65,21 @@ def run():
 
     monitor_service.setup()
     asyncio.run(monitor_service.run())
+
+
+@backtest.group(name="monitor")
+def monitor():
+    """Monitor live backtests."""
+    return
+
+
+@monitor.command(name="run")
+def run():
+    monitor_service = BacktestMonitor(
+        deserialiser=BacktestEventDeserialiser(),
+        redis_client=REDIS_CLIENT,
+        event_publisher=EventPublisher(),
+    )
+
+    monitor_service.setup()
+    asyncio.run(monitor_service.run())

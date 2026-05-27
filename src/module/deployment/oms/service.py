@@ -19,7 +19,7 @@ from module.broker_connections.model import BrokerConnections
 from module.broker_connections.oauth import EncryptionService
 from module.broker_connections.oauth.alpaca import AlpacaOAuthPayload
 from module.event_bus import EventPublisher
-from module.strategy.model import Strategy
+from module.strategy.model import Strategy, StrategyVersion
 from module.user.model import User
 from .exception import (
     BrokerConnectionDoesNotExistException,
@@ -69,10 +69,8 @@ class OMSService:
                     BrokerConnections.connection_id
                     == StrategyDeployments.broker_connection_id,
                 )
-                .join(
-                    Strategy,
-                    StrategyDeployments.strategy_id == Strategy.strategy_id,
-                )
+                .join(StrategyVersion, StrategyVersion.id == StrategyDeployments.version_id)
+                .join(Strategy, Strategy.strategy_id == StrategyVersion.strategy_id)
                 .join(
                     User,
                     Strategy.user_id == User.user_id,
