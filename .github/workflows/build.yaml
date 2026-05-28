@@ -53,6 +53,9 @@ jobs:
     needs: setup
 
     steps:
+      - name: Print files
+        run: ls -al
+
       - name: Checkout repo
         uses: actions/checkout@v4
 
