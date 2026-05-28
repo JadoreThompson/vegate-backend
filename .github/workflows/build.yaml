@@ -51,7 +51,7 @@ jobs:
           docker compose up -d postgres kafka redis
 
   test:
-    name: Run Pytest
+    name: Run Tests
     runs-on: self-hosted
     needs: setup
 
@@ -78,7 +78,7 @@ jobs:
 
       - name: Initialise test db
         run: |
-          sudo docker compose -f docker-compose.yaml up -d postgres_test
+          sudo docker compose -f docker-compose.yaml --env-file .env.test up -d postgres_test
 
           # Wait for Postgres to be ready
           until sudo docker exec vegate_postgres_test pg_isready -U postgres; do
