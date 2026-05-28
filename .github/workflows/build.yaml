@@ -37,18 +37,7 @@ jobs:
           fi
 
       - name: Docker compose
-        run: |
-          set -e
-
-          cat <<'EOF' > docker-compose.yaml
-          ${{ secrets.INFRA_COMPOSE }}
-          EOF
-
-          if [ ! -f docker-compose.yaml ]; then
-            exit 1
-          fi
-
-          docker compose up -d postgres kafka redis
+        run: docker compose -f infra-compose.yaml up -d postgres kafka redis
 
   test:
     name: Run Tests
@@ -78,7 +67,7 @@ jobs:
 
       - name: Initialise test db
         run: |
-          sudo docker compose -f docker-compose.yaml --env-file .env.test up -d postgres_test
+          sudo docker compose -f  infra-compose.yaml --env-file .env.test up -d postgres_test
 
           # Wait for Postgres to be ready
           until sudo docker exec vegate_postgres_test pg_isready -U postgres; do
@@ -113,22 +102,10 @@ jobs:
           sudo docker push wifimemes/vegate-backend:latest
           sudo docker push wifimemes/vegate-backend:$TAG
 
-      - name: Create docker compose
-        run: |
-          set -e
-
-          cat <<'EOF' > docker-compose.yaml
-          ${{ secrets.DOCKER_COMPOSE }}
-          EOF
-
-          if [ ! -f docker-compose.yaml ]; then
-            exit 1
-          fi
-
       - name: Deploy stack
         run: |
           sudo docker stack deploy \
-            -c docker-compose.yaml \
+            -c prod-compose.yaml \
             -d=false \
             vegate_stack
 
