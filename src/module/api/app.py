@@ -72,7 +72,8 @@ async def lifespan(app: FastAPI):
     strategy_service = StrategyService()
     object_registry.register(strategy_service)
 
-    docker_client = docker.from_env()
+    # docker_client = docker.from_env()
+    docker_client = docker.DockerClient(base_url="unix://var/run/docker.sock")
 
     # backtest_executor = ProcessBacktestExecutor()
     backtest_executor = DockerBacktestExecutor(image_name=IMAGE_NAME, docker_client=docker_client)
