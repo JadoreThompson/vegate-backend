@@ -76,7 +76,7 @@ class BacktestsService:
             .where(Strategy.user_id == user_id)
         )
         if backtest is None:
-            raise BacktestNotFoundException()
+            raise BacktestNotFoundException(id)
         return backtest
 
     async def get_backtests(
