@@ -5,9 +5,52 @@ on:
       - main
 
 jobs:
+  setup:
+    name: Setup
+    runs-on: self-hosted
+
+    steps:
+      - name: Create .env
+        run: |
+          set -e
+
+          cat <<'EOF' > .env
+          ${{ secrets.ENV_FILE }}
+          EOF
+
+          if [ ! -f .env ]; then
+            exit 1
+          fi
+
+      - name: Initialise swarm manager
+        run: sudo docker swarm init || true
+
+      - name: Create network
+        run: |
+          if ! sudo docker network inspect vegate_network >/dev/null 2>&1; then
+            sudo docker network create \
+              --driver overlay \
+              --attachable vegate_network
+          fi
+
+      - name: Docker compose
+        run: |
+          set -e
+
+          cat <<'EOF' > docker-compose.yaml
+          ${{ secrets.INFRA_COMPOSE }}
+          EOF
+
+          if [ ! -f docker-compose.yaml ]; then
+            exit 1
+          fi
+
+          docker compose up -d
+
   test:
     name: Run Pytest
     runs-on: self-hosted
+    needs: setup
 
     steps:
       - name: Checkout repo
@@ -23,7 +66,7 @@ jobs:
           set -e
 
           cat <<'EOF' > .env.test
-          ${{ secrets.ENV_FILE }}
+          ${{ secrets.ENV_TEST_FILE }}
           EOF
 
           if [ ! -f .env.test ]; then
@@ -36,6 +79,7 @@ jobs:
   build:
     name: Build Docker Image
     runs-on: self-hosted
+    needs: test
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4

@@ -1,24 +1,4 @@
 services:
-  postgres:
-    image: postgres:18
-    restart: unless-stopped
-    networks:
-      - vegate_network
-    environment:
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
-    volumes:
-      - postgres:/var/lib/postgresql
-
-  redis:
-    image: redis:8
-    restart: unless-stopped
-    volumes:
-      - redis:/data
-    networks:
-      - vegate_network
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
-
   backend:
     image: wifimemes/vegate-backend:latest
     command: http run
