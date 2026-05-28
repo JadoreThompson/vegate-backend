@@ -146,5 +146,12 @@ jobs:
             -d=false \
             vegate_stack
 
-      - name: Cleanup
+  cleanup:
+    name: Cleanup
+    runs-on: self-hosted
+    if: always()
+    needs: [setup, test, build]
+
+    steps:
+      - name: Prune images
         run: sudo docker system prune -af
