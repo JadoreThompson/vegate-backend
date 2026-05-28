@@ -4,6 +4,8 @@ services:
     command: http run
     networks:
       - vegate_network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
       interval: 10s
