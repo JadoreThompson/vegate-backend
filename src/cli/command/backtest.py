@@ -4,11 +4,11 @@ import sys
 
 import click
 
-from core.redis import REDIS_CLIENT
+from core.redis import REDIS_CLIENT, REDIS_CLIENT_SYNC
 from module.backtest.event.deserialiser import BacktestEventDeserialiser
 from module.backtest.monitor import BacktestMonitor
 from module.backtest.runner import BacktestRunner
-from module.event_bus import EventPublisher
+from module.event_bus import EventPublisher, SyncEventPublisher
 
 logger = logging.getLogger("commands.backtest")
 
@@ -38,7 +38,11 @@ def backtest_run(backtest_id, verbose):
     click.echo(f"Starting backtest: {backtest_id}")
 
     try:
-        runner = BacktestRunner(backtest_id=backtest_id)
+        runner = BacktestRunner(
+            backtest_id=backtest_id,
+            event_publisher=SyncEventPublisher(),
+            redis_client=REDIS_CLIENT_SYNC,
+        )
         runner.run()
         click.echo("Backtest completed successfully")
     except KeyboardInterrupt:

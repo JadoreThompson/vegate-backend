@@ -1,7 +1,7 @@
 class BacktestNotFoundException(Exception):
 
-    def __init__(self):
-        super().__init__(f"Backtest not found.")
+    def __init__(self, backtest_id):
+        super().__init__(f"Backtest with id '{backtest_id}' not found.")
 
 
 class BacktestMetricsNotFoundException(Exception):

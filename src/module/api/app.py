@@ -14,7 +14,7 @@ from module.backtest.exception import (
     BacktestNotFoundException,
     InvalidDateRange,
 )
-from module.backtest.executor import ProcessBacktestExecutor
+from module.backtest.executor import ProcessBacktestExecutor, DockerBacktestExecutor
 from module.backtest.router import router as backtests_router
 from module.broker_connections import BrokerConnectionsService
 from module.broker_connections.exception import (
@@ -31,7 +31,7 @@ from module.deployment.exception import (
 )
 from module.deployment.event.deserialiser import DeploymentEventDeserialiser
 from module.deployment.event.relay import DeploymentEventRelay
-from module.deployment.executor import ProcessDeploymentExecutor
+from module.deployment.executor import ProcessDeploymentExecutor, DockerDeploymentExecutor
 from module.deployment.router import router as deployment_router
 from module.email import BrevoEmailService
 from module.jwt import JWTService, JWTException
@@ -70,7 +70,8 @@ async def lifespan(app: FastAPI):
     strategy_service = StrategyService()
     object_registry.register(strategy_service)
 
-    backtest_executor = ProcessBacktestExecutor()
+    # backtest_executor = ProcessBacktestExecutor()
+    backtest_executor = DockerBacktestExecutor()
     backtest_service = BacktestsService(
         strategy_service=strategy_service,
         backtest_executor=backtest_executor,
@@ -81,7 +82,8 @@ async def lifespan(app: FastAPI):
     broker_connections_service = BrokerConnectionsService()
     object_registry.register(backtest_service)
 
-    deployment_executor = ProcessDeploymentExecutor()
+    # deployment_executor = ProcessDeploymentExecutor()
+    deployment_executor = DockerDeploymentExecutor()
     deployment_service = DeploymentsService(
         markets_service=markets_service,
         deployment_executor=deployment_executor,
