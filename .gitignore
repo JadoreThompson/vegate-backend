@@ -6,7 +6,7 @@ alembic.ini
 *.log
 
 .env
-.env.prod
+.env.prod*
 .env.test
 
 prod-compose.parsed.yaml
