@@ -73,6 +73,15 @@ jobs:
             exit 1
           fi
 
+      - name: Initialise test db
+        run: |
+          sudo docker compose -f docker-compose.yaml up -d postgres_test
+
+          # Wait for Postgres to be ready
+          until sudo docker exec vegate_postgres_test pg_isready -U postgres; do
+            sleep 1
+          done
+
       - name: Run tests
         run: uv run pytest -s -x
 
