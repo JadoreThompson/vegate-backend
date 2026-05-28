@@ -1,10 +1,12 @@
 import asyncio
+
+import docker
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from config import FRONTEND_DOMAIN, FRONTEND_SUB_DOMAIN, SCHEME
+from config import FRONTEND_DOMAIN, FRONTEND_SUB_DOMAIN, IMAGE_NAME, SCHEME
 from module.auth.exception import UserAlreadyExistsException, UserDoesNotExistException
 from module.auth.router import router as auth_router
 from module.auth.service import AuthService
@@ -70,8 +72,11 @@ async def lifespan(app: FastAPI):
     strategy_service = StrategyService()
     object_registry.register(strategy_service)
 
+    docker_client = docker.from_env()
+
     # backtest_executor = ProcessBacktestExecutor()
-    backtest_executor = DockerBacktestExecutor()
+    backtest_executor = DockerBacktestExecutor(image_name=IMAGE_NAME, docker_client=docker_client)
+    
     backtest_service = BacktestsService(
         strategy_service=strategy_service,
         backtest_executor=backtest_executor,
@@ -83,7 +88,7 @@ async def lifespan(app: FastAPI):
     object_registry.register(backtest_service)
 
     # deployment_executor = ProcessDeploymentExecutor()
-    deployment_executor = DockerDeploymentExecutor()
+    deployment_executor = DockerDeploymentExecutor(image_name=IMAGE_NAME, docker_client=docker_client)
     deployment_service = DeploymentsService(
         markets_service=markets_service,
         deployment_executor=deployment_executor,
