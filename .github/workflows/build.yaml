@@ -18,6 +18,18 @@ jobs:
         with:
           version: "0.11.16"
 
+      - name: Create .env.test
+        run: |
+          set -e
+
+          cat <<'EOF' > .env.test
+          ${{ secrets.ENV_FILE }}
+          EOF
+
+          if [ ! -f .env.test ]; then
+            exit 1
+          fi
+
       - name: Run tests
         run: uv run pytest -s -x
 
