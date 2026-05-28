@@ -83,7 +83,7 @@ REDIS_CHANGE_EMAIL_KEY_PREFIX = "change_email:"
 
 # Kafka
 KAFKA_HOST = os.getenv("KAFKA_HOST", "localhost")
-KAFKA_PORT = int(os.getenv("KAFKA_PORT", "9092"))
+KAFKA_PORT = int(os.getenv("KAFKA_PORT", "9092")) if not IS_PRODUCTION else 29092
 KAFKA_BOOTSTRAP_SERVERS = f"{KAFKA_HOST}:{KAFKA_PORT}"
 
 STRATEGY_DEPLOYMENT_EVENTS_KEY = os.getenv(
