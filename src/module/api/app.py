@@ -72,8 +72,8 @@ async def lifespan(app: FastAPI):
     jwt_service = JWTService()
     object_registry.register(jwt_service)
 
-    # auth_service = AuthService(email_service_cls=BrevoEmailService)
-    auth_service = AuthService(email_service_cls=SmtpgoEmailService)
+    auth_service = AuthService(email_service_cls=BrevoEmailService)
+    # auth_service = AuthService(email_service_cls=SmtpgoEmailService)
     object_registry.register(auth_service)
 
     markets_service = MarketsService()
