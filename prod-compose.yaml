@@ -117,7 +117,7 @@ services:
 
   outbox_poller:
     image: wifimemes/vegate-backend:latest
-    command: uv run src/main.py outbox run
+    command: uv run src/main.py outbox run --interval 5 --batch-size 1000
     networks:
       - vegate_network
     volumes:

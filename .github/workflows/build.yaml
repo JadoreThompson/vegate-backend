@@ -110,6 +110,9 @@ jobs:
           sudo docker push wifimemes/vegate-backend:latest
           sudo docker push wifimemes/vegate-backend:$TAG
 
+      - name: Upgrade DB
+        run: docker run --rm --name upgrade-db --network vegate_network wifimemes/vegate-backend:latest uv run src/main.py db upgrade
+
       - name: Deploy stack
         run: docker stack deploy -c prod-compose.yaml -d=false vegate_stack
 
