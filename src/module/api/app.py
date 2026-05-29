@@ -43,7 +43,7 @@ from module.deployment.exception import (
 )
 from module.deployment.executor import DeploymentExecutorFactory
 from module.deployment.router import router as deployment_router
-from module.email import BrevoEmailService
+from module.email import BrevoEmailService, SmtpgoEmailService
 from module.jwt import JWTService, JWTException
 from module.markets import MarketsService
 from module.markets.exception import SymbolNotFoundException
@@ -68,7 +68,8 @@ async def lifespan(app: FastAPI):
     jwt_service = JWTService()
     object_registry.register(jwt_service)
 
-    auth_service = AuthService(email_service_cls=BrevoEmailService)
+    # auth_service = AuthService(email_service_cls=BrevoEmailService)
+    auth_service = AuthService(email_service_cls=SmtpgoEmailService)
     object_registry.register(auth_service)
 
     markets_service = MarketsService()
