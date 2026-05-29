@@ -5,7 +5,7 @@ from docker.models.containers import Container
 
 
 from .base import BacktestExecutor
-from .exception import BacktestExistsException
+from .exception import BacktestExistsException, BacktestLimitReached
 from ..exception import BacktestNotFoundException
 
 
@@ -24,9 +24,15 @@ class DockerBacktestExecutor(BacktestExecutor):
         if container:
             if container.status == "running":
                 raise BacktestExistsException(backtest_id)
+            
+            if self._count_backtests() >= self.max_concurrent_backtests:
+                raise BacktestLimitReached()
+
             container.stop()
             container.remove(force=True)
-
+        elif self._count_backtests() >= self.max_concurrent_backtests:
+            raise BacktestLimitReached()
+        
         container = self._create_container(backtest_id)
         container.start()
         container.reload()
@@ -67,3 +73,6 @@ class DockerBacktestExecutor(BacktestExecutor):
             labels={"backtest_id": str(backtest_id)},
         )
         return container
+    
+    def _count_backtests(self):
+        return len(self._docker_client.containers.list(filters={"name": "bt_"}))

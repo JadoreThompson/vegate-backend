@@ -4,8 +4,8 @@ from uuid import UUID
 
 class BacktestExecutor(ABC):
 
-    async def init(self, *args, **kwargs):
-        pass
+    def __init__(self):
+        self.max_concurrent_backtests = 1
 
     @abstractmethod
     async def run(self, backtest_id: UUID):

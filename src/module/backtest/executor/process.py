@@ -19,22 +19,14 @@ class ProcessBacktestExecutor(BacktestExecutor):
     def __init__(self):
         super().__init__()
         self._backtests: dict[UUID, Process] = {}
-        self._max_concurrent_backtests = 5
 
     @property
     def backtests(self) -> list[UUID]:
         return list(self._backtests.keys())
 
-    @property
-    def max_concurrent_backtests(self) -> int:
-        return self._max_concurrent_backtests
-
-    async def init(self, max_concurrent_backtests: int):
-        self._max_concurrent_backtests = max_concurrent_backtests
-
     async def run(self, backtest_id: UUID) -> dict:
-        if len(self._backtests) >= self._max_concurrent_backtests:
-            raise ValueError(f"Max concurrent backtests {self._max_concurrent_backtests} reached.")
+        if len(self._backtests) >= self.max_concurrent_backtests:
+            raise ValueError(f"Max concurrent backtests {self.max_concurrent_backtests} reached.")
         
         if backtest_id in self._backtests and self._backtests[backtest_id].is_alive():
             return

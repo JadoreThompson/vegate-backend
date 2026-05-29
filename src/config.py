@@ -94,8 +94,6 @@ BACKTEST_EVENTS_KEY = os.getenv(
     "BACKTEST_EVENTS_KEY", "backtest_events"
 )
 
-# LLM
-LLM_API_KEY = os.getenv("LLM_API_KEY")
 
 # Email
 CUSTOMER_SUPPORT_EMAIL = os.getenv("CUSTOMER_SUPPORT_EMAIL")
@@ -131,7 +129,15 @@ OMS_SESSION_PREFIX = os.getenv("OMS_SESSION_PREFIX", "oms:session:")
 # Historical Data
 HISTORICAL_BASE_URL = os.getenv("HISTORICAL_BASE_URL", "http://localhost:8000")
 
+# Docker
 IMAGE_NAME = os.getenv("IMAGE_NAME", "vegate-backend:latest")
+
+MAX_CONCURRENT_BACKTESTS = int(os.getenv("MAX_CONCURRENT_BACKTESTS", "5"))
+MAX_CONCURRENT_DEPLOYMENTS = int(os.getenv("MAX_CONCURRENT_BACKTESTS", "5"))
+
+LLM_API_KEY = os.getenv("LLM_API_KEY", "api-key")
+LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "mistral-small-latest")
+
 
 # Logging
 logging.basicConfig(

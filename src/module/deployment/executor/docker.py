@@ -4,7 +4,7 @@ from docker import DockerClient
 from docker.models.containers import Container
 
 from .base import DeploymentExecutor
-from .exception import DeploymentExistsException
+from .exception import DeploymentLimitReached
 from ..exception import DeploymentAlreadyRunningException, DeploymentNotFoundException
 
 
@@ -22,7 +22,13 @@ class DockerDeploymentExecutor(DeploymentExecutor):
             if container.status == "running":
                 raise DeploymentAlreadyRunningException(deployment_id)
             
+            if self._count_backtests() >= self.max_concurrent_deployments:
+                raise DeploymentLimitReached()
+            
+            container.stop()
             container.remove(force=True)
+        elif self._count_backtests() >= self.max_concurrent_deployments:
+            raise DeploymentLimitReached()
 
         container = self._create_container(deployment_id)
         container.start()
@@ -90,3 +96,6 @@ class DockerDeploymentExecutor(DeploymentExecutor):
             command=f"deployment run --deployment-id {deployment_id}",
             labels={"deployment_id": str(deployment_id)},
         )
+
+    def _count_backtests(self):
+        return len(self._docker_client.containers.list(filters={"name": "dp_"}))

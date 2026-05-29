@@ -6,7 +6,14 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from config import FRONTEND_DOMAIN, FRONTEND_SUB_DOMAIN, IMAGE_NAME, SCHEME
+from config import (
+    FRONTEND_DOMAIN,
+    FRONTEND_SUB_DOMAIN,
+    IMAGE_NAME,
+    MAX_CONCURRENT_BACKTESTS,
+    MAX_CONCURRENT_DEPLOYMENTS,
+    SCHEME,
+)
 from module.auth.exception import UserAlreadyExistsException, UserDoesNotExistException
 from module.auth.router import router as auth_router
 from module.auth.service import AuthService
@@ -17,6 +24,7 @@ from module.backtest.exception import (
     InvalidDateRange,
 )
 from module.backtest.executor import ProcessBacktestExecutor, DockerBacktestExecutor
+from module.backtest.executor.exception import BacktestLimitReached
 from module.backtest.router import router as backtests_router
 from module.broker_connections import BrokerConnectionsService
 from module.broker_connections.exception import (
@@ -33,7 +41,10 @@ from module.deployment.exception import (
 )
 from module.deployment.event.deserialiser import DeploymentEventDeserialiser
 from module.deployment.event.relay import DeploymentEventRelay
-from module.deployment.executor import ProcessDeploymentExecutor, DockerDeploymentExecutor
+from module.deployment.executor import (
+    ProcessDeploymentExecutor,
+    DockerDeploymentExecutor,
+)
 from module.deployment.router import router as deployment_router
 from module.email import BrevoEmailService
 from module.jwt import JWTService, JWTException
@@ -76,8 +87,11 @@ async def lifespan(app: FastAPI):
     docker_client = docker.DockerClient(base_url="unix://var/run/docker.sock")
 
     # backtest_executor = ProcessBacktestExecutor()
-    backtest_executor = DockerBacktestExecutor(image_name=IMAGE_NAME, docker_client=docker_client)
-    
+    backtest_executor = DockerBacktestExecutor(
+        image_name=IMAGE_NAME, docker_client=docker_client
+    )
+    backtest_executor.max_concurrent_backtests = MAX_CONCURRENT_BACKTESTS
+
     backtest_service = BacktestsService(
         strategy_service=strategy_service,
         backtest_executor=backtest_executor,
@@ -89,7 +103,10 @@ async def lifespan(app: FastAPI):
     object_registry.register(backtest_service)
 
     # deployment_executor = ProcessDeploymentExecutor()
-    deployment_executor = DockerDeploymentExecutor(image_name=IMAGE_NAME, docker_client=docker_client)
+    deployment_executor = DockerDeploymentExecutor(
+        image_name=IMAGE_NAME, docker_client=docker_client
+    )
+    deployment_executor.max_concurrent_deployments = MAX_CONCURRENT_DEPLOYMENTS
     deployment_service = DeploymentsService(
         markets_service=markets_service,
         deployment_executor=deployment_executor,
@@ -262,3 +279,10 @@ async def handle_backtest_not_found_exception(
     req: Request, exc: BrokerConnectionNotFoundException
 ):
     return _error_response(404, str(exc))
+
+
+@app.exception_handler(BacktestLimitReached)
+async def handle_backtest_limit_reached_exception(
+    req: Request, exc: BacktestLimitReached
+):
+    return _error_response(400, str(exc))

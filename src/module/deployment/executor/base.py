@@ -5,10 +5,7 @@ from uuid import UUID
 class DeploymentExecutor(ABC):
 
     def __init__(self):
-        pass
-
-    async def init(self, *args, **kw) -> None:
-        pass
+        self.max_concurrent_deployments = 1
 
     @abstractmethod
     async def run(self, deployment_id: UUID) -> dict:
