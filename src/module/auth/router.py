@@ -42,13 +42,10 @@ async def login(
     auth_service: AuthService = Depends(depends_class(AuthService)),
     jwt_service: JWTService = Depends(depends_class(JWTService)),
 ):
-    try:
-        user = await auth_service.authenticate_user(request=body, db_sess=db_sess)
-        rsp = await jwt_service.set_cookie(user=user, db_sess=db_sess)
-        await db_sess.commit()
-        return rsp
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+    user = await auth_service.authenticate_user(request=body, db_sess=db_sess)
+    rsp = await jwt_service.set_cookie(user=user, db_sess=db_sess)
+    await db_sess.commit()
+    return rsp
 
 
 @router.post("/verify-email/request", status_code=201)

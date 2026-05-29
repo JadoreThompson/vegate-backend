@@ -6,3 +6,13 @@ class UserAlreadyExistsException(Exception):
 class UserDoesNotExistException(Exception):
     def __init__(self):
         super().__init__("User doesn't exist")
+
+
+class UserNotAuthenticatedException(Exception):
+    def __init__(self):
+        super().__init__("User not authenticated")
+
+
+class InvalidCredentialsException(Exception):
+    def __init__(self):
+        super().__init__("Invalid credentials provided")

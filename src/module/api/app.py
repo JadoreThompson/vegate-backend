@@ -9,12 +9,16 @@ from config import (
     BACKTEST_EXECUTOR_NAME,
     FRONTEND_DOMAIN,
     FRONTEND_SUB_DOMAIN,
-    IMAGE_NAME,
     MAX_CONCURRENT_BACKTESTS,
     MAX_CONCURRENT_DEPLOYMENTS,
     SCHEME,
 )
-from module.auth.exception import UserAlreadyExistsException, UserDoesNotExistException
+from module.auth.exception import (
+    InvalidCredentialsException,
+    UserAlreadyExistsException,
+    UserDoesNotExistException,
+    UserNotAuthenticatedException,
+)
 from module.auth.router import router as auth_router
 from module.auth.service import AuthService
 from module.backtest import BacktestsService
@@ -187,6 +191,20 @@ async def handle_user_already_exists_exception(
     req: Request, exc: UserDoesNotExistException
 ):
     return _error_response(404, str(exc))
+
+
+@app.exception_handler(UserNotAuthenticatedException)
+async def handle_user_not_authenticated_exception(
+    req: Request, exc: UserNotAuthenticatedException
+):
+    return _error_response(403, str(exc))
+
+
+@app.exception_handler(InvalidCredentialsException)
+async def handle_invalid_credentials_exception(
+    req: Request, exc: InvalidCredentialsException
+):
+    return _error_response(422, str(exc))
 
 
 @app.exception_handler(BrokerAccountFetchException)

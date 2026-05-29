@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator, EmailStr
+from pydantic import BaseModel, field_validator, EmailStr, model_validator
 
 
 class PasswordField(BaseModel):
@@ -35,6 +35,14 @@ class LoginUserRequest(BaseModel):
     username: str | None = None
     email: EmailStr | None = None
     password: str
+
+    @model_validator(mode='after')
+    def verify_username_email(self):
+        if (self.username is None or not self.username.strip()) and (
+            self.email is None or not self.email.strip()
+        ):  
+            raise ValueError("Either username or email must be provided.")
+        return self
 
 
 class VerificationCode(BaseModel):

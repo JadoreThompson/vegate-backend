@@ -3,11 +3,15 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from unittest.mock import AsyncMock, MagicMock
 
+from sqlalchemy import update
 
-from core.db.session import get_db_sess_sync
+
+from core.db.session import get_db_sess_sync, get_db_session
 from module.api.object_registry import ObjectRegistry
 from module.auth import AuthService
 from core.redis import REDIS_CLIENT
+from module.user.model import User
+from util import get_datetime
 
 
 @pytest.fixture
@@ -15,6 +19,7 @@ def email_service():
     service = MagicMock()
     service.send_email = AsyncMock(return_value=None)
     return service
+
 
 @pytest.fixture
 def auth_service():
@@ -110,6 +115,14 @@ class TestLoginEndpoint:
         }
         await client.post("/api/v1/auth/register", json=register_payload)
 
+        async with get_db_session() as db_sess:
+            await db_sess.execute(
+                update(User)
+                .where(User.username == register_payload["username"])
+                .values(authenticated_at=get_datetime())
+            )
+            await db_sess.commit()
+
         login_payload = {
             "username": "logintest-user",
             "password": "PAssword1@@1",
@@ -127,6 +140,14 @@ class TestLoginEndpoint:
         }
         await client.post("/api/v1/auth/register", json=register_payload)
 
+        async with get_db_session() as db_sess:
+            await db_sess.execute(
+                update(User)
+                .where(User.email == register_payload["email"])
+                .values(authenticated_at=get_datetime())
+            )
+            await db_sess.commit()
+
         login_payload = {
             "email": "logintest2@email.com",
             "password": "PAssword1@@1",
@@ -134,6 +155,23 @@ class TestLoginEndpoint:
         res = await client.post("/api/v1/auth/login", json=login_payload)
 
         assert res.status_code == 200
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_login_success_with_email_returns_403(self, client):
+        register_payload = {
+            "username": "logintest-unauthenticated_user-1",
+            "email": "logintest-unauthenticated_user-1@email.com",
+            "password": "PAssword1@@1",
+        }
+        await client.post("/api/v1/auth/register", json=register_payload)
+
+        login_payload = {
+            "email": "logintest-unauthenticated_user-1@email.com",
+            "password": "PAssword1@@1",
+        }
+        res = await client.post("/api/v1/auth/login", json=login_payload)
+
+        assert res.status_code == 403
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_login_missing_username_and_email_returns_422(self, client):
@@ -244,7 +282,9 @@ class TestChangeUsernameRequestEndpoint:
         }
         res = await client.post("/api/v1/auth/register", json=register_payload)
 
-        res = await client.post("/api/v1/auth/verify-email", json={"code": verification_code})
+        res = await client.post(
+            "/api/v1/auth/verify-email", json={"code": verification_code}
+        )
 
         payload = {"username": "new-username"}
         res = await client.post("/api/v1/auth/change-username/request", json=payload)
@@ -265,7 +305,9 @@ class TestChangeUsernameRequestEndpoint:
         }
         await client.post("/api/v1/auth/register", json=register_payload)
 
-        res = await client.post("/api/v1/auth/verify-email", json={"code": verification_code})
+        res = await client.post(
+            "/api/v1/auth/verify-email", json={"code": verification_code}
+        )
 
         payload = {"username": "changeuser2-user"}
         res = await client.post("/api/v1/auth/change-username/request", json=payload)
@@ -323,11 +365,14 @@ class TestChangeUsernameEndpoint:
         }
         await client.post("/api/v1/auth/register", json=register_payload)
 
-        res = await client.post("/api/v1/auth/verify-email", json={"code": verification_code})
+        res = await client.post(
+            "/api/v1/auth/verify-email", json={"code": verification_code}
+        )
         assert res.status_code == 200, res.json()
 
         await client.post(
-            "/api/v1/auth/change-username/request", json={"username": "changeuser5-user"}
+            "/api/v1/auth/change-username/request",
+            json={"username": "changeuser5-user"},
         )
 
         res = await client.post(

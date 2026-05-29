@@ -18,6 +18,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     password: Mapped[str] = mapped_column(String, nullable=False)
     jwt: Mapped[str] = mapped_column(String, nullable=True)
+    # TODO: Rename to email_verified_at
     authenticated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

@@ -4,7 +4,7 @@ from uuid import uuid4
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest_asyncio
-from sqlalchemy import delete
+from sqlalchemy import delete, update
 
 from core.db import get_db_sess_sync, get_db_session
 from core.redis import REDIS_CLIENT
@@ -17,7 +17,7 @@ from config import (
     VERIFICATION_CODE_EXPIRY_SECS,
 )
 from module.auth import AuthService
-from module.auth.exception import UserAlreadyExistsException, UserDoesNotExistException
+from module.auth.exception import InvalidCredentialsException, UserAlreadyExistsException, UserDoesNotExistException
 from module.auth.schema import (
     ChangeEmailRequest,
     ChangePasswordRequest,
@@ -29,6 +29,7 @@ from module.auth.schema import (
     VerificationCode,
 )
 from module.user.model import User
+from util import get_datetime
 
 
 @pytest.fixture
@@ -155,13 +156,12 @@ class TestAuthenticateUser:
         ):
             mock_db_sess = AsyncMock()
 
-            request = LoginUserRequest(
-                username=None, email=None, password="PAssword1@@1"
-            )
-
             with pytest.raises(
                 ValueError, match="Either username or email must be provided"
             ):
+                request = LoginUserRequest(
+                    username=None, email=None, password="PAssword1@@1"
+                )
                 await auth_service.authenticate_user(request, mock_db_sess)
 
         @pytest.mark.asyncio(loop_scope="session")
@@ -173,7 +173,7 @@ class TestAuthenticateUser:
                 username="unknown-user", email=None, password="PAssword1@@1"
             )
 
-            with pytest.raises(ValueError, match="Incorrect credentials"):
+            with pytest.raises(InvalidCredentialsException, match="Invalid credentials provided"):
                 await auth_service.authenticate_user(request, mock_db_sess)
 
         @pytest.mark.asyncio(loop_scope="session")
@@ -193,7 +193,7 @@ class TestAuthenticateUser:
                 username="test-user", email=None, password="wrong-password"
             )
 
-            with pytest.raises(ValueError, match="Incorrect credentials"):
+            with pytest.raises(InvalidCredentialsException, match="Invalid credentials provided"):
                 await auth_service.authenticate_user(request, mock_db_sess)
 
             auth_service.verify_password.assert_called_once_with(
@@ -251,6 +251,14 @@ class TestAuthenticateUser:
             )
 
             async with get_db_session() as new_db_sess:
+                await new_db_sess.execute(
+                    update(User)
+                    .where(User.username == register_request.username)
+                    .values(authenticated_at=get_datetime())
+                )
+                await new_db_sess.commit()
+
+            async with get_db_session() as new_db_sess:
                 authenticated_user = await auth_service.authenticate_user(
                     login_request,
                     new_db_sess,
@@ -278,6 +286,14 @@ class TestAuthenticateUser:
             )
 
             await db_sess.commit()
+
+            async with get_db_session() as new_db_sess:
+                await new_db_sess.execute(
+                    update(User)
+                    .where(User.username == register_request.username)
+                    .values(authenticated_at=get_datetime())
+                )
+                await new_db_sess.commit()
 
             login_request = LoginUserRequest(
                 username=None,

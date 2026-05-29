@@ -28,7 +28,12 @@ from core.redis import REDIS_CLIENT
 from module.email import EmailService
 from module.user.model import User
 from util import get_datetime
-from .exception import UserAlreadyExistsException, UserDoesNotExistException
+from .exception import (
+    InvalidCredentialsException,
+    UserAlreadyExistsException,
+    UserDoesNotExistException,
+    UserNotAuthenticatedException,
+)
 from .schema import (
     ChangeEmailRequest,
     ChangePasswordRequest,
@@ -177,15 +182,7 @@ class AuthService:
 
         Returns:
             The authenticated User object.
-
-        Raises:
-            ValueError: If credentials are missing or invalid.
         """
-        if (request.username is None or not request.username.strip()) and (
-            request.email is None or not request.email.strip()
-        ):
-            raise ValueError("Either username or email must be provided.")
-
         query = select(User)
 
         if request.username is not None:
@@ -197,10 +194,14 @@ class AuthService:
         user = await db_sess.scalar(query)
 
         if user is None:
-            raise ValueError("Incorrect credentials")
+            raise InvalidCredentialsException()
 
         if not self.verify_password(request.password, user.password):
-            raise ValueError("Incorrect credentials")
+            raise InvalidCredentialsException()
+
+        if not user.authenticated_at:
+            await self._send_verification_code(user.email, user.user_id)
+            raise UserNotAuthenticatedException()
 
         return user
 
