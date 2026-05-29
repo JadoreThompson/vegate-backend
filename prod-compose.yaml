@@ -1,7 +1,7 @@
 services:
   backend:
     image: wifimemes/vegate-backend:latest
-    command: uv run src\main.py http run
+    command: uv run src/main.py http run
     networks:
       - vegate_network
     volumes:
@@ -29,7 +29,7 @@ services:
 
   deployment_monitor:
     image: wifimemes/vegate-backend:latest
-    command: uv run src\main.py deployment monitor run
+    command: uv run src/main.py deployment monitor run
     networks:
       - vegate_network
     volumes:
@@ -51,7 +51,7 @@ services:
 
   oms:
     image: wifimemes/vegate-backend:latest
-    command: uv run src\main.py oms run --host 0.0.0.0 --port 8082
+    command: uv run src/main.py oms run --host 0.0.0.0 --port 8082
     networks:
       - vegate_network
     volumes:
@@ -73,7 +73,7 @@ services:
 
   ohlc_feed:
     image: wifimemes/vegate-backend:latest
-    command: uv run src\main.py markets feed run --host 0.0.0.0 --port 8001
+    command: uv run src/main.py markets feed run --host 0.0.0.0 --port 8001
     networks:
       - vegate_network
     volumes:
@@ -95,7 +95,7 @@ services:
 
   backtest_monitor:
     image: wifimemes/vegate-backend:latest
-    command: uv run src\main.py backtest monitor run
+    command: uv run src/main.py backtest monitor run
     networks:
       - vegate_network
     volumes:
@@ -117,7 +117,7 @@ services:
 
   outbox_poller:
     image: wifimemes/vegate-backend:latest
-    command: uv run src\main.py outbox run
+    command: uv run src/main.py outbox run
     networks:
       - vegate_network
     volumes:
