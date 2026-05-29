@@ -17,5 +17,3 @@ COPY . /app
 WORKDIR /app
 
 RUN uv sync --locked
-
-ENTRYPOINT ["uv", "run", "src/main.py"]

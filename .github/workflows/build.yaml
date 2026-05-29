@@ -8,7 +8,6 @@ jobs:
   setup:
     name: Setup
     runs-on: self-hosted
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -36,7 +35,7 @@ jobs:
               --attachable vegate_network
           fi
 
-      - name: Docker compose
+      - name: Compose infra
         run: docker compose -f infra-compose.yaml up -d postgres kafka redis
 
   test:
@@ -44,15 +43,15 @@ jobs:
     runs-on: self-hosted
     needs: setup
     if: false
-
     steps:
-      - name: Print files
-        run: ls -al
+      - name: Initialise test db
+        run: |
+          sudo docker compose -f  infra-compose.yaml --env-file .env.test up -d postgres_test
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
-        with:
-          version: "0.11.16"
+          # Wait for Postgres to be ready
+          until sudo docker exec vegate_postgres_test pg_isready -U postgres; do
+            sleep 1
+          done
 
       - name: Create .env.test
         run: |
@@ -66,20 +65,16 @@ jobs:
             exit 1
           fi
 
-      - name: Initialise test db
+      - name: Build image
         run: |
-          sudo docker compose -f  infra-compose.yaml --env-file .env.test up -d postgres_test
-
-          # Wait for Postgres to be ready
-          until sudo docker exec vegate_postgres_test pg_isready -U postgres; do
-            sleep 1
-          done
+          set -e
+          docker build -f Dockerfile -t vegate-backend-test --no-cache .
 
       - name: Run tests
-        run: uv run pytest -s -x
+        run: docker run --network vegate_network --name vegate-backend-test vegate-backend-test uv run pytest -s -x
 
-  build:
-    name: Build Docker Image
+  deploy:
+    name: Deploy services
     runs-on: self-hosted
     # needs: test
     steps:
@@ -88,6 +83,18 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create .env
+        run: |
+          set -e
+
+          cat <<'EOF' > .env
+          ${{ secrets.ENV_FILE }}
+          EOF
+
+          if [ ! -f .env ]; then
+            exit 1
+          fi
 
       - name: Build Image
         run: |
@@ -104,17 +111,13 @@ jobs:
           sudo docker push wifimemes/vegate-backend:$TAG
 
       - name: Deploy stack
-        run: |
-          sudo docker stack deploy \
-            -c prod-compose.yaml \
-            -d=false \
-            vegate_stack
+        run: docker stack deploy -c prod-compose.yaml -d=false vegate_stack
 
   cleanup:
     name: Cleanup
     runs-on: self-hosted
     if: always()
-    needs: [setup, test, build]
+    needs: [setup, test, deploy]
 
     steps:
       - name: Prune images
