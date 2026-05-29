@@ -36,7 +36,7 @@ jobs:
           fi
 
       - name: Compose infra
-        run: docker compose -f infra-compose.yaml up -d postgres kafka redis
+        run: docker compose -f infra-compose.yaml up -d --force-recreate postgres kafka redis
 
   test:
     name: Run Tests
