@@ -6,7 +6,6 @@ from docker import DockerClient
 
 from module.deployment.exception import DeploymentAlreadyRunningException, DeploymentNotFoundException
 from module.deployment.executor.docker import DockerDeploymentExecutor
-from module.deployment.executor.exception import DeploymentExistsException
 
 
 @pytest.fixture

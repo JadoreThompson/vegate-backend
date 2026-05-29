@@ -22,9 +22,6 @@ class DockerDeploymentExecutor(DeploymentExecutor):
             if container.status == "running":
                 raise DeploymentAlreadyRunningException(deployment_id)
             
-            if self._count_backtests() >= self.max_concurrent_deployments:
-                raise DeploymentLimitReached()
-            
             container.stop()
             container.remove(force=True)
         elif self._count_backtests() >= self.max_concurrent_deployments:
@@ -98,4 +95,4 @@ class DockerDeploymentExecutor(DeploymentExecutor):
         )
 
     def _count_backtests(self):
-        return len(self._docker_client.containers.list(filters={"name": "dp_"}))
+        return len(self._docker_client.containers.list(all=True, filters={"name": "dp_"}))

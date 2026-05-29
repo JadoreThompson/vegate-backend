@@ -4,12 +4,18 @@ from uuid import UUID
 from core.redis import REDIS_CLIENT_SYNC
 from module.event_bus import SyncEventPublisher
 from .base import BacktestExecutor
+from .exception import BacktestLimitReached
+from ..exception import BacktestInProgressException
 
 
 def _run_backtest(backtest_id: UUID):
     from module.backtest.runner import BacktestRunner
 
-    runner = BacktestRunner(backtest_id, event_publisher=SyncEventPublisher(), redis_client=REDIS_CLIENT_SYNC)
+    runner = BacktestRunner(
+        backtest_id,
+        event_publisher=SyncEventPublisher(),
+        redis_client=REDIS_CLIENT_SYNC,
+    )
     runner.run()
 
 
@@ -25,11 +31,13 @@ class ProcessBacktestExecutor(BacktestExecutor):
         return list(self._backtests.keys())
 
     async def run(self, backtest_id: UUID) -> dict:
-        if len(self._backtests) >= self.max_concurrent_backtests:
-            raise ValueError(f"Max concurrent backtests {self.max_concurrent_backtests} reached.")
-        
-        if backtest_id in self._backtests and self._backtests[backtest_id].is_alive():
-            return
+        if backtest_id in self._backtests:
+            p = self._backtests[backtest_id]
+            if p.is_alive():
+                raise BacktestInProgressException()
+            
+        elif len(self._backtests) >= self.max_concurrent_backtests:
+            raise BacktestLimitReached()
 
         p = Process(target=_run_backtest, args=(backtest_id,))
         p.start()
@@ -38,11 +46,11 @@ class ProcessBacktestExecutor(BacktestExecutor):
 
     async def stop(self, backtest_id: UUID) -> dict:
         if (
-                backtest_id not in self._backtests
-                or not self._backtests[backtest_id].is_alive()
+            backtest_id not in self._backtests
+            or not self._backtests[backtest_id].is_alive()
         ):
             return
-        
+
         self._backtests[backtest_id].terminate()
         self._backtests[backtest_id].join(timeout=5)
 

@@ -3,10 +3,11 @@ from uuid import UUID
 
 from config import OHLC_FEED_HOST, OHLC_FEED_PORT, OMS_BASE_URL
 from core.redis import REDIS_CLIENT_SYNC
+from module.deployment.executor.exception import DeploymentLimitReached
 from module.event_bus import EventPublisher, SyncEventPublisher
 from module.markets.feed import OHLCFeedClient
 from .base import DeploymentExecutor
-from ..exception import DeploymentNotFoundException
+from ..exception import DeploymentNotFoundException, DeploymentAlreadyRunningException
 from ..runner import StrategyDeploymentRunner
 from ..oms import OMSClient
 
@@ -41,10 +42,12 @@ class ProcessDeploymentExecutor(DeploymentExecutor):
     async def run(self, deployment_id: UUID):
         if deployment_id in self._deployments:
             if self._deployments[deployment_id].is_alive():
-                return
+                raise DeploymentAlreadyRunningException(deployment_id)
 
             self._deployments[deployment_id].kill()
             self._deployments[deployment_id].join(timeout=5)
+        elif len(self._deployments) >= self.max_concurrent_deployments:
+            raise DeploymentLimitReached(deployment_id)
 
         p = Process(target=_run_strategy_deployment, args=(deployment_id,))
         p.start()

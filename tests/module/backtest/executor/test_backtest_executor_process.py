@@ -3,6 +3,7 @@ from uuid import UUID
 
 import pytest
 
+from module.backtest.exception import BacktestInProgressException
 from module.backtest.executor import ProcessBacktestExecutor
 
 BACKTEST_ID = UUID("11111111-1111-1111-1111-111111111111")
@@ -37,17 +38,17 @@ class TestDeployBacktest:
             mock_process.start.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_run_backtest_already_running_returns_already_running(self, executor):
+    async def test_run_backtest_already_throws_exception(self, executor):
         with patch(PROCESS_PATCH_TARGET) as MockProcess:
             mock_process = MockProcess.return_value
             mock_process.is_alive.return_value = True
 
             await executor.run(BACKTEST_ID)
-            result = await executor.run(BACKTEST_ID)
-
-            # Process should only have been constructed and started once.
-            assert MockProcess.call_count == 1
-            mock_process.start.assert_called_once()
+        
+        with patch(PROCESS_PATCH_TARGET) as MockProcess:
+            with pytest.raises(BacktestInProgressException):
+                result = await executor.run(BACKTEST_ID)
+            assert MockProcess.call_count == 0
 
     @pytest.mark.asyncio
     async def test_run_backtest_stores_process_reference(self, executor):
@@ -120,6 +121,8 @@ class TestStopAll:
 
     @pytest.mark.asyncio
     async def test_stop_all_terminates_all_running_processes(self, executor):
+        executor.max_concurrent_backtests = 2
+
         with patch(PROCESS_PATCH_TARGET) as MockProcess:
             first_process = make_mock_process(is_alive=True)
             second_process = make_mock_process(is_alive=True)
@@ -134,6 +137,8 @@ class TestStopAll:
 
     @pytest.mark.asyncio
     async def test_stop_all_waits_for_processes_to_join(self, executor):
+        executor.max_concurrent_backtests = 2
+
         with patch(PROCESS_PATCH_TARGET) as MockProcess:
             first_process = make_mock_process(is_alive=True)
             second_process = make_mock_process(is_alive=True)
@@ -148,6 +153,8 @@ class TestStopAll:
 
     @pytest.mark.asyncio
     async def test_stop_all_skips_already_terminated_processes(self, executor):
+        executor.max_concurrent_backtests = 2
+
         with patch(PROCESS_PATCH_TARGET) as MockProcess:
             first_process = make_mock_process(is_alive=True)
             second_process = make_mock_process(is_alive=False)  # already dead
@@ -184,6 +191,8 @@ class TestMultipleBacktests:
 
     @pytest.mark.asyncio
     async def test_deploy_multiple_different_backtests(self, executor):
+        executor.max_concurrent_backtests = 2
+
         with patch(PROCESS_PATCH_TARGET) as MockProcess:
             first_process = make_mock_process(is_alive=True)
             second_process = make_mock_process(is_alive=True)
@@ -197,6 +206,8 @@ class TestMultipleBacktests:
 
     @pytest.mark.asyncio
     async def test_stop_one_backtest_does_not_affect_others(self, executor):
+        executor.max_concurrent_backtests = 2
+
         with patch(PROCESS_PATCH_TARGET) as MockProcess:
             first_process = make_mock_process(is_alive=True)
             second_process = make_mock_process(is_alive=True)
@@ -215,6 +226,8 @@ class TestMultipleBacktests:
 
     @pytest.mark.asyncio
     async def test_stop_all_terminates_every_running_backtest(self, executor):
+        executor.max_concurrent_backtests = 2
+        
         with patch(PROCESS_PATCH_TARGET) as MockProcess:
             first_process = make_mock_process(is_alive=True)
             second_process = make_mock_process(is_alive=True)

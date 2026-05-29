@@ -5,7 +5,6 @@ from fastapi import Depends, Request
 from config import COOKIE_ALIAS
 from core.db import smaker
 from module.api.object_registry import ObjectRegistry
-from module.auth import AuthService
 from module.jwt import JWTService, JWTPayload, JWTException
 
 T = TypeVar("T")

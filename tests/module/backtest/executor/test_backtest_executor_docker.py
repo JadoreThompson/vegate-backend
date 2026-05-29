@@ -3,9 +3,11 @@ from unittest.mock import MagicMock
 import pytest
 from docker import DockerClient
 
-from module.backtest.exception import BacktestNotFoundException
+from module.backtest.exception import (
+    BacktestInProgressException,
+    BacktestNotFoundException,
+)
 from module.backtest.executor.docker import DockerBacktestExecutor
-from module.backtest.executor.exception import BacktestExistsException
 
 
 @pytest.fixture
@@ -67,8 +69,7 @@ class TestRunBacktest:
         )
 
         with pytest.raises(
-            BacktestExistsException,
-            match=f"Backtest with id '{mock_backtest_id}' already exists.",
+            BacktestInProgressException, match=f"Backtest is currently in progress."
         ) as exc_info:
             await executor.run(mock_backtest_id)
 

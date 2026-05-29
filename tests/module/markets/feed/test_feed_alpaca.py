@@ -267,6 +267,7 @@ class TestPersistCandle:
 class TestIntegration:
     """Integration tests for AlpacaOHLCFeed with real database."""
 
+    @pytest.mark.skip("Requires pro plan to subscribe to multiple feeds")
     @pytest.mark.asyncio(loop_scope="session")
     async def test_subscribe_success(self):
         alpaca_feed = AlpacaOHLCFeed(
