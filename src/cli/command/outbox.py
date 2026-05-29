@@ -3,6 +3,7 @@ import click
 
 from module.event_bus import EventPublisher
 from module.event_bus.outbox import OutboxService
+from module.health.server import HealthCheckServer
 
 
 @click.group
@@ -28,8 +29,13 @@ def run(interval, batch_size, timeout):
         event_publisher=event_publisher,
         timeout=timeout,
     )
+    
+    health_server = HealthCheckServer(host="0.0.0.0")
+    
+    async def _run():
+        await asyncio.gather(outbox_service.run(), health_server.run_forever())
 
     try:
-        asyncio.run(outbox_service.run())
+        asyncio.run(_run())
     except KeyError:
         pass

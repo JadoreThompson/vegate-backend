@@ -8,6 +8,7 @@ import click
 from cli.param.enum import EnumParam
 from config import ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_API_KEY, CONFIG_YAML
 from module.broker.enums import BrokerType
+from module.health.server import HealthCheckServer
 from module.markets.enums import MarketType, Timeframe
 from module.markets.feed.alpaca.service import AlpacaOHLCFeed
 from module.markets.feed.base import OHLCFeed
@@ -191,9 +192,11 @@ def run(host, port):
 
         feed_manager = FeedManager()
         server = OHLCFeedServer(feed_manager, host, port)
+        health_server = HealthCheckServer(host=host)
+
         try:
             await server.init(feeds)
-            await server.run()
+            await asyncio.gather(server.run(), health_server.run_forever())
         except KeyboardInterrupt:
             pass
         finally:

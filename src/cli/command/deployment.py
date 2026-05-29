@@ -10,6 +10,7 @@ from module.deployment.event.deserialiser import DeploymentEventDeserialiser
 from module.deployment.monitor import DeploymentEventMonitorService
 from module.event_bus import SyncEventPublisher
 from module.event_bus.publisher.publisher import EventPublisher
+from module.health.server import HealthCheckServer
 from module.markets.feed import OHLCFeedClient
 from module.deployment.runner import StrategyDeploymentRunner
 from module.deployment.oms import OMSClient
@@ -65,6 +66,11 @@ def run():
         redis_client=REDIS_CLIENT,
         event_publisher=EventPublisher(),
     )
-
     monitor_service.setup()
-    asyncio.run(monitor_service.run())
+    
+    health_server = HealthCheckServer()
+
+    async def _run():
+        await asyncio.gather(monitor_service.run(), health_server.run_forever())
+    
+    asyncio.run(_run())

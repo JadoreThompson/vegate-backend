@@ -2,8 +2,6 @@ import logging
 import click
 import uvicorn
 
-from config import IS_PRODUCTION
-
 
 logger = logging.getLogger(__name__)
 
@@ -15,8 +13,4 @@ def http():
 
 @http.command(name="run")
 def run():
-    uvicorn.run(
-        "module.api.app:app", 
-        host="0.0.0.0",# if IS_PRODUCTION else "localhost", 
-        port=8000
-    )
+    uvicorn.run("module.api.app:app", host="0.0.0.0", port=8000)

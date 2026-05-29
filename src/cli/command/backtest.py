@@ -9,6 +9,7 @@ from module.backtest.event.deserialiser import BacktestEventDeserialiser
 from module.backtest.monitor import BacktestMonitor
 from module.backtest.runner import BacktestRunner
 from module.event_bus import EventPublisher, SyncEventPublisher
+from module.health.server import HealthCheckServer
 
 logger = logging.getLogger("commands.backtest")
 
@@ -54,26 +55,8 @@ def backtest_run(backtest_id, verbose):
 
 
 @backtest.group(name="monitor")
-def backtest_monitor():
-    """Backtest monitor command group."""
-    return
-
-
-@backtest_monitor.command(name="run")
-def run():
-    monitor_service = BacktestMonitor(
-        deserialiser=BacktestEventDeserialiser(),
-        redis_client=REDIS_CLIENT,
-        event_publisher=EventPublisher(),
-    )
-
-    monitor_service.setup()
-    asyncio.run(monitor_service.run())
-
-
-@backtest.group(name="monitor")
 def monitor():
-    """Monitor live backtests."""
+    """Backtest monitor command group."""
     return
 
 
@@ -84,6 +67,12 @@ def run():
         redis_client=REDIS_CLIENT,
         event_publisher=EventPublisher(),
     )
-
     monitor_service.setup()
-    asyncio.run(monitor_service.run())
+
+    health_server = HealthCheckServer()
+
+    async def _run():
+        await asyncio.gather(monitor_service.run(), health_server.run_forever())
+    
+    asyncio.run(_run())
+
