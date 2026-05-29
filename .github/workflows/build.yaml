@@ -25,12 +25,12 @@ jobs:
           fi
 
       - name: Initialise swarm manager
-        run: sudo docker swarm init || true
+        run: docker swarm init || true
 
       - name: Create network
         run: |
-          if ! sudo docker network inspect vegate_network >/dev/null 2>&1; then
-            sudo docker network create \
+          if ! docker network inspect vegate_network >/dev/null 2>&1; then
+            docker network create \
               --driver overlay \
               --attachable vegate_network
           fi
@@ -43,15 +43,6 @@ jobs:
     runs-on: self-hosted
     needs: setup
     steps:
-      - name: Initialise test db
-        run: |
-          sudo docker compose -f  infra-compose.yaml --env-file .env.test up -d postgres_test
-
-          # Wait for Postgres to be ready
-          until sudo docker exec vegate_postgres_test pg_isready -U postgres; do
-            sleep 1
-          done
-
       - name: Create .env.test
         run: |
           set -e
@@ -63,11 +54,18 @@ jobs:
           if [ ! -f .env.test ]; then
             exit 1
           fi
+      
+      - name: Initialise test db
+        run: |
+          docker compose -f  infra-compose.yaml --env-file .env.test up -d postgres_test
+
+          # Wait for Postgres to be ready
+          until docker exec vegate_postgres_test pg_isready -U postgres; do
+            sleep 1
+          done
 
       - name: Build image
-        run: |
-          set -e
-          docker build -f Dockerfile -t vegate-backend-test --no-cache .
+        run: docker build -t vegate-backend-test --no-cache .
 
       - name: Run tests
         run: docker run --network vegate_network --name vegate-backend-test vegate-backend-test uv run pytest -s -x
@@ -99,15 +97,15 @@ jobs:
         run: |
           TAG=$(openssl rand -hex 16)
 
-          sudo docker build \
+          docker build \
             -f Dockerfile \
             -t wifimemes/vegate-backend:$TAG \
             -t wifimemes/vegate-backend:latest \
             --no-cache \
             .
 
-          sudo docker push wifimemes/vegate-backend:latest
-          sudo docker push wifimemes/vegate-backend:$TAG
+          docker push wifimemes/vegate-backend:latest
+          docker push wifimemes/vegate-backend:$TAG
 
       - name: Upgrade DB
         run: docker run --rm --name upgrade-db --network vegate_network wifimemes/vegate-backend:latest uv run src/main.py db upgrade
@@ -123,4 +121,4 @@ jobs:
 
     steps:
       - name: Prune images
-        run: sudo docker system prune -af
+        run: docker system prune -af
