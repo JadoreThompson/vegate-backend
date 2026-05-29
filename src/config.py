@@ -83,7 +83,7 @@ REDIS_CHANGE_EMAIL_KEY_PREFIX = "change_email:"
 
 # Kafka
 KAFKA_HOST = os.getenv("KAFKA_HOST", "localhost")
-KAFKA_PORT = int(os.getenv("KAFKA_PORT", "9092")) if not IS_PRODUCTION else 29092
+KAFKA_PORT = int(os.getenv("KAFKA_PORT", "9092"))
 KAFKA_BOOTSTRAP_SERVERS = f"{KAFKA_HOST}:{KAFKA_PORT}"
 
 STRATEGY_DEPLOYMENT_EVENTS_KEY = os.getenv(
@@ -133,7 +133,10 @@ HISTORICAL_BASE_URL = os.getenv("HISTORICAL_BASE_URL", "http://localhost:8000")
 IMAGE_NAME = os.getenv("IMAGE_NAME", "vegate-backend:latest")
 
 MAX_CONCURRENT_BACKTESTS = int(os.getenv("MAX_CONCURRENT_BACKTESTS", "5"))
+BACKTEST_EXECUTOR_NAME = os.getenv("BACKTEST_EXECUTOR_NAME", "process")
+
 MAX_CONCURRENT_DEPLOYMENTS = int(os.getenv("MAX_CONCURRENT_BACKTESTS", "5"))
+DEPLOYMENT_EXECUTOR_NAME = os.getenv("DEPLOYMENT_EXECUTOR_NAME", "process")
 
 LLM_API_KEY = os.getenv("LLM_API_KEY", "api-key")
 LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "mistral-small-latest")

@@ -1,12 +1,12 @@
 import asyncio
 
-import docker
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from config import (
+    BACKTEST_EXECUTOR_NAME,
     FRONTEND_DOMAIN,
     FRONTEND_SUB_DOMAIN,
     IMAGE_NAME,
@@ -23,7 +23,7 @@ from module.backtest.exception import (
     BacktestNotFoundException,
     InvalidDateRange,
 )
-from module.backtest.executor import ProcessBacktestExecutor, DockerBacktestExecutor
+from module.backtest.executor import BacktestExecutorFactory
 from module.backtest.executor.exception import BacktestLimitReached
 from module.backtest.router import router as backtests_router
 from module.broker_connections import BrokerConnectionsService
@@ -35,16 +35,13 @@ from module.broker_connections.exception import (
 from module.broker_connections.router import router as broker_connections_router
 from module.contact.router import router as contact_router
 from module.deployment import DeploymentsService
+from module.deployment.event.deserialiser import DeploymentEventDeserialiser
+from module.deployment.event.relay import DeploymentEventRelay
 from module.deployment.exception import (
     DeploymentAlreadyRunningException,
     DeploymentNotFoundException,
 )
-from module.deployment.event.deserialiser import DeploymentEventDeserialiser
-from module.deployment.event.relay import DeploymentEventRelay
-from module.deployment.executor import (
-    ProcessDeploymentExecutor,
-    DockerDeploymentExecutor,
-)
+from module.deployment.executor import DeploymentExecutorFactory
 from module.deployment.router import router as deployment_router
 from module.email import BrevoEmailService
 from module.jwt import JWTService, JWTException
@@ -83,15 +80,8 @@ async def lifespan(app: FastAPI):
     strategy_service = StrategyService()
     object_registry.register(strategy_service)
 
-    # docker_client = docker.from_env()
-    docker_client = docker.DockerClient(base_url="unix://var/run/docker.sock")
-
-    # backtest_executor = ProcessBacktestExecutor()
-    backtest_executor = DockerBacktestExecutor(
-        image_name=IMAGE_NAME, docker_client=docker_client
-    )
+    backtest_executor = BacktestExecutorFactory.create(BACKTEST_EXECUTOR_NAME)
     backtest_executor.max_concurrent_backtests = MAX_CONCURRENT_BACKTESTS
-
     backtest_service = BacktestsService(
         strategy_service=strategy_service,
         backtest_executor=backtest_executor,
@@ -102,10 +92,7 @@ async def lifespan(app: FastAPI):
     broker_connections_service = BrokerConnectionsService()
     object_registry.register(backtest_service)
 
-    # deployment_executor = ProcessDeploymentExecutor()
-    deployment_executor = DockerDeploymentExecutor(
-        image_name=IMAGE_NAME, docker_client=docker_client
-    )
+    deployment_executor = DeploymentExecutorFactory.create(BACKTEST_EXECUTOR_NAME)
     deployment_executor.max_concurrent_deployments = MAX_CONCURRENT_DEPLOYMENTS
     deployment_service = DeploymentsService(
         markets_service=markets_service,
