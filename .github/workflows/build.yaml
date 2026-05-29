@@ -68,7 +68,7 @@ jobs:
         run: docker build -t vegate-backend-test --no-cache .
 
       - name: Run tests
-        run: docker run --name vegate-backend-test vegate-backend-test uv run pytest -s -x
+        run: docker run --network vegate_network --name vegate-backend-test vegate-backend-test uv run pytest -s -x
 
   deploy:
     name: Deploy services

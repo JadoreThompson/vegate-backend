@@ -18,6 +18,8 @@ services:
     environment:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
+    networks:
+      - vegate_network
 
   redis:
     image: redis:8
