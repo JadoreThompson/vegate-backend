@@ -1,7 +1,10 @@
 from uuid import UUID
 
 from docker import DockerClient
+from docker.errors import APIError as DockerAPIError
 from docker.models.containers import Container
+
+from config import OHLC_FEED_HOST, OHLC_FEED_PORT, OMS_BASE_URL
 
 from .base import DeploymentExecutor
 from .exception import DeploymentLimitReached
@@ -21,15 +24,21 @@ class DockerDeploymentExecutor(DeploymentExecutor):
         if container:
             if container.status == "running":
                 raise DeploymentAlreadyRunningException(deployment_id)
-            
+
             container.stop()
             container.remove(force=True)
         elif self._count_backtests() >= self.max_concurrent_deployments:
             raise DeploymentLimitReached()
 
         container = self._create_container(deployment_id)
-        container.start()
-        container.reload()
+
+        try:
+            container.start()
+            container.reload()
+        except DockerAPIError:
+            container.reload()
+            container.remove(force=True)
+            raise
 
         return {
             "deployment_id": str(deployment_id),
@@ -90,9 +99,12 @@ class DockerDeploymentExecutor(DeploymentExecutor):
             image=self._image_name,
             name=f"dp_{deployment_id}",
             network="vegate_network",
-            command=f"uv run src/main.py deployment run --deployment-id {deployment_id}",
+            command=f"uv run src/main.py deployment run --deployment-id {deployment_id} --ohlc-feed-host {OHLC_FEED_HOST} --ohlc-feed-port {OHLC_FEED_PORT} --oms-base-url {OMS_BASE_URL}",
             labels={"deployment_id": str(deployment_id)},
+            auto_remove=True,
         )
 
     def _count_backtests(self):
-        return len(self._docker_client.containers.list(all=True, filters={"name": "dp_"}))
+        return len(
+            self._docker_client.containers.list(all=True, filters={"name": "dp_"})
+        )

@@ -11,7 +11,6 @@ from config import HISTORICAL_BASE_URL, REDIS_STRATEGY_DEPLOYMENT_HEARTBEAT_KEY_
 from core.db import get_db_sess_sync
 from module.deployment.enums import StrategyDeploymentStatus
 
-from .oms import OMSClient
 from module.event_bus import SyncEventPublisher
 from module.markets.feed import OHLCFeedClient
 from module.markets.historical import HistoricalDataClient
@@ -19,6 +18,7 @@ from module.strategy.model import Strategy, StrategyVersion
 from module.strategy.strategy import BaseStrategy
 from .event import DeploymentStatusChangedEvent
 from .model import StrategyDeployments
+from .oms import OMSClient
 
 
 class StrategyDeploymentRunner:
