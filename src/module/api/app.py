@@ -47,6 +47,7 @@ from module.deployment.exception import (
     DeploymentNotFoundException,
 )
 from module.deployment.executor import DeploymentExecutorFactory
+from module.deployment.executor.exception import DeploymentLimitReached
 from module.deployment.router import router as deployment_router
 from module.email import BrevoEmailService, SmtpgoEmailService
 from module.jwt import JWTService, JWTException
@@ -296,4 +297,11 @@ async def handle_backtest_not_found_exception(
 async def handle_backtest_limit_reached_exception(
     req: Request, exc: BacktestLimitReached
 ):
-    return _error_response(400, str(exc))
+    return _error_response(409, str(exc))
+
+
+@app.exception_handler(DeploymentLimitReached)
+async def handle_deployment_limit_reached_exception(
+    req: Request, exc: DeploymentLimitReached
+):
+    return _error_response(409, str(exc))
