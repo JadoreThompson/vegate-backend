@@ -1,0 +1,37 @@
+:root > * {
+    --md-primary-fg-color: #82ce10;
+    --md-default-bg-color: #0a0a0a;
+    --md-default-fg-color: white;
+
+    --md-default-fg-color--light: #bbbec2;      
+    --md-default-fg-color--lighter: #888b8f;    
+    --md-default-fg-color--lightest: #555759;
+
+    --md-accent-fg-color: #639e0b;
+    --md-accent-bg-color: #639e0b;
+    
+    /* Code shades */
+    --md-code-bg-color: #171717;
+    --md-code-fg-color: #bbbec2;
+    
+    /* Code highlight color */
+    --md-code-hl-color: pink;
+    --md-code-hl-number-color:           white;
+    --md-code-hl-special-color: #bbbec2;
+    --md-code-hl-function-color: rgb(224, 32, 231);
+    --md-code-hl-constant-color:         #bbbec2;
+    --md-code-hl-keyword-color:          hsla(219, 54%, 51%, 1);
+    --md-code-hl-string-color:           hsla(150, 63%, 30%, 1);
+    --md-code-hl-name-color:             #bbbec2;
+    --md-code-hl-operator-color:         #8f919a;
+    --md-code-hl-punctuation-color: #bbbec2;
+    --md-code-hl-comment-color:          rgb(27, 84, 31);
+    --md-code-hl-generic-color:          var(--md-default-fg-color--light);
+    --md-code-hl-variable-color:         var(--md-default-fg-color--light);
+
+    --md-typeset-table-color:            #3c3d3e;
+    --md-typeset-table-color--light:     #19191a;
+
+    --md-typeset-color: white;
+    --md-typeset-a-color: #639e0b;
+}

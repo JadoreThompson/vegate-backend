@@ -1,17 +1,19 @@
+# Environment
 .venv
 __pycache__
 .pytest_cache
-
-alembic.ini
-*.log
-
 .env
 .env.prod*
 .env.test
 
-prod-compose.parsed.yaml
-rec.py
+# Configuration
+alembic.ini
+*.log
+
+# Docs
+site
+
+# Misc private
 misc
+rec.py
 user_strategy.py
-todo.txt
-ohlc_loader_logs
