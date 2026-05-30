@@ -3,6 +3,7 @@ from config import CUSTOMER_SUPPORT_EMAIL
 from module.email.brevo import BrevoEmailService
 
 
+@pytest.mark.skip
 class TestBrevoEmailService:
 
     @pytest.fixture

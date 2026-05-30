@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from config import (
     BACKTEST_EXECUTOR_NAME,
+    EMAIL_SERVICE_NAME,
     FRONTEND_DOMAIN,
     FRONTEND_SUB_DOMAIN,
     MAX_CONCURRENT_BACKTESTS,
@@ -72,8 +73,12 @@ async def lifespan(app: FastAPI):
     jwt_service = JWTService()
     object_registry.register(jwt_service)
 
-    # auth_service = AuthService(email_service_cls=BrevoEmailService)
-    auth_service = AuthService(email_service_cls=SmtpgoEmailService)
+    email_service_cls = {"smtpgo": SmtpgoEmailService, "brevo": BrevoEmailService}.get(
+        EMAIL_SERVICE_NAME
+    )
+    if email_service_cls is None:
+        raise ValueError(f"Unknown email service '{EMAIL_SERVICE_NAME}'")
+    auth_service = AuthService(email_service_cls=email_service_cls)
     object_registry.register(auth_service)
 
     markets_service = MarketsService()
