@@ -1,10 +1,16 @@
 from contextlib import asynccontextmanager, contextmanager
+import logging
 from typing import AsyncGenerator, Generator
 
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.dialects.postgresql.asyncpg import (
+    AsyncAdapt_asyncpg_dbapi as InterfaceError,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .client import DB_ENGINE, DB_ENGINE_SYNC
+
+logger = logging.getLogger(__name__)
 
 smaker = sessionmaker(bind=DB_ENGINE, class_=AsyncSession, expire_on_commit=False)
 smaker_sync = sessionmaker(bind=DB_ENGINE_SYNC, class_=Session, expire_on_commit=False)
@@ -17,8 +23,13 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     async with smaker.begin() as session:
         try:
             yield session
-        except:
+        except Exception as e:
             await session.rollback()
+            if isinstance(e, InterfaceError):
+                logger.info("Received InterfaceErrro, recreating session maker")
+                smaker.configure(
+                    bind=DB_ENGINE, class_=AsyncSession, expire_on_commit=False
+                )
             raise
 
 

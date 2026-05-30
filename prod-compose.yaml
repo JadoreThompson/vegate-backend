@@ -25,7 +25,7 @@ services:
         order: start-first
         failure_action: rollback
         delay: 3s
-        monitor: 1m
+        monitor: 30s
 
   deployment_monitor:
     image: wifimemes/vegate-backend:latest
@@ -47,7 +47,7 @@ services:
         order: start-first
         failure_action: rollback
         delay: 3s
-        monitor: 1m
+        monitor: 30s
 
   oms:
     image: wifimemes/vegate-backend:latest
@@ -69,7 +69,7 @@ services:
         order: start-first
         failure_action: rollback
         delay: 3s
-        monitor: 1m
+        monitor: 30s
 
   ohlc_feed:
     image: wifimemes/vegate-backend:latest
@@ -91,7 +91,7 @@ services:
         order: start-first
         failure_action: rollback
         delay: 3s
-        monitor: 1m
+        monitor: 30s
 
   backtest_monitor:
     image: wifimemes/vegate-backend:latest
@@ -113,7 +113,7 @@ services:
         order: start-first
         failure_action: rollback
         delay: 3s
-        monitor: 1m
+        monitor: 30s
 
   outbox_poller:
     image: wifimemes/vegate-backend:latest
@@ -135,7 +135,7 @@ services:
         order: start-first
         failure_action: rollback
         delay: 3s
-        monitor: 1m
+        monitor: 30s
 
   traefik:
     image: traefik:v3.6
