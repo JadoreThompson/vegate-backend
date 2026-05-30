@@ -66,7 +66,7 @@ class DockerBacktestExecutor(BacktestExecutor):
             self._image_name,
             name=container_name,
             network="vegate_network",
-            command=f"backtest run --backtest-id {backtest_id}",
+            command=f"uv run src/main.py backtest run --backtest-id {backtest_id}",
             labels={"backtest_id": str(backtest_id)},
         )
         return container

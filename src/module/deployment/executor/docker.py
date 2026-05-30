@@ -90,7 +90,7 @@ class DockerDeploymentExecutor(DeploymentExecutor):
             image=self._image_name,
             name=f"dp_{deployment_id}",
             network="vegate_network",
-            command=f"deployment run --deployment-id {deployment_id}",
+            command=f"uv run src/main.py deployment run --deployment-id {deployment_id}",
             labels={"deployment_id": str(deployment_id)},
         )
 
