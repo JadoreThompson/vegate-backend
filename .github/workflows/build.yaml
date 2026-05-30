@@ -38,6 +38,12 @@ jobs:
       - name: Compose infra
         run: docker compose -f infra-compose.yaml up -d --force-recreate postgres kafka redis
 
+      - name: Await Postgres
+        run: |
+          until docker exec vegate_postgres pg_isready -U postgres; do
+            sleep 1
+          done
+
   test:
     name: Run Tests
     runs-on: self-hosted
