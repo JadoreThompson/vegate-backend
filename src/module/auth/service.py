@@ -65,7 +65,7 @@ class AuthService:
             email_verification_key_prefix: Prefix for Redis keys storing verification codes.
             email_verification_expiry: Expiry time (seconds) for verification codes.
         """
-        self._email_service = email_service_cls("Vegate", "no-replay@vegate.jadore.dev")
+        self._email_service = email_service_cls("Vegate", "no-reply@vegate.jadore.dev")
         self._redis_client = redis_client
         self._email_verification_key_prefix = email_verification_key_prefix
         self._email_verification_expiry = email_verification_expiry
