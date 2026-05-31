@@ -117,6 +117,20 @@ jobs:
           docker push wifimemes/vegate-backend:latest
           docker push wifimemes/vegate-backend:$TAG
 
+      - name: Build docs image
+        run: |
+          TAG=$(openssl rand -hex 16)
+
+          docker build \
+            -f docs.Dockerfile \
+            -t wifimemes/vegate-backend-docs:$TAG \
+            -t wifimemes/vegate-backend-docs:latest \
+            --no-cache \
+            .
+
+          docker push wifimemes/vegate-backend-docs:latest
+          docker push wifimemes/vegate-backend-docs:$TAG
+
       - name: Upgrade DB
         run: docker run --rm --name upgrade-db --network vegate_network wifimemes/vegate-backend:latest uv run src/main.py db upgrade
 

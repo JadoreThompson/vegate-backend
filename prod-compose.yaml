@@ -137,6 +137,27 @@ services:
         delay: 3s
         monitor: 30s
 
+  docs_server:
+    # build:
+    #   dockerfile: docs.Dockerfile
+    #   context: .
+    image: wifimemes/vegate-backend-docs:latest
+    networks:
+      - vegate_network
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.docs_server.rule=Host(`vegate.jadore.dev`) && PathPrefix(`/docs`)"
+        - "traefik.http.routers.docs_server.service=vegate_stack_docs_server"
+        - "traefik.http.routers.docs_server.entrypoints=web,websecure"
+        - "traefik.http.services.vegate_stack_docs_server.loadbalancer.server.port=80"
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+        delay: 3s
+        monitor: 3s
+
   traefik:
     image: traefik:v3.6
     command:
