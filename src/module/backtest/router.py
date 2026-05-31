@@ -1,9 +1,14 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from module.api.dependencies import CSVQuery, depends_class, depends_db_sess, depends_jwt
+from module.api.dependencies import (
+    CSVQuery,
+    depends_class,
+    depends_db_sess,
+    depends_jwt,
+)
 from module.api.schema import PaginatedResponse
 from module.backtest.enums import BacktestStatus
 from module.jwt import JWTPayload

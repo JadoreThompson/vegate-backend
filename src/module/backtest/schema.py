@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import UTC, datetime, date
 from typing import Any
 from uuid import UUID
 
@@ -14,6 +14,10 @@ class CreateBacktestRequest(BaseModel):
     starting_balance: int = Field(gt=0, le=100_000)
     start_date: datetime
     end_date: datetime
+
+    def model_post_init(self, context):
+        self.start_date = self.start_date.replace(tzinfo=UTC)
+        self.end_date = self.end_date.replace(tzinfo=UTC)
 
 
 class CreateBacktestResponse(BaseModel):

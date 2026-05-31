@@ -39,8 +39,9 @@ class BacktestsService:
     async def create(
         self, request: CreateBacktestRequest, user_id: UUID, db_sess: AsyncSession
     ) -> Backtest:
-        version = await self._strategy_service.get_user_strategy_version(request.version_id, user_id, db_sess)
-
+        version = await self._strategy_service.get_user_strategy_version(
+            request.version_id, user_id, db_sess
+        )
         backtest = Backtest(
             version_id=version.id,
             starting_balance=request.starting_balance,
@@ -108,8 +109,7 @@ class BacktestsService:
         res = await db_sess.execute(stmt)
 
         backtests = [
-            self.to_response(backtest, metrics)
-            for backtest, metrics in res.all()
+            self.to_response(backtest, metrics) for backtest, metrics in res.all()
         ]
 
         return PaginatedResponse[BacktestResponse](
@@ -143,7 +143,7 @@ class BacktestsService:
                 for backtest, metrics in rows[:limit]
             ],
         )
-    
+
     async def get_by_version_id(
         self, version_id: UUID, db_sess: AsyncSession, *, page: int, limit: int
     ):
