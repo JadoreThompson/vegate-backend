@@ -158,7 +158,6 @@ class BacktestRunner:
         return UserStrategy(
             ohlc_feed_client=ohlc_feed_client,
             oms_client=oms_client,
-            event_publisher=self._event_publisher,
             historical_data_client=historical_data_client,
         )
 
