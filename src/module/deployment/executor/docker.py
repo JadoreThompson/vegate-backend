@@ -101,7 +101,7 @@ class DockerDeploymentExecutor(DeploymentExecutor):
             network="vegate_network",
             command=f"uv run src/main.py deployment run --deployment-id {deployment_id} --ohlc-feed-host {OHLC_FEED_HOST} --ohlc-feed-port {OHLC_FEED_PORT} --oms-base-url {OMS_BASE_URL}",
             labels={"deployment_id": str(deployment_id)},
-            # auto_remove=True,
+            auto_remove=True,
         )
 
     def _count_backtests(self):
