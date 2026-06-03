@@ -140,14 +140,7 @@ class OMSService:
         return (await self._get_session(token)).broker_client.get_position(symbol)
 
     async def place_order(self, token: str, request: PlaceOrderRequest) -> Order:
-        # TODO: Reject if candle_ts isn't >= t-1
         session = await self._get_session(token)
-
-        async with get_db_session() as db_sess:
-            key = await self._generate_order_key(
-                session.deployment_id, request.candle_ts, db_sess
-            )
-            await self._ensure_unique_key(key, session.deployment_id, db_sess)
 
         try:
             order = session.broker_client.place_order(request.order)
@@ -184,9 +177,7 @@ class OMSService:
                         order_type=order.order_type,
                         limit_price=order.limit_price,
                         stop_price=order.stop_price,
-                        candle_ts=request.candle_ts,
                         status=order.status,
-                        key=key,
                         request_payload=json.dumps(request.model_dump(mode="json")),
                         broker_order_id=order.id,
                     )
@@ -214,9 +205,7 @@ class OMSService:
                         filled_quantity=0,
                         limit_price=request.order.limit_price,
                         stop_price=request.order.stop_price,
-                        candle_ts=request.candle_ts,
                         status=OrderStatus.REJECTED,
-                        key=key,
                         request_payload=json.dumps(request.model_dump(mode="json")),
                     )
                     .returning(StrategyDeploymentOrders.id)

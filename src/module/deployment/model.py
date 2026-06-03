@@ -104,9 +104,7 @@ class StrategyDeploymentOrders(Base):
     limit_price: Mapped[float] = mapped_column(Float, nullable=True)
     stop_price: Mapped[float] = mapped_column(Float, nullable=True)
     avg_fill_price: Mapped[float | None] = mapped_column(Float, nullable=True)
-    candle_ts: Mapped[int] = mapped_column(BigInteger, nullable=False)
     status: Mapped[OrderStatus] = mapped_column(String, nullable=False)
-    key: Mapped[str] = mapped_column(String, nullable=False)
 
     broker_order_id: Mapped[str] = mapped_column(
         String,

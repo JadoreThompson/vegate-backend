@@ -41,7 +41,7 @@ class OMSClient:
 
         Returns:
             float: Current cash balance
-        """        
+        """
         response = self._client.get(
             f"{self._base_url}/balance", headers=self._auth_header()
         )
@@ -63,12 +63,10 @@ class OMSClient:
         self._raise_for_status(response)
         return response.json()["balance"]
 
-    def place_order(self, request: OrderRequest, candle_ts: int) -> Order:
+    def place_order(self, request: OrderRequest) -> Order:
         response = self._client.post(
             f"{self._base_url}/orders",
-            json=PlaceOrderRequest(order=request, candle_ts=candle_ts).model_dump(
-                mode="json"
-            ),
+            json=PlaceOrderRequest(order=request).model_dump(mode="json"),
             headers=self._auth_header(),
         )
 

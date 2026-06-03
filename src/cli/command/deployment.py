@@ -15,7 +15,10 @@ from module.email import EmailServiceFactory
 from module.event_bus import OutboxEventPublisher, SyncOutboxEventPublisher
 from module.health.server import HealthCheckServer
 from module.markets.feed import OHLCFeedClient
-from module.notification.channel import EmailNotificationChannel, NotificationChannelType
+from module.notification.channel import (
+    EmailNotificationChannel,
+    NotificationChannelType,
+)
 from module.notification.publisher import NotificationPublisher
 from module.notification.template import EmailNotificationTemplateEngine
 
@@ -43,7 +46,12 @@ def run(deployment_id, ohlc_feed_host, ohlc_feed_port, oms_base_url, verbose):
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    ohlc_feed_client = OHLCFeedClient(host=ohlc_feed_host, port=ohlc_feed_port)
+    ohlc_feed_client = OHLCFeedClient(
+        host=ohlc_feed_host,
+        port=ohlc_feed_port,
+        reconnect_attempts=5,
+        reconnect_delay=10,
+    )
     oms_client = OMSClient(base_url=oms_base_url)
     event_publisher = SyncOutboxEventPublisher()
 

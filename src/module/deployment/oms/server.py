@@ -2,23 +2,8 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.responses import JSONResponse
 
-# from service.oms.broker_client.exception import BrokerClientException
 from module.broker.client import BrokerClientException
-
-# from service.oms.exception import InvalidSessionException
 from .exception import InvalidSessionException
-
-# from service.oms.model import (
-#     BalanceResponse,
-#     CreateSessionRequest,
-#     CreateSessionResponse,
-#     EquityResponse,
-#     ModifyOrderRequest,
-#     OrderResponse,
-#     PlaceOrderRequest,
-#     PositionResponse,
-#     SuccessResponse,
-# )
 from .schema import (
     BalanceResponse,
     CreateSessionRequest,
