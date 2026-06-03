@@ -8,9 +8,12 @@ import pytest_asyncio
 from config import REDIS_STRATEGY_DEPLOYMENT_HEARTBEAT_KEY_PREFIX
 from module.deployment.enums import StrategyDeploymentStatus
 from module.deployment.event.deserialiser import DeploymentEventDeserialiser
-from module.deployment.event.event import DeploymentEventType, DeploymentStatusChangedEvent
+from module.deployment.event.event import (
+    DeploymentEventType,
+    DeploymentStatusChangedEvent,
+)
 from core.redis import REDIS_CLIENT
-from module.deployment.monitor import DeploymentEventMonitorService
+from module.deployment.event.listener import DeploymentEventListenerService
 
 MODULE_PATH = "module.deployment.monitor"
 
@@ -61,7 +64,7 @@ def deserialiser():
 def deployment_monitoring_service(
     mock_event_publisher, mock_kafka_consumer, deserialiser
 ):
-    service = DeploymentEventMonitorService(
+    service = DeploymentEventListenerService(
         deserialiser=deserialiser,
         redis_client=REDIS_CLIENT,
         event_publisher=mock_event_publisher,

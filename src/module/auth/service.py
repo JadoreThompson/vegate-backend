@@ -51,7 +51,7 @@ class AuthService:
 
     def __init__(
         self,
-        email_service_cls: Type[EmailService],
+        email_service: EmailService,
         redis_client: AsyncRedis = REDIS_CLIENT,
         email_verification_key_prefix: str = REDIS_EMAIL_VERIFICATION_KEY_PREFIX,
         email_verification_expiry: int = REDIS_EMAIL_VERIFCATION_EXPIRY_SECS,
@@ -65,7 +65,7 @@ class AuthService:
             email_verification_key_prefix: Prefix for Redis keys storing verification codes.
             email_verification_expiry: Expiry time (seconds) for verification codes.
         """
-        self._email_service = email_service_cls("Vegate", "no-reply@vegate.jadore.dev")
+        self._email_service = email_service
         self._redis_client = redis_client
         self._email_verification_key_prefix = email_verification_key_prefix
         self._email_verification_expiry = email_verification_expiry

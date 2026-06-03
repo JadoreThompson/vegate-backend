@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from typing import Type
 from uuid import UUID
@@ -7,19 +8,14 @@ from sqlalchemy import case, select, update
 
 from core.db import get_db_session
 from core.event import BaseEvent, EventDeserialiser
+from core.kafka import AsyncKafkaProducer
 from module.deployment.event import DeploymentEventType
 from module.deployment.event.deserialiser import DeploymentEventDeserialiser
 from module.event_bus.enums import EventStatus
-from module.event_bus import EventPublisher
 from module.event_bus.model import EventOutbox
-# from events.deployment import DeploymentEventDeserialiser, DeploymentEventType
-# from events.deserialiser import EventDeserialiser
-# from infra.db.model.event_outbox import EventOutbox
-# from infra.db.utils import get_db_session
-# from service.event.publisher import EventPublisher
 
 
-class OutboxService:
+class OutboxPoller:
     """
     Periodically publishes events pending within the outbox.
     """
@@ -30,19 +26,19 @@ class OutboxService:
         self,
         interval: int,
         batch_size: int,
-        event_publisher: EventPublisher,
+        kafka_producer: AsyncKafkaProducer,
         timeout: int = 5,
     ):
         self.interval = interval
         self.batch_size = batch_size
         self.timeout = timeout
-        self._event_publisher = event_publisher
+        self._kafka_producer = kafka_producer
 
         self._logger = logging.getLogger(self.__class__.__name__)
 
     async def run(self):
         self._logger.info(
-            "Starting outbox service (interval=%ss, batch_size=%s)",
+            "Starting outbox poller (interval=%ss, batch_size=%s)",
             self.interval,
             self.batch_size,
         )
@@ -106,7 +102,7 @@ class OutboxService:
 
             except Exception as e:
                 self._logger.exception(
-                    "Unexpected error in outbox service loop", exc_info=e
+                    "Unexpected error in outbox poller loop", exc_info=e
                 )
 
     async def _fetch_events(self):
@@ -147,7 +143,7 @@ class OutboxService:
             )
 
             await asyncio.wait_for(
-                self._event_publisher.publish(event), timeout=self.timeout
+                self._kafka_producer.send_and_wait(event.topic, json.dumps(raw_event).encode()), timeout=30
             )
 
             self._logger.info(
@@ -163,6 +159,7 @@ class OutboxService:
                 "Failed to publish outbox event " "(outbox_id=%s, raw_type=%s)",
                 outbox_id,
                 raw_event.get("type"),
+                exc_info=True,
             )
 
             return outbox_id, False

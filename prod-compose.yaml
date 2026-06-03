@@ -27,9 +27,9 @@ services:
         delay: 3s
         monitor: 30s
 
-  deployment_monitor:
+  deployment_listener:
     image: wifimemes/vegate-backend:latest
-    command: uv run src/main.py deployment monitor run
+    command: uv run src/main.py deployment listener run
     networks:
       - vegate_network
     volumes:

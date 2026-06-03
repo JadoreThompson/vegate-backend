@@ -35,7 +35,6 @@ class StrategyDeploymentResponse(CustomBaseModel):
     error_message: str | None
     created_at: datetime
     updated_at: datetime
-    stopped_at: datetime | None
     metrics: StrategyDeploymentMetricsResponse | None = None
 
 

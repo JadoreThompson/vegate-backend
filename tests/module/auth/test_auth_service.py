@@ -17,7 +17,11 @@ from config import (
     VERIFICATION_CODE_EXPIRY_SECS,
 )
 from module.auth import AuthService
-from module.auth.exception import InvalidCredentialsException, UserAlreadyExistsException, UserDoesNotExistException
+from module.auth.exception import (
+    InvalidCredentialsException,
+    UserAlreadyExistsException,
+    UserDoesNotExistException,
+)
 from module.auth.schema import (
     ChangeEmailRequest,
     ChangePasswordRequest,
@@ -39,7 +43,7 @@ def redis_client():
 
 @pytest.fixture
 def auth_service(redis_client):
-    return AuthService(email_service_cls=MagicMock, redis_client=redis_client)
+    return AuthService(email_service=MagicMock, redis_client=redis_client)
 
 
 @pytest.fixture
@@ -173,7 +177,9 @@ class TestAuthenticateUser:
                 username="unknown-user", email=None, password="PAssword1@@1"
             )
 
-            with pytest.raises(InvalidCredentialsException, match="Invalid credentials provided"):
+            with pytest.raises(
+                InvalidCredentialsException, match="Invalid credentials provided"
+            ):
                 await auth_service.authenticate_user(request, mock_db_sess)
 
         @pytest.mark.asyncio(loop_scope="session")
@@ -193,7 +199,9 @@ class TestAuthenticateUser:
                 username="test-user", email=None, password="wrong-password"
             )
 
-            with pytest.raises(InvalidCredentialsException, match="Invalid credentials provided"):
+            with pytest.raises(
+                InvalidCredentialsException, match="Invalid credentials provided"
+            ):
                 await auth_service.authenticate_user(request, mock_db_sess)
 
             auth_service.verify_password.assert_called_once_with(

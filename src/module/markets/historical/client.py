@@ -46,7 +46,7 @@ class HistoricalDataClient:
                 params["end_date"] = end_date
 
             response = self._client.get(
-                f"{self._base_url}/api/v1/markets/bars",
+                f"{self._base_url}/markets/bars",
                 params=params,
             )
             self._raise_for_status(response)

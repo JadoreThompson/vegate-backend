@@ -4,7 +4,7 @@ import logging
 import click
 
 from core.redis import REDIS_CLIENT
-from module.event_bus import EventPublisher
+from module.event_bus import OutboxEventPublisher
 from module.deployment.oms import OMSServer, OMSService
 
 logger = logging.getLogger("commands.oms")
@@ -40,7 +40,9 @@ def oms_run(host, port, reload, workers, verbose):
     click.echo(f"Starting OMS server on {host}:{port}")
 
     try:
-        oms_service = OMSService(redis_client=REDIS_CLIENT, event_publisher=EventPublisher())
+        oms_service = OMSService(
+            redis_client=REDIS_CLIENT, event_publisher=OutboxEventPublisher()
+        )
         uvicorn_kw = {
             "host": host,
             "port": port,

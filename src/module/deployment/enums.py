@@ -7,3 +7,4 @@ class StrategyDeploymentStatus(str, Enum):
     STOPPED = "stopped"
     STOP_REQUESTED = "stop_requested"
     SUSPICIOUS = "suspicious"
+    CANCELLED = "cancelled"

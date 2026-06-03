@@ -5,12 +5,13 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from module.api.schema import PaginatedResponse
-from module.deployment.enums import StrategyDeploymentStatus
 from module.broker_connections import BrokerConnectionsService
+from module.event_bus import EventPublisher
 from module.markets import MarketsService
 from module.markets.model import Instrument
 from module.strategy.model import Strategy, StrategyVersion
-from .event import DeploymentEventT
+from .enums import StrategyDeploymentStatus
+from .event import DeploymentEventT, DeploymentRequestedEvent, DeploymentStopRequestedEvent
 from .event.deserialiser import DeploymentEventDeserialiser
 from .executor import DeploymentExecutor
 from .exception import DeploymentAlreadyRunningException, DeploymentNotFoundException
@@ -35,10 +36,12 @@ class DeploymentsService:
         markets_service: MarketsService,
         deployment_executor: DeploymentExecutor,
         broker_connections_service: BrokerConnectionsService,
+        event_publisher: EventPublisher,
     ):
         self._markets_service = markets_service
         self._deployment_executor = deployment_executor
         self._broker_connections_service = broker_connections_service
+        self._event_publisher = event_publisher
 
     async def create(
         self, request: CreateDeploymentRequest, db_sess: AsyncSession
@@ -52,17 +55,23 @@ class DeploymentsService:
         await db_sess.flush()
         await db_sess.refresh(deployment)
 
-        await self._deployment_executor.run(deployment.deployment_id)
+        await self._event_publisher.publish(
+            DeploymentRequestedEvent(deployment_id=deployment.deployment_id)
+        )
 
         return deployment
 
     async def start(self, deployment_id: UUID, user_id: UUID, db_sess: AsyncSession):
         deployment = await self._get_user_deployment(deployment_id, user_id, db_sess)
-        if deployment.status in {StrategyDeploymentStatus.RUNNING, StrategyDeploymentStatus.PENDING}:
+        if deployment.status not in {
+            StrategyDeploymentStatus.PENDING,
+            StrategyDeploymentStatus.STOPPED,
+        }:
             raise DeploymentAlreadyRunningException(deployment_id)
 
-        deployment.status = StrategyDeploymentStatus.PENDING
-        await self._deployment_executor.run(deployment_id)
+        await self._event_publisher.publish(
+            DeploymentRequestedEvent(deployment_id=deployment.deployment_id)
+        )
 
     async def stop(self, deployment_id: UUID, user_id: UUID, db_sess: AsyncSession):
         deployment = await self._get_user_deployment(deployment_id, user_id, db_sess)
@@ -73,12 +82,9 @@ class DeploymentsService:
         }:
             return
 
-        deployment.status = StrategyDeploymentStatus.STOP_REQUESTED
-
-        try:
-            await self._deployment_executor.stop(deployment_id)
-        except DeploymentNotFoundException as e:
-            pass
+        await self._event_publisher.publish(
+            DeploymentStopRequestedEvent(deployment_id=deployment_id)
+        )
 
     async def get(self, deployment_id: UUID, user_id: UUID, db_sess: AsyncSession):
         return await self._get_user_deployment(deployment_id, user_id, db_sess)
@@ -158,7 +164,7 @@ class DeploymentsService:
                 for deployment, metrics in rows[:limit]
             ],
         )
-    
+
     async def get_by_version_id(
         self, version_id: UUID, db_sess: AsyncSession, *, page: int, limit: int
     ):
@@ -293,7 +299,6 @@ class DeploymentsService:
             error_message=deployment.error_message,
             created_at=deployment.created_at,
             updated_at=deployment.updated_at,
-            stopped_at=deployment.stopped_at,
             metrics=(
                 None
                 if metrics is None

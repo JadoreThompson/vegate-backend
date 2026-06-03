@@ -2,7 +2,7 @@ from multiprocessing import Process
 from uuid import UUID
 
 from core.redis import REDIS_CLIENT_SYNC
-from module.event_bus import SyncEventPublisher
+from module.event_bus import SyncOutboxEventPublisher
 from .base import BacktestExecutor
 from .exception import BacktestLimitReached
 from ..exception import BacktestInProgressException
@@ -13,7 +13,7 @@ def _run_backtest(backtest_id: UUID):
 
     runner = BacktestRunner(
         backtest_id,
-        event_publisher=SyncEventPublisher(),
+        event_publisher=SyncOutboxEventPublisher(),
         redis_client=REDIS_CLIENT_SYNC,
     )
     runner.run()

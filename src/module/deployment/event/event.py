@@ -19,6 +19,8 @@ class DeploymentEventType(str, Enum):
     DEPLOYMENT_CANCEL_ORDER_SUBMITTED = "deployment.cancel_order_submitted"
     DEPLOYMENT_STOP_REQUESTED = "deployment.stop_requested"
     DEPLOYMENT_ORDER_SUBMITTED = "deployment.order_submitted"
+    DEPLOYMENT_REQUESTED = "deployment.requested"
+    DEPLOYMENT_CANCELLED = "deployment.cancelled"
 
 
 class BaseDeploymentEvent(BaseEvent):
@@ -90,6 +92,25 @@ class DeploymentOrderAcknowledged(BaseDeploymentEvent):
     broker_order_id: str
 
 
+class DeploymentRequestedEvent(BaseDeploymentEvent):
+    type: Literal[DeploymentEventType.DEPLOYMENT_REQUESTED] = (
+        DeploymentEventType.DEPLOYMENT_REQUESTED
+    )
+
+
+class DeploymentStopRequestedEvent(BaseDeploymentEvent):
+    type: Literal[DeploymentEventType.DEPLOYMENT_STOP_REQUESTED] = (
+        DeploymentEventType.DEPLOYMENT_STOP_REQUESTED
+    )
+
+
+class DeploymentCancelledEvent(BaseDeploymentEvent):
+    type: Literal[DeploymentEventType.DEPLOYMENT_CANCELLED] = (
+        DeploymentEventType.DEPLOYMENT_CANCELLED
+    )
+    reason: Literal['capacity_constraint']
+
+
 DeploymentEventT = (
     DeploymentStatusChangedEvent
     | DeploymentErrorEvent
@@ -99,4 +120,6 @@ DeploymentEventT = (
     | DeploymentModifyOrderSubmitted
     | DeploymentCancelOrderSubmitted
     | DeploymentOrderSubmitted
+    | DeploymentRequestedEvent
+    | DeploymentCancelledEvent
 )

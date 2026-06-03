@@ -103,6 +103,9 @@ KAFKA_BOOTSTRAP_SERVERS = f"{KAFKA_HOST}:{KAFKA_PORT}"
 # Docker
 IMAGE_NAME = os.getenv("IMAGE_NAME", "vegate-backend:latest")
 
+# Event Bus
+EVENT_PUBLISHER_NAME = os.getenv("EVENT_PUBLISHER_NAME", "kafka")
+
 
 # OHLC
 OHLC_FEED_HOST = os.getenv("OHLC_FEED_HOST", "localhost")
@@ -110,12 +113,12 @@ OHLC_FEED_PORT = int(os.getenv("OHLC_FEED_PORT", "8001"))
 
 
 # OMS
-OMS_BASE_URL = os.getenv("OMS_BASE_URL", "http://localhost:8082")
+OMS_BASE_URL = os.getenv("OMS_BASE_URL", "http://localhost:8082/v1")
 OMS_SESSION_PREFIX = os.getenv("OMS_SESSION_PREFIX", "oms:session:")
 
 
 # Historical Data
-HISTORICAL_BASE_URL = os.getenv("HISTORICAL_BASE_URL", "http://localhost:8000")
+HISTORICAL_BASE_URL = os.getenv("HISTORICAL_BASE_URL", "http://localhost:8000/api/v1")
 
 
 # Backtest

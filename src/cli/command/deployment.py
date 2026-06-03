@@ -4,16 +4,20 @@ from uuid import UUID
 
 import click
 
-from core.redis import REDIS_CLIENT_SYNC
-from core.redis.client import REDIS_CLIENT
+from config import DEPLOYMENT_EXECUTOR_NAME, EMAIL_SERVICE_NAME
+from core.redis import REDIS_CLIENT_SYNC, REDIS_CLIENT
+from module.deployment.event.listener import DeploymentEventListenerService
 from module.deployment.event.deserialiser import DeploymentEventDeserialiser
-from module.deployment.monitor import DeploymentEventMonitorService
-from module.event_bus import SyncEventPublisher
-from module.event_bus.publisher.publisher import EventPublisher
+from module.deployment.executor import DeploymentExecutorFactory
+from module.deployment.oms import OMSClient
+from module.deployment.runner import StrategyDeploymentRunner
+from module.email import EmailServiceFactory
+from module.event_bus import OutboxEventPublisher, SyncOutboxEventPublisher
 from module.health.server import HealthCheckServer
 from module.markets.feed import OHLCFeedClient
-from module.deployment.runner import StrategyDeploymentRunner
-from module.deployment.oms import OMSClient
+from module.notification.channel import EmailNotificationChannel, NotificationChannelType
+from module.notification.publisher import NotificationPublisher
+from module.notification.template import EmailNotificationTemplateEngine
 
 logger = logging.getLogger("commands.deployment")
 
@@ -41,7 +45,7 @@ def run(deployment_id, ohlc_feed_host, ohlc_feed_port, oms_base_url, verbose):
 
     ohlc_feed_client = OHLCFeedClient(host=ohlc_feed_host, port=ohlc_feed_port)
     oms_client = OMSClient(base_url=oms_base_url)
-    event_publisher = SyncEventPublisher()
+    event_publisher = SyncOutboxEventPublisher()
 
     runner = StrategyDeploymentRunner(
         deployment_id=deployment_id,
@@ -53,24 +57,40 @@ def run(deployment_id, ohlc_feed_host, ohlc_feed_port, oms_base_url, verbose):
     runner.run()
 
 
-@deployment.group(name="monitor")
-def monitor():
+@deployment.group(name="listener")
+def listener():
     """Monitor live strategy deployments."""
     return
 
 
-@monitor.command(name="run")
+@listener.command(name="run")
 def run():
-    monitor_service = DeploymentEventMonitorService(
+    # Create notification channels
+    notification_channels = {}
+
+    email_service = EmailServiceFactory.create(
+        EMAIL_SERVICE_NAME, "Vegate", "no-reply@vegate.jadore.dev"
+    )
+    email_channel = EmailNotificationChannel(
+        email_service=email_service, template_engine=EmailNotificationTemplateEngine()
+    )
+    notification_channels[NotificationChannelType.EMAIL] = email_channel
+
+    # Creating listener service
+    listener_service = DeploymentEventListenerService(
         deserialiser=DeploymentEventDeserialiser(),
         redis_client=REDIS_CLIENT,
-        event_publisher=EventPublisher(),
+        event_publisher=OutboxEventPublisher(),
+        notification_publisher=NotificationPublisher(
+            notification_channels=notification_channels
+        ),
+        deployment_executor=DeploymentExecutorFactory.create(DEPLOYMENT_EXECUTOR_NAME),
     )
-    monitor_service.setup()
-    
+    listener_service.setup()
+
     health_server = HealthCheckServer()
 
     async def _run():
-        await asyncio.gather(monitor_service.run(), health_server.run_forever())
-    
+        await asyncio.gather(listener_service.run(), health_server.run_forever())
+
     asyncio.run(_run())

@@ -4,7 +4,11 @@ from uuid import UUID
 from config import OHLC_FEED_HOST, OHLC_FEED_PORT, OMS_BASE_URL
 from core.redis import REDIS_CLIENT_SYNC
 from module.deployment.executor.exception import DeploymentLimitReached
-from module.event_bus import EventPublisher, SyncEventPublisher
+from module.event_bus import (
+    EventPublisher,
+    OutboxEventPublisher,
+    SyncOutboxEventPublisher,
+)
 from module.markets.feed import OHLCFeedClient
 from .base import DeploymentExecutor
 from ..exception import DeploymentNotFoundException, DeploymentAlreadyRunningException
@@ -15,7 +19,7 @@ from ..oms import OMSClient
 def _run_strategy_deployment(deployment_id: UUID):
     ohlc_feed_client = OHLCFeedClient(host=OHLC_FEED_HOST, port=OHLC_FEED_PORT)
     oms_client = OMSClient(base_url=OMS_BASE_URL)
-    event_publisher = SyncEventPublisher()
+    event_publisher = SyncOutboxEventPublisher()
 
     runner = StrategyDeploymentRunner(
         deployment_id=deployment_id,
@@ -36,7 +40,7 @@ class ProcessDeploymentExecutor(DeploymentExecutor):
 
     def _get_event_publisher(self):
         if self._event_publisher is None:
-            self._event_publisher = EventPublisher()
+            self._event_publisher = OutboxEventPublisher()
         return self._event_publisher
 
     async def run(self, deployment_id: UUID):
@@ -47,7 +51,18 @@ class ProcessDeploymentExecutor(DeploymentExecutor):
             self._deployments[deployment_id].kill()
             self._deployments[deployment_id].join(timeout=5)
         elif len(self._deployments) >= self.max_concurrent_deployments:
-            raise DeploymentLimitReached(deployment_id)
+            dead_processes = [
+                key
+                for key, process in self._deployments.items()
+                if not process.is_alive()
+            ]
+            if not dead_processes:
+                raise DeploymentLimitReached()
+
+            for key in dead_processes:
+                self._deployments[key].kill()
+                self._deployments[key].join(timeout=5)
+                self._deployments.pop(key)
 
         p = Process(target=_run_strategy_deployment, args=(deployment_id,))
         p.start()

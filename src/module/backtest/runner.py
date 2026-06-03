@@ -88,7 +88,7 @@ class BacktestRunner:
                 self._logger.info("Strategy version object found")
                 db_sess.expunge(db_strategy_version)
 
-            self._event_publisher.enqueue(
+            self._event_publisher.publish(
                 BacktestStatusChangedEvent(
                     backtest_id=self._backtest_id, status=BacktestStatus.IN_PROGRESS
                 )
@@ -124,7 +124,7 @@ class BacktestRunner:
             self._logger.error(
                 f"An error occurred handling backtest {self._backtest_id}", exc_info=e
             )
-            self._event_publisher.enqueue(
+            self._event_publisher.publish(
                 BacktestStatusChangedEvent(
                     backtest_id=self._backtest_id, status=BacktestStatus.FAILED
                 )
@@ -194,7 +194,7 @@ class BacktestRunner:
                 equity_curve=[asdict(curve) for curve in equity_curve]
             ))
 
-            self._event_publisher.enqueue(
+            self._event_publisher.publish(
                 BacktestStatusChangedEvent(
                     backtest_id=self._backtest_id, status=BacktestStatus.COMPLETED
                 ),

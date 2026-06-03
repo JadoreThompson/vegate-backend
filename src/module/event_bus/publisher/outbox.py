@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from module.event_bus.enums import EventStatus
 from core.event import BaseEvent
 from core.db import get_db_session
-from .publisher import EventPublisher
+from .base import EventPublisher
 from ..model import EventOutbox
 
 
@@ -13,7 +13,7 @@ class OutboxEventPublisher(EventPublisher):
     def __init__(self):
         super().__init__()
 
-    async def enqueue(self, event, db_sess=None):
+    async def publish(self, event, db_sess=None):
         if db_sess is None:
             async with get_db_session() as db_sess:
                 await self._persist_event(event, db_sess)

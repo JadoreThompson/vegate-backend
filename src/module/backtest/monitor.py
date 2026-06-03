@@ -206,17 +206,17 @@ class BacktestMonitor:
                     event = BacktestStatusChangedEvent(
                         backtest_id=id, status=BacktestStatus.SUSPICIOUS
                     )
-                    await self._event_publisher.enqueue(event)
+                    await self._event_publisher.publish(event)
                 for id in to_failed:
                     event = BacktestStatusChangedEvent(
                         backtest_id=id, status=BacktestStatus.FAILED
                     )
-                    await self._event_publisher.enqueue(event)
+                    await self._event_publisher.publish(event)
                 for id in to_running:
                     event = BacktestStatusChangedEvent(
                         backtest_id=id, status=BacktestStatus.IN_PROGRESS
                     )
-                    await self._event_publisher.enqueue(event)
+                    await self._event_publisher.publish(event)
 
                 async with self._lock:
                     for item in to_suspicious:

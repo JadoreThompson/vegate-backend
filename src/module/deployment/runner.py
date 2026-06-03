@@ -81,7 +81,7 @@ class StrategyDeploymentRunner:
         try:
             self.setup()
             self._alive = True
-            self._event_publisher.enqueue(
+            self._event_publisher.publish(
                 DeploymentStatusChangedEvent(
                     deployment_id=self._deployment_id,
                     status=StrategyDeploymentStatus.RUNNING,
@@ -104,7 +104,7 @@ class StrategyDeploymentRunner:
             pass
         finally:
             self._alive = False
-            self._event_publisher.enqueue(
+            self._event_publisher.publish(
                 DeploymentStatusChangedEvent(
                     deployment_id=self._deployment_id,
                     status=StrategyDeploymentStatus.STOPPED,

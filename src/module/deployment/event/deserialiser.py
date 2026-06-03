@@ -4,12 +4,14 @@ from core.protocol import EventDeserialiser
 from .event import (
     BaseDeploymentEvent,
     DeploymentCancelOrderSubmitted,
+    DeploymentCancelledEvent,
     DeploymentErrorEvent,
     DeploymentEventType,
     DeploymentModifyOrderSubmitted,
     DeploymentOrderAcknowledged,
     DeploymentOrderRejected,
     DeploymentOrderSubmitted,
+    DeploymentRequestedEvent,
     DeploymentStatusChangedEvent,
     DeploymentStopRequestedEvent,
 )
@@ -27,6 +29,8 @@ class DeploymentEventDeserialiser(EventDeserialiser[BaseDeploymentEvent]):
             DeploymentEventType.DEPLOYMENT_MODIFY_ORDER_SUBMITTED: DeploymentModifyOrderSubmitted,
             DeploymentEventType.DEPLOYMENT_ORDER_REJECTED: DeploymentOrderRejected,
             DeploymentEventType.DEPLOYMENT_ORDER_ACKNOWLEDGED: DeploymentOrderAcknowledged,
+            DeploymentEventType.DEPLOYMENT_REQUESTED: DeploymentRequestedEvent,
+            DeploymentEventType.DEPLOYMENT_CANCELLED: DeploymentCancelledEvent,
         }
 
     def deserialise_json(self, payload: str | bytes):

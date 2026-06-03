@@ -8,7 +8,7 @@ from core.redis import REDIS_CLIENT, REDIS_CLIENT_SYNC
 from module.backtest.event.deserialiser import BacktestEventDeserialiser
 from module.backtest.monitor import BacktestMonitor
 from module.backtest.runner import BacktestRunner
-from module.event_bus import EventPublisher, SyncEventPublisher
+from module.event_bus import OutboxEventPublisher, SyncOutboxEventPublisher
 from module.health.server import HealthCheckServer
 
 logger = logging.getLogger("commands.backtest")
@@ -41,7 +41,7 @@ def backtest_run(backtest_id, verbose):
     try:
         runner = BacktestRunner(
             backtest_id=backtest_id,
-            event_publisher=SyncEventPublisher(),
+            event_publisher=SyncOutboxEventPublisher(),
             redis_client=REDIS_CLIENT_SYNC,
         )
         runner.run()
@@ -65,7 +65,7 @@ def run():
     monitor_service = BacktestMonitor(
         deserialiser=BacktestEventDeserialiser(),
         redis_client=REDIS_CLIENT,
-        event_publisher=EventPublisher(),
+        event_publisher=OutboxEventPublisher(),
     )
     monitor_service.setup()
 

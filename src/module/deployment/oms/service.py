@@ -155,13 +155,13 @@ class OMSService:
             order_id = uuid4()
             order.id = str(order_id)
 
-            await self._event_publisher.enqueue(
+            await self._event_publisher.publish(
                 DeploymentOrderSubmitted(
                     deployment_id=session.deployment_id, order=request.order
                 ),
                 STRATEGY_DEPLOYMENT_EVENTS_KEY,
             )
-            await self._event_publisher.enqueue(
+            await self._event_publisher.publish(
                 DeploymentOrderAcknowledged(
                     deployment_id=session.deployment_id,
                     order=order,
@@ -223,7 +223,7 @@ class OMSService:
                 )
                 await db_sess.commit()
 
-            await self._event_publisher.enqueue(
+            await self._event_publisher.publish(
                 DeploymentOrderRejected(
                     deployment_id=session.deployment_id, order_id=order_id
                 ),
@@ -246,7 +246,7 @@ class OMSService:
             broker_order_id, limit_price, stop_price
         )
 
-        await self._event_publisher.enqueue(
+        await self._event_publisher.publish(
             DeploymentModifyOrderSubmitted(
                 deployment_id=session.deployment_id,
                 order_id=order_id,
@@ -279,7 +279,7 @@ class OMSService:
         session = await self._get_session(token)
         success = session.broker_client.cancel_order(broker_order_id)
 
-        await self._event_publisher.enqueue(
+        await self._event_publisher.publish(
             DeploymentCancelOrderSubmitted(
                 deployment_id=session.deployment_id,
                 order_id=order_id,
