@@ -26,7 +26,7 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
         except Exception as e:
             await session.rollback()
             if isinstance(e, InterfaceError):
-                logger.info("Received InterfaceErrro, recreating session maker")
+                logger.info("Received InterfaceError, recreating session maker")
                 smaker.configure(
                     bind=DB_ENGINE, class_=AsyncSession, expire_on_commit=False
                 )
@@ -40,6 +40,11 @@ def get_db_sess_sync() -> Generator[Session, None, None]:
     with smaker_sync.begin() as sess:
         try:
             yield sess
-        except:
+        except Exception as e:
             sess.rollback()
+            if isinstance(e, InterfaceError):
+                logger.info("Received InterfaceError, recreating session maker")
+                smaker_sync.configure(
+                    bind=DB_ENGINE_SYNC, class_=Session, expire_on_commit=False
+                )
             raise
