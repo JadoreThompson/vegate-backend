@@ -8,11 +8,13 @@ from uuid import UUID
 import websockets
 from sqlalchemy import insert, select
 
+from config import ALPACA_API_KEY, ALPACA_SECRET_KEY
 from core.db import get_db_session
 from module.broker.enums import BrokerType
 from .exception import AlpacaOHLCFeedException
 from ..base import OHLCFeed
 from ...enums import MarketType, Timeframe
+from ..exception import MaxRetryAttemptsException
 from ...model import OHLC, Instrument
 from ...schema import OHLC as OHLCSchema
 
@@ -27,8 +29,10 @@ class AlpacaOHLCFeed(OHLCFeed):
         symbol: str,
         market_type: MarketType,
         timeframe: Timeframe,
-        api_key: str,
-        secret_key: str,
+        api_key: str = ALPACA_API_KEY,
+        secret_key: str = ALPACA_SECRET_KEY,
+        retry_attempts = 5,
+        retry_delay = 10,
     ):
         self._market_type = market_type
         self._symbol = symbol
@@ -36,6 +40,8 @@ class AlpacaOHLCFeed(OHLCFeed):
         self._timeframe = timeframe
         self._api_key = api_key
         self._secret_key = secret_key
+        self._retry_attempts = retry_attempts
+        self._retry_delay = retry_delay
 
         self._on_candle = None
         self._instrument_id: UUID | None = None
@@ -78,11 +84,24 @@ class AlpacaOHLCFeed(OHLCFeed):
                     }
                 )
             )
-            resp = await ws.recv()
+            msg = await ws.recv()
 
-            await ws.send(json.dumps(self._generate_subscription_message()))
-            resp = await ws.recv()
-            self._logger.info(f"Subscribe response: {resp}")
+            connected = False
+            for _ in range(self._retry_attempts):
+                await ws.send(json.dumps(self._generate_subscription_message()))
+                msg = await ws.recv()
+                payload = json.loads(msg)
+                self._logger.info(f"Subscribe response: {msg}")
+                
+                if payload[0]["T"] == "success":
+                    connected = True
+                    break
+                    
+                await asyncio.sleep(self._retry_delay)
+                    
+            if not connected:
+                self._logger.warning("Failed to connect. Aborting run.")
+                raise MaxRetryAttemptsException()
 
             # Skipping confirmation
             msg = await ws.recv()
