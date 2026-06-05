@@ -3,11 +3,13 @@ from uuid import UUID
 
 import pytest
 
-from module.backtest.exception import BacktestInProgressException
 from module.backtest.executor import ProcessBacktestExecutor
+from module.backtest.executor.exception import BacktestLimitReached
+from module.backtest.exception import BacktestInProgressException
 
 BACKTEST_ID = UUID("11111111-1111-1111-1111-111111111111")
 BACKTEST_ID_2 = UUID("22222222-2222-2222-2222-222222222222")
+BACKTEST_ID_3 = UUID("33333333-3333-3333-3333-333333333333")
 
 PROCESS_PATCH_TARGET = "module.backtest.executor.process.Process"
 
@@ -60,6 +62,18 @@ class TestDeployBacktest:
 
             assert BACKTEST_ID in executor._backtests
             assert executor._backtests[BACKTEST_ID] is mock_process
+
+    @pytest.mark.asyncio
+    async def test_run_backtest_raises_limit_reached(self, executor):
+        executor.max_concurrent_backtests = 1
+        with patch(PROCESS_PATCH_TARGET) as MockProcess:
+            mock_process = MockProcess.return_value
+            mock_process.is_alive.return_value = True
+
+            await executor.run(BACKTEST_ID)
+
+            with pytest.raises(BacktestLimitReached):
+                await executor.run(BACKTEST_ID_2)
 
     @pytest.mark.asyncio
     async def test_run_backtest_reuses_terminated_process(self, executor):
@@ -227,7 +241,7 @@ class TestMultipleBacktests:
     @pytest.mark.asyncio
     async def test_stop_all_terminates_every_running_backtest(self, executor):
         executor.max_concurrent_backtests = 2
-        
+
         with patch(PROCESS_PATCH_TARGET) as MockProcess:
             first_process = make_mock_process(is_alive=True)
             second_process = make_mock_process(is_alive=True)
@@ -241,3 +255,30 @@ class TestMultipleBacktests:
             first_process.join.assert_called_once_with(timeout=5)
             second_process.terminate.assert_called_once()
             second_process.join.assert_called_once_with(timeout=5)
+
+    @pytest.mark.asyncio
+    async def test_concurrency_limit_respected_after_stop_and_readd(self, executor):
+        executor.max_concurrent_backtests = 2
+
+        with patch(PROCESS_PATCH_TARGET) as MockProcess:
+            first_process = make_mock_process(is_alive=True)
+            second_process = make_mock_process(is_alive=True)
+            third_process = make_mock_process(is_alive=True)
+            MockProcess.side_effect = [first_process, second_process, third_process]
+
+            await executor.run(BACKTEST_ID)
+            await executor.run(BACKTEST_ID_2)
+
+            with pytest.raises(BacktestLimitReached):
+                await executor.run(BACKTEST_ID_3)
+
+            first_process.is_alive.return_value = False
+            await executor.stop(BACKTEST_ID)
+
+            assert BACKTEST_ID in executor._backtests
+
+            await executor.run(BACKTEST_ID)
+            assert executor._backtests[BACKTEST_ID] is third_process
+
+            with pytest.raises(BacktestLimitReached):
+                await executor.run(BACKTEST_ID_3)
