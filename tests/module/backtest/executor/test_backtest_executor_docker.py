@@ -47,7 +47,7 @@ class TestRunBacktest:
         assert args[0] == image_name
         assert kwargs["name"] == f"bt_{mock_backtest_id}"
         assert kwargs["network"] == "vegate_network"
-        assert kwargs["command"] == f"backtest run --backtest-id {mock_backtest_id}"
+        assert kwargs["command"] == f"uv run src/main.py backtest run --backtest-id {mock_backtest_id}"
         assert kwargs["labels"] == {"backtest_id": mock_backtest_id}
 
         assert result == {
