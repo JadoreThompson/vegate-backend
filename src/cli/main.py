@@ -9,6 +9,7 @@ from cli.command.markets import markets
 from cli.command.oms import oms
 from cli.command.outbox import outbox
 from cli.command.deployment import deployment
+from cli.command.notification import notification
 
 
 @click.group(invoke_without_command=True)
@@ -33,3 +34,4 @@ cli.add_command(markets)
 cli.add_command(oms)
 cli.add_command(outbox)
 cli.add_command(deployment)
+cli.add_command(notification)

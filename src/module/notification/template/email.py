@@ -3,6 +3,7 @@ from .base import NotificationTemplateEngine
 from ..schema import (
     NotificationType,
     Notification,
+    BacktestCapacityConstrainedNotificationContext,
     DeploymentCapacityConstrainedNotificationContext,
 )
 
@@ -23,6 +24,8 @@ class EmailNotificationTemplateEngine(
     ) -> RenderedEmailTemplate:
         if notification.type == NotificationType.DEPLOYMENT_CAPACITY_CONSTRAINED:
             return self._render_deployment_capacity_constrained(notification, recipient)
+        if notification.type == NotificationType.BACKTEST_CAPACITY_CONSTRAINED:
+            return self._render_backtest_capacity_constrained(notification, recipient)
         raise ValueError(f"Unsupported notification type: {notification.type}")
 
     def _render_deployment_capacity_constrained(
@@ -42,6 +45,29 @@ class EmailNotificationTemplateEngine(
                 f"Dear {recipient},\n\n"
                 f"Deployment capacity is currently constrained."
                 f"Your deployment '{notification.context.deployment_id}' has been cancelled."
+                f"Please take necessary actions.\n\n"
+                "Best regards,\n"
+                "Vega Team"
+            ),
+        )
+
+    def _render_backtest_capacity_constrained(
+        self, notification: Notification, recipient: str
+    ) -> RenderedEmailTemplate:
+        if not isinstance(
+            notification.context, BacktestCapacityConstrainedNotificationContext
+        ):
+            raise ValueError(
+                "Invalid notification context type. Expected BacktestCapacityConstrainedNotificationContext."
+            )
+
+        return RenderedEmailTemplate(
+            recipient=recipient,
+            subject="Backtest Capacity Constrained",
+            body=(
+                f"Dear {recipient},\n\n"
+                f"Backtest capacity is currently constrained."
+                f"Your backtest '{notification.context.backtest_id}' has been cancelled."
                 f"Please take necessary actions.\n\n"
                 "Best regards,\n"
                 "Vega Team"

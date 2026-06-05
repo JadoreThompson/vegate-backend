@@ -19,6 +19,7 @@ from module.notification.channel import (
     EmailNotificationChannel,
     NotificationChannelType,
 )
+from module.notification.poller import NotificationPoller
 from module.notification.publisher import NotificationPublisher
 from module.notification.template import EmailNotificationTemplateEngine
 
@@ -89,16 +90,25 @@ def run():
         deserialiser=DeploymentEventDeserialiser(),
         redis_client=REDIS_CLIENT,
         event_publisher=OutboxEventPublisher(),
-        notification_publisher=NotificationPublisher(
-            notification_channels=notification_channels
-        ),
+        notification_publisher=NotificationPublisher(),
         deployment_executor=DeploymentExecutorFactory.create(DEPLOYMENT_EXECUTOR_NAME),
     )
     listener_service.setup()
 
+    notification_poller = NotificationPoller(
+        notification_channels=notification_channels,
+        interval=5,
+        batch_size=100,
+        timeout=30,
+    )
+
     health_server = HealthCheckServer()
 
     async def _run():
-        await asyncio.gather(listener_service.run(), health_server.run_forever())
+        await asyncio.gather(
+            listener_service.run(),
+            notification_poller.run(),
+            health_server.run_forever(),
+        )
 
     asyncio.run(_run())

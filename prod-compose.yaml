@@ -137,10 +137,29 @@ services:
         delay: 3s
         monitor: 30s
 
+  notification_poller:
+    image: wifimemes/vegate-backend:latest
+    command: uv run src/main.py notification poller run --interval 2 --batch-size 1000 --timeout 5
+    networks:
+      - vegate_network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5555/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 5s
+      start_interval: 5s
+    deploy:
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+        delay: 3s
+        monitor: 30s
+
   docs_server:
-    # build:
-    #   dockerfile: docs.Dockerfile
-    #   context: .
     image: wifimemes/vegate-backend-docs:latest
     networks:
       - vegate_network

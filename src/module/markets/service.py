@@ -33,7 +33,7 @@ class MarketsService:
                 Instrument.id,
                 Instrument.broker_type,
                 Instrument.market_type,
-                Instrument.symbol,
+                Instrument.native_symbol,
                 OHLC.timeframe,
                 func.min(OHLC.timestamp).label("start_ts"),
                 func.max(OHLC.timestamp).label("end_ts"),
@@ -44,7 +44,7 @@ class MarketsService:
         )
 
         if symbol is not None:
-            stmt = stmt.where(Instrument.symbol == symbol)
+            stmt = stmt.where(Instrument.native_symbol == symbol)
         if broker_type is not None:
             stmt = stmt.where(Instrument.broker_type == broker_type)
         if market_type is not None:
@@ -61,7 +61,7 @@ class MarketsService:
         data = [
             InstrumentInfo(
                 id=row.id,
-                symbol=row.symbol,
+                symbol=row.native_symbol,
                 broker_type=row.broker_type,
                 market_type=row.market_type,
                 timeframe=row.timeframe,
