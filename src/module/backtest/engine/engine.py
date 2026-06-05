@@ -4,7 +4,7 @@ from datetime import datetime
 from module.broker import Order
 from module.broker.enums import OrderSide, OrderStatus, OrderType
 from module.markets.schema import OHLC
-from module.strategy.strategy import BaseStrategy
+from vegate.strategy.base import BaseStrategy
 from .schema import EquityCurvePoint, BacktestMetrics
 from .oms_client import BacktestOMSClient
 from .ohlc_feed_client import BacktestOHLCFeedClient

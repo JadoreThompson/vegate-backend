@@ -1,5 +1,4 @@
 import logging
-import os
 import time
 from threading import Thread
 from uuid import UUID
@@ -7,15 +6,16 @@ from uuid import UUID
 from redis import Redis
 from sqlalchemy import select
 
-from config import HISTORICAL_BASE_URL, REDIS_STRATEGY_DEPLOYMENT_HEARTBEAT_KEY_PREFIX, SRC_PATH
+from config import HISTORICAL_BASE_URL, REDIS_STRATEGY_DEPLOYMENT_HEARTBEAT_KEY_PREFIX
 from core.db import get_db_sess_sync
 from module.deployment.enums import StrategyDeploymentStatus
 
 from module.event_bus import SyncEventPublisher
 from module.markets.feed import OHLCFeedClient
-from module.markets.historical import HistoricalDataClient
+from module.strategy.loader import StrategyLoader
 from module.strategy.model import Strategy, StrategyVersion
-from module.strategy.strategy import BaseStrategy
+from vegate.markets.historical.client import HistoricalDataClient
+from vegate.strategy.base import BaseStrategy
 from .event import DeploymentStatusChangedEvent
 from .model import StrategyDeployments
 from .oms import OMSClient
@@ -45,7 +45,6 @@ class StrategyDeploymentRunner:
         self._alive = False
         self._heartbeat_th: Thread | None = None
         self._strategy: BaseStrategy | None = None
-        self._fpath = os.path.join(SRC_PATH, "user_strategy.py")
         self._logger = logging.getLogger(self.__class__.__name__)
 
     def setup(self):
@@ -74,8 +73,13 @@ class StrategyDeploymentRunner:
                 f"Deployment with id '{self._deployment_id}' is not stopped. Aborting deployment"
             )
 
-        self._write_code(strategy_version.code)
-        self._strategy = self._load_strategy()
+        historical_data_client = HistoricalDataClient(base_url=HISTORICAL_BASE_URL)
+        loader = StrategyLoader(
+            self._ohlc_feed_client,
+            self._oms_client,
+            historical_data_client,
+        )
+        self._strategy = loader.load_strategy(strategy_version.code)
 
     def run(self) -> None:
         try:
@@ -120,27 +124,6 @@ class StrategyDeploymentRunner:
             self._strategy.shutdown()
             self._ohlc_feed_client.close()
             self._oms_client.disconnect()
-
-    def _write_code(self, code: str):
-        with open(self._fpath, "w") as f:
-            f.write(code)
-        self._logger.info(f"Strategy code written to {self._fpath}")
-
-    def _load_strategy(self) -> BaseStrategy:
-        if not os.path.exists(self._fpath):
-            raise FileNotFoundError(f"File not found at '{self._fpath}'")
-
-        from user_strategy import UserStrategy
-
-        historical_data_client = HistoricalDataClient(base_url=HISTORICAL_BASE_URL)
-
-        strategy = UserStrategy(
-            ohlc_feed_client=self._ohlc_feed_client,
-            oms_client=self._oms_client,
-            historical_data_client=historical_data_client,
-        )
-
-        return strategy
 
     def _heartbeat_loop(self):
         try:

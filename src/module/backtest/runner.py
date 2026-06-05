@@ -1,6 +1,5 @@
 from dataclasses import asdict
 import logging
-import os
 import time
 
 from threading import Thread
@@ -9,12 +8,13 @@ from uuid import UUID
 from redis import Redis
 from sqlalchemy import insert
 
-from config import HISTORICAL_BASE_URL, REDIS_BACKTEST_HEARTBEAT_KEY_PREFIX, SRC_PATH
+from config import HISTORICAL_BASE_URL, REDIS_BACKTEST_HEARTBEAT_KEY_PREFIX
 from core.db import get_db_sess_sync
 from module.event_bus import SyncEventPublisher
-from module.markets.historical import HistoricalDataClient
+from module.strategy.loader import StrategyLoader
 from module.strategy.model import StrategyVersion
-from module.strategy.strategy import BaseStrategy
+from vegate.markets.historical.client import HistoricalDataClient
+from vegate.strategy.base import BaseStrategy
 from .engine import BacktestEngine
 from .engine.ohlc_feed_client import BacktestOHLCFeedClient
 from .engine.ohlc_feed_client_proxy import BacktestOHLCFeedClientProxy
@@ -95,15 +95,19 @@ class BacktestRunner:
             )
 
             # Create broker and run backtest
-            self._write_strategy_code(db_strategy_version.code)
-
             ohlc_feed_client = BacktestOHLCFeedClient(
                 int(db_backtest.start_date.timestamp()),
                 int(db_backtest.end_date.timestamp()),
             )
             ohlc_feed_client_proxy = BacktestOHLCFeedClientProxy(ohlc_feed_client, self)
             oms_client = BacktestOMSClient(db_backtest.starting_balance)
-            strategy = self._load_user_strategy(ohlc_feed_client_proxy, oms_client)
+            historical_data_client = HistoricalDataClient(base_url=HISTORICAL_BASE_URL)
+            loader = StrategyLoader(
+                ohlc_feed_client_proxy,
+                oms_client,
+                historical_data_client,
+            )
+            strategy = loader.load_strategy(db_strategy_version.code)
 
             bt_engine = BacktestEngine(
                 strategy,
@@ -131,35 +135,6 @@ class BacktestRunner:
             )
         finally:
             self._is_running = False
-
-    def _write_strategy_code(self, code: str) -> None:
-        """Write strategy code to user_strategy.py file.
-
-        Args:
-            code: Strategy code to write
-        """
-        temp_strategy_path = os.path.join(SRC_PATH, "user_strategy.py")
-        with open(temp_strategy_path, "w") as f:
-            f.write(code)
-        self._logger.info(f"Strategy code written to {temp_strategy_path}")
-
-    def _load_user_strategy(
-        self, ohlc_feed_client: BacktestOHLCFeedClient, oms_client: BacktestOMSClient
-    ) -> BaseStrategy:
-        """Load and instantiate strategy from user_strategy.py.
-
-        Returns:
-            Strategy instance
-        """
-        from user_strategy import UserStrategy  # type: ignore
-
-        historical_data_client = HistoricalDataClient(base_url=HISTORICAL_BASE_URL)
-
-        return UserStrategy(
-            ohlc_feed_client=ohlc_feed_client,
-            oms_client=oms_client,
-            historical_data_client=historical_data_client,
-        )
 
     def _store_results(self, result: BacktestMetricsDto) -> None:
         """Emit backtest results as events.
