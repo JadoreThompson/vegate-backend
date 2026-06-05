@@ -6,13 +6,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from module.api.schema import PaginatedResponse
+from module.event_bus import EventPublisher
 from module.markets import MarketsService
 from module.markets.model import Instrument
 from module.strategy import StrategyService
 from module.strategy.model import Strategy, StrategyVersion
 from .enums import BacktestStatus
+from .event import BacktestRequestedEvent
 from .exception import BacktestNotFoundException, BacktestInProgressException
-from .executor import BacktestExecutor
 from .model import Backtest, BacktestMetrics, BacktestOrder
 from .schema import (
     CreateBacktestRequest,
@@ -27,13 +28,12 @@ class BacktestsService:
     def __init__(
         self,
         strategy_service: StrategyService,
-        backtest_executor: BacktestExecutor,
+        event_publisher: EventPublisher,
         markets_service: MarketsService,
     ):
         self._strategy_service = strategy_service
-        self._backtest_executor = backtest_executor
+        self._event_publisher = event_publisher
         self._markets_service = markets_service
-
         self._logger = logging.getLogger(self.__class__.__name__)
 
     async def create(
@@ -52,9 +52,9 @@ class BacktestsService:
         db_sess.add(backtest)
         await db_sess.flush()
         await db_sess.refresh(backtest)
-
-        await self._backtest_executor.run(backtest.id)
-
+        await self._event_publisher.publish(
+            BacktestRequestedEvent(backtest_id=backtest.id)
+        )
         return backtest
 
     async def get_backtest(

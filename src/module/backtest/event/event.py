@@ -11,11 +11,13 @@ from ..schema import BacktestMetricsSchema
 class BacktestEventType(str, Enum):
     STATUS_CHANGED = "backtest.status_changed"
     ERROR = "backtest.error"
+    REQUESTED = "backtest.requested"
+    STOP_REQUESTED = "backtest.stop_requested"
+    CANCELLED = "backtest.cancelled"
 
 
 class BacktestEvent(BaseEvent):
     topic: ClassVar[str] = BACKTEST_EVENTS_KEY
-
     type: BacktestEventType
     backtest_id: UUID
 
@@ -25,4 +27,22 @@ class BacktestStatusChangedEvent(BacktestEvent):
     status: BacktestStatus
 
 
-BacktestEventT = BacktestStatusChangedEvent
+class BacktestRequestedEvent(BacktestEvent):
+    type: Literal[BacktestEventType.REQUESTED] = BacktestEventType.REQUESTED
+
+
+class BacktestStopRequestedEvent(BacktestEvent):
+    type: Literal[BacktestEventType.STOP_REQUESTED] = BacktestEventType.STOP_REQUESTED
+
+
+class BacktestCancelledEvent(BacktestEvent):
+    type: Literal[BacktestEventType.CANCELLED] = BacktestEventType.CANCELLED
+    reason: str
+
+
+BacktestEventT = (
+    BacktestStatusChangedEvent
+    | BacktestRequestedEvent
+    | BacktestStopRequestedEvent
+    | BacktestCancelledEvent
+)

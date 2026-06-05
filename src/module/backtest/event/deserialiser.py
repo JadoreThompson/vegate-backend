@@ -3,9 +3,12 @@ from typing import Type
 
 from core.protocol import EventDeserialiser
 from .event import (
+    BacktestCancelledEvent,
     BacktestEvent,
     BacktestEventType,
-    BacktestStatusChangedEvent
+    BacktestRequestedEvent,
+    BacktestStatusChangedEvent,
+    BacktestStopRequestedEvent,
 )
 
 
@@ -13,7 +16,10 @@ class BacktestEventDeserialiser(EventDeserialiser[BacktestEvent]):
 
     def __init__(self):
         self._registry: dict[BacktestEventType, Type[BacktestEvent]] = {
-            BacktestEventType.STATUS_CHANGED: BacktestStatusChangedEvent
+            BacktestEventType.STATUS_CHANGED: BacktestStatusChangedEvent,
+            BacktestEventType.REQUESTED: BacktestRequestedEvent,
+            BacktestEventType.STOP_REQUESTED: BacktestStopRequestedEvent,
+            BacktestEventType.CANCELLED: BacktestCancelledEvent,
         }
 
     def deserialise_json(self, payload: str | bytes):

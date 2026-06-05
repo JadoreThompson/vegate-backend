@@ -43,10 +43,14 @@ async def lifespan(app: FastAPI):
     object_registry = ObjectRegistry()
     app.state.object_registry = object_registry
 
+    event_publisher = EventPublisherFactory.create(EVENT_PUBLISHER_NAME)
+
     jwt_service = JWTService()
     object_registry.register(jwt_service)
 
-    email_service = EmailServiceFactory.create(EMAIL_SERVICE_NAME, "Vegate", "no-reply@vegate.jadore.dev")
+    email_service = EmailServiceFactory.create(
+        EMAIL_SERVICE_NAME, "Vegate", "no-reply@vegate.jadore.dev"
+    )
     auth_service = AuthService(email_service=email_service)
     object_registry.register(auth_service)
 
@@ -63,15 +67,11 @@ async def lifespan(app: FastAPI):
     backtest_executor.max_concurrent_backtests = MAX_CONCURRENT_BACKTESTS
     backtest_service = BacktestsService(
         strategy_service=strategy_service,
-        backtest_executor=backtest_executor,
+        event_publisher=event_publisher,
         markets_service=markets_service,
     )
     object_registry.register(backtest_service)
 
-    broker_connections_service = BrokerConnectionsService()
-    object_registry.register(backtest_service)
-
-    event_publisher = EventPublisherFactory.create(EVENT_PUBLISHER_NAME)
     deployment_executor = DeploymentExecutorFactory.create(BACKTEST_EXECUTOR_NAME)
     deployment_executor.max_concurrent_deployments = MAX_CONCURRENT_DEPLOYMENTS
     deployment_service = DeploymentsService(
@@ -89,7 +89,11 @@ async def lifespan(app: FastAPI):
     yield
 
     task.cancel()
-    await asyncio.gather(task, return_exceptions=True)
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
     await object_registry.close()
 
 

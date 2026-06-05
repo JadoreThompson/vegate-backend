@@ -4,12 +4,21 @@ import sys
 
 import click
 
+from config import BACKTEST_EXECUTOR_NAME, EMAIL_SERVICE_NAME
 from core.redis import REDIS_CLIENT, REDIS_CLIENT_SYNC
 from module.backtest.event.deserialiser import BacktestEventDeserialiser
+from module.backtest.executor import BacktestExecutorFactory
 from module.backtest.monitor import BacktestMonitor
 from module.backtest.runner import BacktestRunner
+from module.email import EmailServiceFactory
 from module.event_bus import OutboxEventPublisher, SyncOutboxEventPublisher
 from module.health.server import HealthCheckServer
+from module.notification.channel import (
+    EmailNotificationChannel,
+    NotificationChannelType,
+)
+from module.notification.publisher import NotificationPublisher
+from module.notification.template import EmailNotificationTemplateEngine
 
 logger = logging.getLogger("commands.backtest")
 
@@ -62,10 +71,22 @@ def monitor():
 
 @monitor.command(name="run")
 def run():
+    notification_channels = {}
+
+    email_service = EmailServiceFactory.create(
+        EMAIL_SERVICE_NAME, "Vegate", "no-reply@vegate.jadore.dev"
+    )
+    email_channel = EmailNotificationChannel(
+        email_service=email_service, template_engine=EmailNotificationTemplateEngine()
+    )
+    notification_channels[NotificationChannelType.EMAIL] = email_channel
+
     monitor_service = BacktestMonitor(
         deserialiser=BacktestEventDeserialiser(),
         redis_client=REDIS_CLIENT,
         event_publisher=OutboxEventPublisher(),
+        backtest_executor=BacktestExecutorFactory.create(BACKTEST_EXECUTOR_NAME),
+        notification_publisher=NotificationPublisher(),
     )
     monitor_service.setup()
 
@@ -73,6 +94,5 @@ def run():
 
     async def _run():
         await asyncio.gather(monitor_service.run(), health_server.run_forever())
-    
-    asyncio.run(_run())
 
+    asyncio.run(_run())
