@@ -1,16 +1,20 @@
-import time
-from collections import defaultdict
-
+from redis.asyncio import Redis as AsyncRedis
 from starlette.types import ASGIApp, Scope, Receive, Send
 
 
 class RateLimitMiddleware:
 
-    def __init__(self, app: ASGIApp, limit: int = 1000, window: int = 60):
+    def __init__(
+        self,
+        app: ASGIApp,
+        redis_client: AsyncRedis,
+        limit: int = 1000,
+        window: int = 60,
+    ):
         self.app = app
+        self._redis_client = redis_client
         self.limit = limit
         self.window = window
-        self._records = defaultdict(lambda: (0.0, 0))
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
         if scope["type"] != "http":
@@ -23,18 +27,14 @@ class RateLimitMiddleware:
             await self._send_error(send, 400, "Client host not found")
             return
 
-        now = time.time()
-        start, count = self._records[host]
+        key = f"rate_limit:{host}"
+        count = await self._redis_client.incr(key)
+        if count == 1:
+            await self._redis_client.expire(key, self.window)
 
-        if now - start >= self.window:
-            start = now
-            count = 0
-
-        if count >= self.limit:
-            await self._send_error(send, 429, f"Rate limit exceeded")
+        if count > self.limit:
+            await self._send_error(send, 429, "Rate limit exceeded")
             return
-
-        self._records[host] = (start, count + 1)
 
         await self.app(scope, receive, send)
 

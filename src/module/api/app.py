@@ -34,6 +34,7 @@ from module.markets.router import router as markets_router
 from module.strategy import StrategyService
 from module.strategy.router import router as strategies_router
 from module.user.router import router as user_router
+from core.redis import REDIS_CLIENT
 from .middleware import RateLimitMiddleware, GlobalExceptionHandlerMiddleware
 from .object_registry import ObjectRegistry
 from .router import router as api_router
@@ -110,7 +111,7 @@ app.add_middleware(
     allow_headers=["*"],
     allow_credentials=True,
 )
-app.add_middleware(RateLimitMiddleware)
+app.add_middleware(RateLimitMiddleware, redis_client=REDIS_CLIENT, limit=1000, window=60)
 
 
 app.include_router(api_router)
