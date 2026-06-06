@@ -92,7 +92,7 @@ class TestCreateBacktest:
         from module.api.app import app
 
         backtests_service = app.state.object_registry.get(BacktestsService)
-        backtests_service._backtest_executor.run = AsyncMock()
+        backtests_service._event_publisher.publish = AsyncMock()
 
         payload = {
             "version_id": str(version_id),
@@ -148,7 +148,7 @@ class TestGetBacktest:
         from module.api.app import app
 
         api_backtests_service = app.state.object_registry.get(BacktestsService)
-        api_backtests_service._backtest_executor.run = AsyncMock()
+        api_backtests_service._event_publisher.publish = AsyncMock()
 
         payload = {
             "version_id": str(version_id),
