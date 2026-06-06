@@ -1,17 +1,26 @@
+import asyncio
+import json
 from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
 from module.deployment import DeploymentsService
-from module.deployment.model import StrategyDeployments
+from module.deployment.enums import StrategyDeploymentStatus
+from module.deployment.event import (
+    DeploymentEventType,
+    DeploymentStatusChangedEvent,
+)
+from module.deployment.event.relay import DeploymentEventRelay
+from module.deployment.model import DeploymentEvent, StrategyDeployments
+from module.jwt.schema import JWTPayload
 from module.strategy import StrategyService
+from module.strategy.model import Strategy
 from module.strategy.schema import StrategyResponse
 from module.strategy.agents.strategy_gen import StrategyGenOutput
 from module.util import seed_candles
-from module.deployment.enums import StrategyDeploymentStatus
 from core.db import get_db_sess_sync, get_db_session
 from module.broker_connections.model import BrokerConnections
 from module.broker.enums import BrokerType
@@ -84,8 +93,17 @@ def _mock_deployment_runner():
     deployments_service: DeploymentsService = app.state.object_registry.get(
         DeploymentsService
     )
-    deployments_service._deployment_executor.run = AsyncMock()
-    deployments_service._deployment_executor.stop = AsyncMock()
+    deployments_service._event_publisher.publish = AsyncMock()
+
+
+def _mock_relay():
+    from module.api.app import app
+    from module.deployment.event.relay import DeploymentEventRelay
+
+    relay = app.state.object_registry.get(DeploymentEventRelay)
+    relay.register = AsyncMock()
+    relay.remove = AsyncMock()
+    return relay
 
 
 class TestCreateDeployment:
@@ -276,7 +294,7 @@ class TestStartDeployment:
         assert rsp.status_code == 404
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_start_deployment_already_running_returns_409(
+    async def test_start_deployment_already_running_returns_400(
         self, authenticated_client, db_sess
     ):
         _mock_deployment_runner()
@@ -460,6 +478,90 @@ class TestGetDeploymentEvents:
         rsp = await authenticated_client.get(f"/api/v1/deployments/{fake_id}/events")
 
         assert rsp.status_code == 404
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_get_events_returns_events_in_data(
+        self, authenticated_client, db_sess
+    ):
+        _mock_deployment_runner()
+
+        strategy = await create_strategy(authenticated_client)
+        broker_connection_id = await create_broker_connection(authenticated_client)
+
+        payload = {
+            "version_id": str(strategy.cur_version_id),
+            "broker_connection_id": broker_connection_id,
+        }
+
+        rsp = await authenticated_client.post("/api/v1/deployments/", json=payload)
+        assert rsp.status_code == 201, rsp.json()
+        deployment_id = rsp.json()["id"]
+
+        event = DeploymentStatusChangedEvent(
+            deployment_id=deployment_id,
+            status=StrategyDeploymentStatus.RUNNING,
+        )
+        db_event = DeploymentEvent(
+            id=event.id,
+            deployment_id=deployment_id,
+            event_type=event.type,
+            payload=event.model_dump(mode="json"),
+            timestamp=event.timestamp,
+        )
+        db_sess.add(db_event)
+        await db_sess.commit()
+
+        rsp = await authenticated_client.get(
+            f"/api/v1/deployments/{deployment_id}/events"
+        )
+
+        assert rsp.status_code == 200, rsp.json()
+        data = rsp.json()
+        assert data["size"] == 1
+        assert len(data["data"]) == 1
+        assert data["data"][0]["type"] == DeploymentEventType.DEPLOYMENT_STATUS.value
+        assert data["data"][0]["deployment_id"] == str(deployment_id)
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_get_events_pagination(self, authenticated_client, db_sess):
+        _mock_deployment_runner()
+
+        strategy = await create_strategy(authenticated_client)
+        broker_connection_id = await create_broker_connection(authenticated_client)
+
+        payload = {
+            "version_id": str(strategy.cur_version_id),
+            "broker_connection_id": broker_connection_id,
+        }
+
+        rsp = await authenticated_client.post("/api/v1/deployments/", json=payload)
+        assert rsp.status_code == 201, rsp.json()
+        deployment_id = rsp.json()["id"]
+
+        for i in range(3):
+            event = DeploymentStatusChangedEvent(
+                deployment_id=deployment_id,
+                status=StrategyDeploymentStatus.RUNNING,
+            )
+            db_event = DeploymentEvent(
+                id=event.id,
+                deployment_id=deployment_id,
+                event_type=event.type,
+                payload=event.model_dump(mode="json"),
+                timestamp=event.timestamp + i,
+            )
+            db_sess.add(db_event)
+        await db_sess.commit()
+
+        rsp = await authenticated_client.get(
+            f"/api/v1/deployments/{deployment_id}/events?page=1&limit=2"
+        )
+
+        assert rsp.status_code == 200, rsp.json()
+        data = rsp.json()
+        assert data["size"] == 2
+        assert len(data["data"]) == 2
+        assert data["has_next"] is True
 
 
 class TestDeploymentEndpointsUnauthenticated:

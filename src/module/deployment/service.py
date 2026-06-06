@@ -265,7 +265,9 @@ class DeploymentsService:
             page=page,
             size=min(limit, len(rows)),
             has_next=len(rows) > limit,
-            data=[deserialiser.deserialise(item.payload) for item in rows],
+            data=[
+                deserialiser.deserialise(item.payload) for item in rows[:limit]
+            ],
         )
 
     async def _get_user_deployment(
