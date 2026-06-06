@@ -1,5 +1,6 @@
 from datetime import date, datetime
-from unittest.mock import AsyncMock, MagicMock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -42,6 +43,12 @@ def mock_backtest_executor():
 
 
 @pytest.fixture
+def mock_event_publisher():
+    publisher = AsyncMock()
+    return publisher
+
+
+@pytest.fixture
 def mock_markets_service():
     service = MagicMock()
     return service
@@ -49,11 +56,12 @@ def mock_markets_service():
 
 @pytest.fixture
 def backtest_service(
-    mock_strategy_service, mock_backtest_executor, mock_markets_service
+    mock_strategy_service, mock_backtest_executor, mock_markets_service, mock_event_publisher
 ):
     return BacktestsService(
         strategy_service=mock_strategy_service,
-        backtest_executor=mock_backtest_executor,
+        # backtest_executor=mock_backtest_executor,
+        event_publisher=mock_event_publisher,
         markets_service=mock_markets_service,
     )
 
@@ -104,13 +112,15 @@ class TestCreateBacktest:
             self,
             backtest_service,
             mock_strategy_service,
-            mock_backtest_executor,
+            # mock_backtest_executor,
+            mock_event_publisher
         ):
             mock_db_sess = AsyncMock()
 
             mock_strategy_service.get_user_strategy_version = AsyncMock()
 
             mock_result = MagicMock()
+            mock_result.id = uuid4()
             mock_result.first.return_value = True
             mock_db_sess.execute.return_value = mock_result
 
@@ -118,7 +128,7 @@ class TestCreateBacktest:
             mock_db_sess.flush = AsyncMock()
             mock_db_sess.refresh = AsyncMock()
 
-            mock_backtest_executor.run_backtest = AsyncMock()
+            # mock_backtest_executor.run_backtest = AsyncMock()
 
             request = CreateBacktestRequest(
                 version_id=uuid4(),
@@ -127,11 +137,17 @@ class TestCreateBacktest:
                 end_date=date(2024, 12, 31),
             )
 
-            result = await backtest_service.create(request, uuid4(), mock_db_sess)
+            def _Backtest(**kw):
+                ns = SimpleNamespace(**kw)
+                ns.id = uuid4()
+                return ns
+
+            with patch("module.backtest.service.Backtest", _Backtest):
+                result = await backtest_service.create(request, uuid4(), mock_db_sess)
 
             assert result is not None
             mock_db_sess.add.assert_called_once()
-            mock_backtest_executor.run.assert_called_once()
+            mock_event_publisher.publish.assert_awaited_once()
 
 
 class TestGetBacktest:
@@ -274,6 +290,67 @@ class TestGetOrders:
             assert result.page == 1
             assert result.size == 1
             assert len(result.data) == 1
+
+
+class TestGetByVersionId:
+    
+    class TestUnitTest:
+
+        @pytest.mark.asyncio(loop_scope="session")
+        async def test_returns_paginated_response(self, backtest_service):
+            mock_db_sess = AsyncMock()
+
+            mock_backtest = MagicMock()
+            mock_backtest.id = uuid4()
+            mock_backtest.version_id = uuid4()
+            mock_backtest.starting_balance = 10000
+            mock_backtest.start_date = date(2024, 1, 1)
+            mock_backtest.end_date = date(2024, 12, 31)
+            mock_backtest.status = BacktestStatus.COMPLETED
+            mock_backtest.created_at = MagicMock()
+
+            mock_metrics = MagicMock()
+            mock_metrics.realised_pnl = 1000.0
+            mock_metrics.unrealised_pnl = 500.0
+            mock_metrics.total_return_pct = 15.0
+            mock_metrics.profit_factor = 1.5
+            mock_metrics.total_orders = 10
+            mock_metrics.equity_curve = []
+
+            mock_result = MagicMock()
+            mock_result.all.return_value = [(mock_backtest, mock_metrics)]
+            mock_db_sess.execute.return_value = mock_result
+
+            result = await backtest_service.get_by_version_id(
+                uuid4(), mock_db_sess, page=1, limit=10
+            )
+
+            assert result.page == 1
+            assert result.size == 1
+            assert result.has_next is False
+            assert len(result.data) == 1
+
+            response = result.data[0]
+            assert response.id == mock_backtest.id
+            assert response.version_id == mock_backtest.version_id
+            assert response.status == BacktestStatus.COMPLETED
+
+        @pytest.mark.asyncio(loop_scope="session")
+        async def test_returns_empty_when_no_backtests(self, backtest_service):
+            mock_db_sess = AsyncMock()
+
+            mock_result = MagicMock()
+            mock_result.all.return_value = []
+            mock_db_sess.execute.return_value = mock_result
+
+            result = await backtest_service.get_by_version_id(
+                uuid4(), mock_db_sess, page=1, limit=10
+            )
+
+            assert result.page == 1
+            assert result.size == 0
+            assert result.has_next is False
+            assert len(result.data) == 0
 
 
 class TestGetUserBacktest:
