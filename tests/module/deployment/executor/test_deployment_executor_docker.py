@@ -1,11 +1,15 @@
 from unittest.mock import MagicMock
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from docker import DockerClient
 
-from module.deployment.exception import DeploymentAlreadyRunningException, DeploymentNotFoundException
+from module.deployment.exception import (
+    DeploymentAlreadyRunningException,
+    DeploymentNotFoundException,
+)
 from module.deployment.executor.docker import DockerDeploymentExecutor
+from module.deployment.executor.exception import DeploymentLimitReached
 
 
 @pytest.fixture
@@ -50,7 +54,7 @@ class TestRunDeployment:
         assert kwargs["image"] == image_name
         assert kwargs["name"] == f"dp_{mock_deployment_id}"
         assert (
-            kwargs["command"] == f"deployment run --deployment-id {mock_deployment_id}"
+            kwargs["command"].startswith(f"uv run src/main.py deployment run --deployment-id {mock_deployment_id}")
         )
         assert kwargs["network"] == "vegate_network"
 
@@ -213,3 +217,100 @@ class TestStopAllDeployments:
             "status": "stopped_all",
             "deployments": ["1", "2"],
         }
+
+
+class TestConcurrencyLimit:
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_raises_limit_reached_when_max_exceeded(
+        self, mock_docker_client, image_name
+    ):
+        container1 = MagicMock()
+        container1.id = "c1"
+        container2 = MagicMock()
+        container2.id = "c2"
+        container3 = MagicMock()
+        container3.id = "c3"
+
+        executor = DockerDeploymentExecutor(
+            image_name=image_name,
+            docker_client=mock_docker_client,
+        )
+        executor.max_concurrent_deployments = 2
+
+        mock_docker_client.containers.create.side_effect = [
+            container1, container2,
+        ]
+
+        mock_docker_client.containers.list.side_effect = [
+            [],              # find_container(ID1) -> no existing
+            [],              # _count_backtests(ID1) -> 0
+            [],              # find_container(ID2) -> no existing
+            [container1],    # _count_backtests(ID2) -> 1
+            [],              # find_container(ID3) -> no existing
+            [container1, container2],  # _count_backtests(ID3) -> 2 -> limit!
+        ]
+
+        await executor.run(uuid4())
+        await executor.run(uuid4())
+
+        with pytest.raises(DeploymentLimitReached):
+            await executor.run(uuid4())
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_concurrency_limit_respected_after_stop_and_readd(
+        self, mock_docker_client, image_name
+    ):
+        container1 = MagicMock()
+        container1.id = "c1"
+        container2 = MagicMock()
+        container2.id = "c2"
+        container3 = MagicMock()
+        container3.id = "c3"
+
+        executor = DockerDeploymentExecutor(
+            image_name=image_name,
+            docker_client=mock_docker_client,
+        )
+        executor.max_concurrent_deployments = 2
+
+        mock_docker_client.containers.create.side_effect = [
+            container1, container2, container3,
+        ]
+
+        deployment_id1 = uuid4()
+        deployment_id2 = uuid4()
+        deployment_id3 = uuid4()
+        deployment_id4 = uuid4()
+
+        mock_docker_client.containers.list.side_effect = [
+            # Fill limit: run ID1 and ID2
+            [],              # find_container(ID1) -> no existing
+            [],              # _count_backtests(ID1) -> 0
+            [],              # find_container(ID2) -> no existing
+            [container1],    # _count_backtests(ID2) -> 1
+            # Try ID3 -> blocked
+            [],              # find_container(ID3) -> no existing
+            [container1, container2],  # _count_backtests(ID3) -> 2 -> limit!
+            # Stop ID1 -> find the container
+            [container1],    # find_container(ID1) -> found
+            # Run ID3 -> succeeds
+            [],              # find_container(ID3) -> no existing
+            [container2],    # _count_backtests(ID3) -> 1 (ID1 removed)
+            # Try ID4 -> blocked
+            [],              # find_container(ID4) -> no existing
+            [container2, container3],  # _count_backtests(ID4) -> 2 -> limit!
+        ]
+
+        await executor.run(deployment_id1)
+        await executor.run(deployment_id2)
+
+        with pytest.raises(DeploymentLimitReached):
+            await executor.run(deployment_id3)
+
+        await executor.stop(deployment_id1)
+
+        await executor.run(deployment_id3)
+
+        with pytest.raises(DeploymentLimitReached):
+            await executor.run(deployment_id4)
