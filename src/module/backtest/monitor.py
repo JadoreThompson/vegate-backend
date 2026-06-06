@@ -101,9 +101,7 @@ class BacktestMonitor:
         async with get_db_session() as session:
             backtest = await session.get(Backtest, event.backtest_id)
             if backtest is None:
-                self._logger.info(
-                    f"Backtest with id '{event.backtest_id}' not found."
-                )
+                self._logger.info(f"Backtest with id '{event.backtest_id}' not found.")
                 return
 
             await session.execute(
@@ -135,26 +133,35 @@ class BacktestMonitor:
             await session.commit()
 
     async def _handle_status_changed(self, event: BacktestStatusChangedEvent) -> None:
-        if event.status != BacktestStatus.IN_PROGRESS:
-            return
+        if event.status == BacktestStatus.IN_PROGRESS:
+            async with self._lock:
+                self._pending_backtests.discard(event.backtest_id)
+                self._suspicious_backtests.discard(event.backtest_id)
+                self._running_backtests.add(event.backtest_id)
 
-        self._logger.info(
-            f"Pushing backtest with id '{event.backtest_id}' to running backtests"
-        )
-        async with self._lock:
-            self._pending_backtests.discard(event.backtest_id)
-            self._suspicious_backtests.discard(event.backtest_id)
-            self._running_backtests.add(event.backtest_id)
+            self._logger.info(
+                f"Pushing backtest with id '{event.backtest_id}' to running backtests"
+            )
+        elif event.status in {BacktestStatus.FAILED, BacktestStatus.COMPLETED}:
+            async with self._lock:
+                self._pending_backtests.discard(event.backtest_id)
+                self._suspicious_backtests.discard(event.backtest_id)
+                self._running_backtests.discard(event.backtest_id)
+
+            self._logger.info(
+                f"Removing backtest with id '{event.backtest_id}' from monitor"
+            )
 
     async def _handle_backtest_requested(self, event: BacktestRequestedEvent) -> None:
         async with get_db_session() as session:
             backtest = await session.get(Backtest, event.backtest_id)
 
         if backtest is None:
-            self._logger.info(
+            self._logger.warning(
                 f"Backtest '{event.backtest_id}' not found, dropping event"
             )
             return
+        
         if backtest.status not in {
             BacktestStatus.PENDING,
             BacktestStatus.COMPLETED,
@@ -177,9 +184,7 @@ class BacktestMonitor:
             )
             return
 
-        self._logger.info(
-            f"Running backtest '{event.backtest_id}' via executor"
-        )
+        self._logger.info(f"Running backtest '{event.backtest_id}' via executor")
         try:
             await self._backtest_executor.run(event.backtest_id)
             async with self._lock:
@@ -331,9 +336,7 @@ class BacktestMonitor:
                             to_running.append(backtest_id)
 
                     else:
-                        backtest_id = pending_backtests[
-                            i - n_running - n_suspicious
-                        ]
+                        backtest_id = pending_backtests[i - n_running - n_suspicious]
                         if res:
                             self._logger.info(
                                 f"Pushing backtest '{backtest_id}' to running"

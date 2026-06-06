@@ -88,12 +88,6 @@ class BacktestRunner:
                 self._logger.info("Strategy version object found")
                 db_sess.expunge(db_strategy_version)
 
-            self._event_publisher.publish(
-                BacktestStatusChangedEvent(
-                    backtest_id=self._backtest_id, status=BacktestStatus.IN_PROGRESS
-                )
-            )
-
             # Create broker and run backtest
             ohlc_feed_client = BacktestOHLCFeedClient(
                 int(db_backtest.start_date.timestamp()),
@@ -115,6 +109,13 @@ class BacktestRunner:
                 db_backtest.start_date,
                 db_backtest.end_date,
             )
+
+            self._event_publisher.publish(
+                BacktestStatusChangedEvent(
+                    backtest_id=self._backtest_id, status=BacktestStatus.IN_PROGRESS
+                )
+            )
+
             result = bt_engine.run()
 
             self._logger.info(f"Backtest {self._backtest_id} completed")
