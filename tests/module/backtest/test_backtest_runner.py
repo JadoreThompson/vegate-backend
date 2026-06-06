@@ -6,6 +6,8 @@ from uuid import uuid4
 import pytest
 
 from config import REDIS_BACKTEST_HEARTBEAT_KEY_PREFIX
+from module.backtest.enums import BacktestStatus
+from module.backtest.event.event import BacktestEventType
 from module.backtest.runner import BacktestRunner
 
 
@@ -16,7 +18,9 @@ def mock_redis_client():
 
 @pytest.fixture
 def mock_event_publisher():
-    return MagicMock()
+    publisher = MagicMock()
+    publisher.publish = MagicMock()
+    return publisher
 
 
 @pytest.fixture
@@ -93,10 +97,10 @@ class TestBacktestRunnerHeartbeat:
 MODULE_PATH = "module.backtest.runner"
 
 
-def _make_mock_backtest(backtest_id, strategy_id, start_ts, end_ts):
+def _make_mock_backtest(backtest_id, version_id, start_ts, end_ts):
     mock_backtest = MagicMock()
     mock_backtest.id = backtest_id
-    mock_backtest.strategy_id = strategy_id
+    mock_backtest.version_id = version_id
     mock_backtest.starting_balance = 10000
     mock_backtest.start_date = start_ts
     mock_backtest.end_date = end_ts
@@ -143,23 +147,20 @@ class TestBacktestRunnerWithRealRun:
         from module.strategy.model import StrategyVersion
 
         backtest_id = uuid4()
-        strategy_id = uuid4()
+        version_id = uuid4()
         start_ts = MagicMock()
         start_ts.timestamp.return_value = 1000000
         end_ts = MagicMock()
         end_ts.timestamp.return_value = 2000000
 
-        mock_backtest = _make_mock_backtest(backtest_id, strategy_id, start_ts, end_ts)
-        mock_strategy = _make_mock_strategy(strategy_id)
-        mock_strategy_version = _make_mock_strategy_version(uuid4())
+        mock_backtest = _make_mock_backtest(backtest_id, version_id, start_ts, end_ts)
+        mock_strategy_version = _make_mock_strategy_version(version_id)
 
         mock_db_sess = MagicMock()
         mock_db_sess.get.side_effect = lambda model, pk: (
             mock_backtest
             if model == BacktestModel
-            else
-            # mock_strategy if model == StrategyModel else
-            mock_strategy_version if model == StrategyVersion else None
+            else mock_strategy_version if model == StrategyVersion else None
         )
         mock_db_sess.commit = MagicMock(return_value=None)
         mock_db_sess.flush = MagicMock(return_value=None)
@@ -170,35 +171,34 @@ class TestBacktestRunnerWithRealRun:
             mock_context_manager.__enter__.return_value = mock_db_sess
             mock_get_db_sess_sync.return_value = mock_context_manager
 
-            with patch(f"{MODULE_PATH}.BacktestEngine") as MockBacktestEngine:
-                mock_result = MagicMock()
-                mock_result.orders = []
-                mock_result.equity_curve = []
-                mock_result.realised_pnl = 0.0
-                mock_result.unrealised_pnl = 0.0
-                mock_result.total_return_pct = 0.0
-                mock_result.profit_factor = 0.0
-                mock_result.total_orders = 0
-                mock_engine = MagicMock()
-                mock_engine.run.side_effect = lambda: time.sleep(1) or mock_result
-                MockBacktestEngine.return_value = mock_engine
+            with patch(f"{MODULE_PATH}.StrategyLoader") as MockStrategyLoader:
+                mock_loader = MagicMock()
+                mock_loader.load_strategy.return_value = MagicMock()
+                MockStrategyLoader.return_value = mock_loader
 
-                runner = BacktestRunner(
-                    backtest_id=backtest_id,
-                    event_publisher=mock_event_publisher,
-                    redis_client=mock_redis_client,
-                    heartbeat_interval=0.1,
-                )
+                with patch(f"{MODULE_PATH}.BacktestEngine") as MockBacktestEngine:
+                    mock_result = MagicMock()
+                    mock_result.orders = []
+                    mock_result.equity_curve = []
+                    mock_result.realised_pnl = 0.0
+                    mock_result.unrealised_pnl = 0.0
+                    mock_result.total_return_pct = 0.0
+                    mock_result.profit_factor = 0.0
+                    mock_result.total_orders = 0
+                    mock_engine = MagicMock()
+                    mock_engine.run.side_effect = lambda: time.sleep(1) or mock_result
+                    MockBacktestEngine.return_value = mock_engine
 
-                with (
-                    patch.object(runner, "_write_strategy_code"),
-                    patch.object(runner, "_load_user_strategy") as mock_load,
-                ):
-                    mock_load.return_value = MagicMock()
+                    runner = BacktestRunner(
+                        backtest_id=backtest_id,
+                        event_publisher=mock_event_publisher,
+                        redis_client=mock_redis_client,
+                        heartbeat_interval=0.1,
+                    )
+
                     runner.run()
 
         expected_key = f"{REDIS_BACKTEST_HEARTBEAT_KEY_PREFIX}{backtest_id}"
-        # mock_redis_client.set.assert_called()
         assert (
             mock_redis_client.set.call_count >= 1
         ), "Expected at least one heartbeat set call"
@@ -214,24 +214,22 @@ class TestBacktestRunnerWithRealRun:
         the runner emits a FAILED event.
         """
         from module.backtest.model import Backtest as BacktestModel
-        from module.strategy.model import Strategy as StrategyModel, StrategyVersion
+        from module.strategy.model import StrategyVersion
 
         backtest_id = uuid4()
-        strategy_id = uuid4()
+        version_id = uuid4()
         start_ts = MagicMock()
         start_ts.timestamp.return_value = 1000000
         end_ts = MagicMock()
         end_ts.timestamp.return_value = 2000000
 
-        mock_backtest = _make_mock_backtest(backtest_id, strategy_id, start_ts, end_ts)
-        mock_strategy = _make_mock_strategy(strategy_id)
-        mock_strategy_version = _make_mock_strategy_version(uuid4())
+        mock_backtest = _make_mock_backtest(backtest_id, version_id, start_ts, end_ts)
+        mock_strategy_version = _make_mock_strategy_version(version_id)
 
         mock_db_sess = MagicMock()
         mock_db_sess.get.side_effect = lambda model, pk: (
             mock_backtest
             if model == BacktestModel
-            # else mock_strategy if model == StrategyModel else None
             else mock_strategy_version if model == StrategyVersion else None
         )
         mock_db_sess.commit = MagicMock(return_value=None)
@@ -245,7 +243,6 @@ class TestBacktestRunnerWithRealRun:
 
             def candles_generator():
                 for _ in range(5):
-                    runner._is_running = False
                     yield MagicMock()
 
             with patch(
@@ -255,38 +252,32 @@ class TestBacktestRunnerWithRealRun:
                 mock_feed_client.candles.return_value = candles_generator()
                 MockBacktestOHLCFeedClient.return_value = mock_feed_client
 
-                runner = BacktestRunner(
-                    backtest_id=backtest_id,
-                    event_publisher=mock_event_publisher,
-                    redis_client=mock_redis_client,
-                    heartbeat_interval=0.1,
-                )
+                with patch(f"{MODULE_PATH}.StrategyLoader") as MockStrategyLoader:
+                    mock_loader = MagicMock()
+                    mock_loader.load_strategy.return_value = MagicMock()
+                    MockStrategyLoader.return_value = mock_loader
 
-                runner_thread = Thread(target=runner.run, daemon=True)
-                runner_thread.start()
+                    runner = BacktestRunner(
+                        backtest_id=backtest_id,
+                        event_publisher=mock_event_publisher,
+                        redis_client=mock_redis_client,
+                        heartbeat_interval=0.1,
+                    )
 
-                time.sleep(0.15)
-                runner._is_running = False
+                    runner_thread = Thread(target=runner.run, daemon=True)
+                    runner_thread.start()
 
-                runner_thread.join(timeout=5)
+                    time.sleep(0.15)
+                    runner._is_running = False
 
-        failed_events = [
-            call_args[0][0]
-            for call_args in mock_event_publisher.enqueue.call_args_list
-            if (
-                hasattr(call_args[0][0], "status")
-                and call_args[0][0].status.value == "failed"
-            )
-        ]
+                    runner_thread.join(timeout=5)
 
-        completed_events = [
-            call_args[0][0]
-            for call_args in mock_event_publisher.enqueue.call_args_list
-            if (
-                hasattr(call_args[0][0], "status")
-                and call_args[0][0].status.value == "completed"
-            )
-        ]
+        assert mock_event_publisher.publish.call_count == 2
 
-        assert len(failed_events) >= 1, "Expected at least one FAILED event"
-        assert len(completed_events) == 0, "Expected no COMPLETED events"
+        first_event = mock_event_publisher.publish.call_args_list[0][0][0]
+        assert first_event.type == BacktestEventType.STATUS_CHANGED
+        assert first_event.status == BacktestStatus.IN_PROGRESS
+
+        second_event = mock_event_publisher.publish.call_args_list[1][0][0]
+        assert second_event.type == BacktestEventType.STATUS_CHANGED
+        assert second_event.status == BacktestStatus.FAILED
