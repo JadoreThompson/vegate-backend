@@ -292,90 +292,65 @@ class DeploymentEventListenerService:
                     break
 
                 async with self._lock:
-                    pending_deployments = list(self._pending_deployments)
-                    running_deployments = list(self._running_deployments)
-                    suspicious_deployments = list(self._suspicious_deployments)
-                self._logger.info(
-                    f"Pending: {pending_deployments}, Running: {running_deployments}, "
-                    f"Suspicious: {suspicious_deployments}"
-                )
-                if (
-                    not pending_deployments
-                    and not running_deployments
-                    and not suspicious_deployments
-                ):
-                    continue
+                    pending_deployments = self._pending_deployments.copy()
+                    running_deployments = self._running_deployments.copy()
+                    suspicious_deployments = self._suspicious_deployments.copy()
 
-                async with self._redis_client.pipeline() as pl:
-                    for id in running_deployments:
-                        pl.get(f"{self._heartbeat_prefix_key}{id}")
-                    for id in suspicious_deployments:
-                        pl.get(f"{self._heartbeat_prefix_key}{id}")
-                    for id in pending_deployments:
-                        pl.get(f"{self._heartbeat_prefix_key}{id}")
-
-                    results = await pl.execute()
+                deployment_ids = {
+                    UUID(key.decode().replace(self._heartbeat_prefix_key, ""))
+                    async for key in self._redis_client.scan_iter(
+                        match=f"{self._heartbeat_prefix_key}*"
+                    )
+                }
 
                 to_suspicious = []
                 to_stopped = []
                 to_running = []
-                n_running = len(running_deployments)
-                n_suspicious = len(suspicious_deployments)
 
-                for i, res in enumerate(results):
-                    self._logger.info(f"Result {i + 1} - {res}")
-
-                    if i < n_running:
-                        deployment_id = running_deployments[i]
-                        if not res:
-                            self._logger.info(
-                                f"Pushing deployment '{deployment_id}' to suspicious"
-                            )
-                            to_suspicious.append(deployment_id)
-
-                    elif i < n_running + n_suspicious:
-                        deployment_id = suspicious_deployments[i - n_running]
-                        if not res:
-                            self._logger.info(
-                                f"Pushing deployment '{deployment_id}' to stopped"
-                            )
-                            to_stopped.append(deployment_id)
-                        else:
-                            self._logger.info(
-                                f"Pushing deployment '{deployment_id}' to running"
-                            )
-                            to_running.append(deployment_id)
-
+                for pending_id in pending_deployments:
+                    if pending_id in deployment_ids:
+                        to_running.append(pending_id)
+                        deployment_ids.discard(pending_id)
                     else:
-                        deployment_id = pending_deployments[
-                            i - n_running - n_suspicious
-                        ]
-                        if res:
-                            self._logger.info(
-                                f"Pushing deployment '{deployment_id}' to running"
-                            )
-                            to_running.append(deployment_id)
-                        else:
-                            self._logger.info(
-                                f"Pushing deployment '{deployment_id}' to suspicious"
-                            )
-                            to_suspicious.append(deployment_id)
+                        to_suspicious.append(pending_id)
+
+                for running_id in running_deployments:
+                    if running_id not in deployment_ids:
+                        to_suspicious.append(running_id)
+                    else:
+                        deployment_ids.discard(running_id)
+
+                for suspicious_id in suspicious_deployments:
+                    if suspicious_id in deployment_ids:
+                        to_running.append(suspicious_id)
+                        deployment_ids.discard(suspicious_id)
+                    else:
+                        to_stopped.append(suspicious_id)
+
+                for deployment_id in deployment_ids:
+                    to_running.append(deployment_id)
 
                 for id in to_suspicious:
-                    event = DeploymentStatusChangedEvent(
-                        deployment_id=id, status=StrategyDeploymentStatus.SUSPICIOUS
+                    await self._event_publisher.publish(
+                        DeploymentStatusChangedEvent(
+                            deployment_id=id,
+                            status=StrategyDeploymentStatus.SUSPICIOUS,
+                        )
                     )
-                    await self._event_publisher.publish(event)
                 for id in to_stopped:
-                    event = DeploymentStatusChangedEvent(
-                        deployment_id=id, status=StrategyDeploymentStatus.STOPPED
+                    await self._event_publisher.publish(
+                        DeploymentStatusChangedEvent(
+                            deployment_id=id,
+                            status=StrategyDeploymentStatus.STOPPED,
+                        )
                     )
-                    await self._event_publisher.publish(event)
                 for id in to_running:
-                    event = DeploymentStatusChangedEvent(
-                        deployment_id=id, status=StrategyDeploymentStatus.RUNNING
+                    await self._event_publisher.publish(
+                        DeploymentStatusChangedEvent(
+                            deployment_id=id,
+                            status=StrategyDeploymentStatus.RUNNING,
+                        )
                     )
-                    await self._event_publisher.publish(event)
 
                 async with self._lock:
                     for item in to_suspicious:
