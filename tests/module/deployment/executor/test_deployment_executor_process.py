@@ -9,9 +9,12 @@ from module.deployment.exception import (
     DeploymentNotFoundException,
 )
 from module.deployment.executor import ProcessDeploymentExecutor
+from module.deployment.executor.exception import DeploymentLimitReached
 
 BACKTEST_ID = UUID("11111111-1111-1111-1111-111111111111")
 DEPLOYMENT_ID = UUID("22222222-2222-2222-2222-222222222222")
+DEPLOYMENT_ID_2 = UUID("33333333-3333-3333-3333-333333333333")
+DEPLOYMENT_ID_3 = UUID("44444444-4444-4444-4444-444444444444")
 PROCESS_PATCH_TARGET = "module.deployment.executor.process.Process"
 
 
@@ -147,3 +150,47 @@ class TestStopAll:
     @pytest.mark.asyncio
     async def test_stop_all_handles_no_running_processes(self, executor):
         result = await executor.stop_all()
+
+
+class TestConcurrencyLimit:
+
+    @pytest.mark.asyncio
+    async def test_raises_limit_reached_when_max_exceeded(self, executor):
+        executor.max_concurrent_deployments = 2
+
+        with patch(PROCESS_PATCH_TARGET) as MockProcessClass:
+            first_process = create_mock_process()
+            second_process = create_mock_process()
+            MockProcessClass.side_effect = [first_process, second_process]
+
+            await executor.run(DEPLOYMENT_ID)
+            await executor.run(DEPLOYMENT_ID_2)
+
+            with pytest.raises(DeploymentLimitReached):
+                await executor.run(DEPLOYMENT_ID_3)
+
+    @pytest.mark.asyncio
+    async def test_concurrency_limit_respected_after_stop_and_readd(self, executor):
+        executor.max_concurrent_deployments = 2
+
+        with patch(PROCESS_PATCH_TARGET) as MockProcessClass:
+            first_process = create_mock_process()
+            second_process = create_mock_process()
+            third_process = create_mock_process()
+            MockProcessClass.side_effect = [
+                first_process, second_process, third_process,
+            ]
+
+            await executor.run(DEPLOYMENT_ID)
+            await executor.run(DEPLOYMENT_ID_2)
+
+            with pytest.raises(DeploymentLimitReached):
+                await executor.run(DEPLOYMENT_ID_3)
+
+            await executor.stop(DEPLOYMENT_ID)
+
+            await executor.run(DEPLOYMENT_ID_3)
+            assert executor._deployments[DEPLOYMENT_ID_3] is third_process
+
+            with pytest.raises(DeploymentLimitReached):
+                await executor.run(uuid4())
