@@ -263,8 +263,9 @@ class TestHistoricalDataClientFetch:
                     )
                 )
 
+            l = mock_get.call_args_list
             mock_get.assert_called_once_with(
-                "http://localhost:8000/api/v1/markets/bars",
+                "http://localhost:8000/markets/bars",
                 params={
                     "symbol": "AAPL",
                     "market_type": "stocks",
