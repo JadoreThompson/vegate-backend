@@ -2,8 +2,8 @@ from uuid import uuid4
 
 import pytest
 
-from module.broker import Order, OrderRequest
-from module.broker.enums import OrderSide, OrderStatus, OrderType
+from vegate.oms.enums import OrderSide, OrderStatus, OrderType
+from vegate.oms.schema import Order, OrderRequest
 from module.deployment.enums import StrategyDeploymentStatus
 from module.deployment.event import (
     DeploymentCancelOrderSubmitted,

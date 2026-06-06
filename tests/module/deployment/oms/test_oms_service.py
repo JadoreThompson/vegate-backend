@@ -8,7 +8,6 @@ from uuid import uuid4, UUID
 from sqlalchemy import select
 
 from config import OMS_SESSION_PREFIX, STRATEGY_DEPLOYMENT_EVENTS_KEY
-from module.broker.enums import BrokerType, OrderSide, OrderStatus, OrderType
 from module.deployment.event.event import (
     DeploymentCancelOrderSubmitted,
     DeploymentEventType,
@@ -22,11 +21,12 @@ from module.strategy.model import Strategy
 from module.deployment.model import StrategyDeploymentOrders, StrategyDeployments
 from module.user.model import User
 from core.db import get_db_session
-from module.event_bus.publisher.publisher import EventPublisher
+from module.event_bus import EventPublisher
 from module.broker.client.alpaca import AlpacaBrokerClient
 from module.broker.client.base import BrokerClient
 from module.broker.client.exception import BrokerClientException
-from module.broker.schema import Order, OrderRequest
+from vegate.oms.enums import BrokerType, OrderSide, OrderStatus, OrderType
+from vegate.oms.schema import Order, OrderRequest
 from module.deployment.oms.exception import (
     BrokerConnectionDoesNotExistException,
     DuplicateOrderException,
@@ -48,7 +48,7 @@ def make_order(**kwargs) -> Order:
         "side": OrderSide.BUY,
         "limit_price": None,
         "stop_price": None,
-        "filled_avg_price": None,
+        "avg_fill_price": None,
         "executed_at": None,
         "submitted_at": None,
         "status": OrderStatus.PENDING,
@@ -104,7 +104,7 @@ def mock_redis():
 @pytest.fixture
 def mock_event_publisher():
     pub = AsyncMock(spec=EventPublisher)
-    pub.enqueue = AsyncMock()
+    pub.publish = AsyncMock()
     return pub
 
 
@@ -413,7 +413,7 @@ class TestPlaceOrder:
         assert result is not None
         assert result.symbol == "AAPL"
         # Events should be published
-        assert mock_event_publisher.enqueue.call_count == 2
+        assert mock_event_publisher.publish.call_count == 2
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_place_order_broker_exception(
@@ -451,8 +451,8 @@ class TestPlaceOrder:
                         await oms_service.place_order(token, request)
 
         # Rejection event should be published
-        mock_event_publisher.enqueue.assert_called()
-        assert mock_event_publisher.enqueue.call_args[0][0].type == DeploymentEventType.DEPLOYMENT_ORDER_REJECTED
+        mock_event_publisher.publish.assert_called()
+        assert mock_event_publisher.publish.call_args[0][0].type == DeploymentEventType.DEPLOYMENT_ORDER_REJECTED
 
 
 class TestModifyOrder:
@@ -491,8 +491,8 @@ class TestModifyOrder:
 
         assert result.limit_price == 150.0
         assert result.id == order_id
-        mock_event_publisher.enqueue.assert_awaited_once()
-        assert mock_event_publisher.enqueue.call_args[0][0].type == DeploymentEventType.DEPLOYMENT_MODIFY_ORDER_SUBMITTED
+        mock_event_publisher.publish.assert_awaited_once()
+        assert mock_event_publisher.publish.call_args[0][0].type == DeploymentEventType.DEPLOYMENT_MODIFY_ORDER_SUBMITTED
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_modify_order_with_stop_price(
@@ -560,7 +560,7 @@ class TestCancelOrder:
                 result = await oms_service.cancel_order(token, order_id)
 
         assert result is True
-        mock_event_publisher.enqueue.assert_awaited_once()
+        mock_event_publisher.publish.assert_awaited_once()
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_cancel_order_failure(

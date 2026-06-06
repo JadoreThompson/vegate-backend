@@ -4,7 +4,7 @@ from uuid import UUID
 
 from config import STRATEGY_DEPLOYMENT_EVENTS_KEY
 from core.event import BaseEvent
-from module.broker import Order, OrderRequest
+from vegate.oms.schema import Order, OrderRequest
 from module.deployment.enums import StrategyDeploymentStatus
 
 

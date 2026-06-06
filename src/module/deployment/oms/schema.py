@@ -2,10 +2,8 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-# from models import CustomBaseModel, Order
 from core.schema import CustomBaseModel
-from module.broker import Order, OrderRequest
-# from service.oms.broker_client.model import OrderRequest
+from vegate.oms.schema import Order, OrderRequest
 
 
 class CreateSessionRequest(CustomBaseModel):
