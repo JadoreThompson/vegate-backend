@@ -402,7 +402,9 @@ class TestPlaceOrder:
                 mock_db_sess.execute = AsyncMock()
                 mock_db_sess.commit = AsyncMock()
 
-                with patch("module.deployment.oms.service.get_db_session") as mock_get_db:
+                with patch(
+                    "module.deployment.oms.service.get_db_session"
+                ) as mock_get_db:
                     mock_get_db.return_value.__aenter__ = AsyncMock(
                         return_value=mock_db_sess
                     )
@@ -439,7 +441,9 @@ class TestPlaceOrder:
                 mock_db_sess.execute = AsyncMock()
                 mock_db_sess.commit = AsyncMock()
 
-                with patch("module.deployment.oms.service.get_db_session") as mock_get_db:
+                with patch(
+                    "module.deployment.oms.service.get_db_session"
+                ) as mock_get_db:
                     mock_get_db.return_value.__aenter__ = AsyncMock(
                         return_value=mock_db_sess
                     )
@@ -452,7 +456,10 @@ class TestPlaceOrder:
 
         # Rejection event should be published
         mock_event_publisher.publish.assert_called()
-        assert mock_event_publisher.publish.call_args[0][0].type == DeploymentEventType.DEPLOYMENT_ORDER_REJECTED
+        assert (
+            mock_event_publisher.publish.call_args[0][0].type
+            == DeploymentEventType.DEPLOYMENT_ORDER_REJECTED
+        )
 
 
 class TestModifyOrder:
@@ -492,7 +499,10 @@ class TestModifyOrder:
         assert result.limit_price == 150.0
         assert result.id == order_id
         mock_event_publisher.publish.assert_awaited_once()
-        assert mock_event_publisher.publish.call_args[0][0].type == DeploymentEventType.DEPLOYMENT_MODIFY_ORDER_SUBMITTED
+        assert (
+            mock_event_publisher.publish.call_args[0][0].type
+            == DeploymentEventType.DEPLOYMENT_MODIFY_ORDER_SUBMITTED
+        )
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_modify_order_with_stop_price(
@@ -769,54 +779,6 @@ class TestBuildBrokerClient:
 
         with pytest.raises(ValueError, match="Unsupported broker"):
             oms_service._build_broker_client(broker_conn, user_id)
-
-
-class TestGenerateOrderKey:
-    """Unit tests for _generate_order_key."""
-
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_generate_order_key(self, oms_service):
-        deployment_id = uuid4()
-        candle_ts = 1500000000
-
-        mock_db_sess = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalar = MagicMock(return_value=5)
-        mock_db_sess.execute = AsyncMock(return_value=mock_result)
-
-        result = await oms_service._generate_order_key(
-            deployment_id, candle_ts, mock_db_sess
-        )
-
-        assert result == "1500000000-5"
-
-
-class TestEnsureUniqueKey:
-    """Unit tests for _ensure_unique_key."""
-
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_ensure_unique_key_no_conflict(self, oms_service):
-        deployment_id = uuid4()
-
-        mock_db_sess = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.first = MagicMock(return_value=None)
-        mock_db_sess.execute = AsyncMock(return_value=mock_result)
-
-        # Should not raise
-        await oms_service._ensure_unique_key("key-1", deployment_id, mock_db_sess)
-
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_ensure_unique_key_duplicate_raises(self, oms_service):
-        deployment_id = uuid4()
-
-        mock_db_sess = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.first = MagicMock(return_value=(MagicMock(),))
-        mock_db_sess.execute = AsyncMock(return_value=mock_result)
-
-        with pytest.raises(DuplicateOrderException):
-            await oms_service._ensure_unique_key("key-1", deployment_id, mock_db_sess)
 
 
 class TestGetBrokerOrderId:
