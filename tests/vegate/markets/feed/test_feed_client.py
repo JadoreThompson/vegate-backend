@@ -1,20 +1,14 @@
 import json
 import logging
 import socket
-import threading
-import time
-from datetime import UTC, datetime
-from unittest.mock import MagicMock, patch, PropertyMock, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from module.broker.enums import BrokerType
-from module.markets.enums import MarketType, Timeframe
-from module.markets.schema import OHLC as OHLCSchema
-from module.markets.feed.client import (
-    OHLCFeedClient,
-    OHLCFeedSocketException,
-)
+from vegate.markets.enums import MarketType, Timeframe
+from vegate.markets.feed.client import OHLCFeedClient, OHLCFeedSocketException
+from vegate.markets.schema import OHLC as OHLCSchema
+from vegate.oms.enums import BrokerType
 
 
 def make_server_frame(**kwargs) -> dict:
@@ -205,14 +199,16 @@ class TestSubscribe:
         client._socket = MagicMock(spec=socket.socket)
         client._socket.sendall = MagicMock()
 
-        client.subscribe([
-            {
-                "symbol": "AAPL",
-                "market_type": MarketType.STOCKS,
-                "broker_type": BrokerType.ALPACA,
-                "timeframe": [Timeframe.m1],
-            },
-        ])
+        client.subscribe(
+            [
+                {
+                    "symbol": "AAPL",
+                    "market_type": MarketType.STOCKS,
+                    "broker_type": BrokerType.ALPACA,
+                    "timeframe": [Timeframe.m1],
+                },
+            ]
+        )
 
         assert client._subscribe_payload == {
             "type": "subscribe",
@@ -230,26 +226,38 @@ class TestSubscribe:
         client._socket = MagicMock(spec=socket.socket)
         client._socket.sendall = MagicMock()
 
-        client.subscribe([
-            {
-                "symbol": "AAPL",
-                "market_type": MarketType.STOCKS,
-                "broker_type": BrokerType.ALPACA,
-                "timeframe": [Timeframe.m1, Timeframe.m5],
-            },
-            {
-                "symbol": "SOL/USD",
-                "market_type": MarketType.CRYPTO,
-                "broker_type": BrokerType.ALPACA,
-                "timeframe": [Timeframe.m1],
-            },
-        ])
+        client.subscribe(
+            [
+                {
+                    "symbol": "AAPL",
+                    "market_type": MarketType.STOCKS,
+                    "broker_type": BrokerType.ALPACA,
+                    "timeframe": [Timeframe.m1, Timeframe.m5],
+                },
+                {
+                    "symbol": "SOL/USD",
+                    "market_type": MarketType.CRYPTO,
+                    "broker_type": BrokerType.ALPACA,
+                    "timeframe": [Timeframe.m1],
+                },
+            ]
+        )
 
         assert client._subscribe_payload == {
             "type": "subscribe",
             "instruments": [
-                {"symbol": "AAPL", "market_type": "stocks", "broker_type": "alpaca", "timeframe": ["1m", "5m"]},
-                {"symbol": "SOL/USD", "market_type": "crypto", "broker_type": "alpaca", "timeframe": ["1m"]},
+                {
+                    "symbol": "AAPL",
+                    "market_type": "stocks",
+                    "broker_type": "alpaca",
+                    "timeframe": ["1m", "5m"],
+                },
+                {
+                    "symbol": "SOL/USD",
+                    "market_type": "crypto",
+                    "broker_type": "alpaca",
+                    "timeframe": ["1m"],
+                },
             ],
         }
 
@@ -257,14 +265,16 @@ class TestSubscribe:
         client._socket = MagicMock(spec=socket.socket)
         client._socket.sendall = MagicMock()
 
-        client.subscribe([
-            {
-                "symbol": "AAPL",
-                "market_type": MarketType.STOCKS,
-                "broker_type": BrokerType.ALPACA,
-                "timeframe": [Timeframe.m1],
-            },
-        ])
+        client.subscribe(
+            [
+                {
+                    "symbol": "AAPL",
+                    "market_type": MarketType.STOCKS,
+                    "broker_type": BrokerType.ALPACA,
+                    "timeframe": [Timeframe.m1],
+                },
+            ]
+        )
 
         client._socket.sendall.assert_called_once()
         sent = client._socket.sendall.call_args.args[0]
@@ -277,14 +287,16 @@ class TestSubscribe:
         client._socket.sendall = MagicMock()
 
         with caplog.at_level(logging.INFO):
-            client.subscribe([
-                {
-                    "symbol": "AAPL",
-                    "market_type": MarketType.STOCKS,
-                    "broker_type": BrokerType.ALPACA,
-                    "timeframe": [Timeframe.m1],
-                },
-            ])
+            client.subscribe(
+                [
+                    {
+                        "symbol": "AAPL",
+                        "market_type": MarketType.STOCKS,
+                        "broker_type": BrokerType.ALPACA,
+                        "timeframe": [Timeframe.m1],
+                    },
+                ]
+            )
 
         assert "Subscribed to" in caplog.text
         assert "1" in caplog.text
@@ -701,14 +713,16 @@ class TestIntegration:
             mock_create.return_value = mock_sock
 
             client.connect()
-            client.subscribe([
-                {
-                    "symbol": "AAPL",
-                    "market_type": MarketType.STOCKS,
-                    "broker_type": BrokerType.ALPACA,
-                    "timeframe": [Timeframe.m1],
-                },
-            ])
+            client.subscribe(
+                [
+                    {
+                        "symbol": "AAPL",
+                        "market_type": MarketType.STOCKS,
+                        "broker_type": BrokerType.ALPACA,
+                        "timeframe": [Timeframe.m1],
+                    },
+                ]
+            )
 
             # Simulate EOF after one candle
             mock_reader.readline.side_effect = [
@@ -724,5 +738,3 @@ class TestIntegration:
 
             client.close()
             assert client.is_connected is False
-
-
