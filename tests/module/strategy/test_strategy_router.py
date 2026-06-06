@@ -45,7 +45,6 @@ class TestCreateStrategy:
         assert res.status_code == 422
 
 
-@pytest.mark.skip
 class TestGetStrategy:
 
     @pytest.mark.asyncio(loop_scope="session")
@@ -68,8 +67,6 @@ class TestGetStrategy:
                 strategy_id=strategy_id,
                 name="Test Strategy",
                 description="Test description",
-                code="class Strategy: pass",
-                prompt="test prompt",
                 created_at=datetime.now(),
                 updated_at=datetime.now(),
             )
@@ -79,10 +76,9 @@ class TestGetStrategy:
 
         assert res.status_code == 200
         data = res.json()
-        assert data["id"] == strategy_id
+        assert data["id"] == str(strategy_id)
 
 
-@pytest.mark.skip
 class TestListStrategies:
 
     @pytest.mark.asyncio(loop_scope="session")
@@ -91,7 +87,9 @@ class TestListStrategies:
 
         assert res.status_code == 200
         data = res.json()
-        assert isinstance(data, list)
+        assert "page" in data
+        assert "size" in data
+        assert "data" in data
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_list_strategies_with_pagination(self, authenticated_client):
@@ -100,23 +98,27 @@ class TestListStrategies:
         assert res.status_code == 200
 
 
-@pytest.mark.skip
 class TestUpdateStrategy:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_update_strategy_returns_200(self, authenticated_client):
-        strategy_id = uuid4()
+        strat_res = await authenticated_client.post(
+            "/api/v1/strategy/", json={"name": "Old Name"}
+        )
+        strategy_id = strat_res.json()["id"]
 
         payload = {
-            "name": "Updated Strategy Name",
+            "name": "New Name Here",
             "description": "Updated description",
         }
 
-        res = await authenticated_client.patch(f"/api/v1/strategy/{strategy_id}", json=payload)
+        res = await authenticated_client.patch(
+            f"/api/v1/strategy/{strategy_id}", json=payload
+        )
 
         assert res.status_code == 200
         data = res.json()
-        assert data["name"] == "Updated Strategy Name"
+        assert data["name"] == "New Name Here"
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_update_strategy_name_too_short_returns_422(
@@ -128,7 +130,9 @@ class TestUpdateStrategy:
             "name": "abc",
         }
 
-        res = await authenticated_client.patch(f"/api/v1/strategy/{strategy_id}", json=payload)
+        res = await authenticated_client.patch(
+            f"/api/v1/strategy/{strategy_id}", json=payload
+        )
 
         assert res.status_code == 422
 
@@ -143,17 +147,21 @@ class TestUpdateStrategy:
             "description": "short",
         }
 
-        res = await authenticated_client.patch(f"/api/v1/strategy/{strategy_id}", json=payload)
+        res = await authenticated_client.patch(
+            f"/api/v1/strategy/{strategy_id}", json=payload
+        )
 
         assert res.status_code == 422
 
 
-@pytest.mark.skip
 class TestDeleteStrategy:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_delete_strategy_returns_204(self, authenticated_client):
-        strategy_id = uuid4()
+        strat_res = await authenticated_client.post(
+            "/api/v1/strategy/", json={"name": "To Delete"}
+        )
+        strategy_id = strat_res.json()["id"]
 
         res = await authenticated_client.delete(f"/api/v1/strategy/{strategy_id}")
 
@@ -161,18 +169,12 @@ class TestDeleteStrategy:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_delete_strategy_not_found_returns_404(self, authenticated_client):
-        from module.api.app import app
-
-        strategy_service = app.state.object_registry.get(StrategyService)
-        strategy_service.update = AsyncMock(side_effect=Exception("not found"))
-
         fake_id = uuid4()
         res = await authenticated_client.delete(f"/api/v1/strategy/{fake_id}")
 
-        assert res.status_code == 204
+        assert res.status_code == 404
 
 
-@pytest.mark.skip
 class TestStrategyEndpointsUnauthenticated:
 
     @pytest.mark.asyncio(loop_scope="session")
@@ -199,7 +201,9 @@ class TestStrategyEndpointsUnauthenticated:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_update_strategy_unauthenticated_returns_401(self, client):
-        res = await client.patch(f"/api/v1/strategy/{uuid4()}", json={"name": "new name"})
+        res = await client.patch(
+            f"/api/v1/strategy/{uuid4()}", json={"name": "new name"}
+        )
 
         assert res.status_code == 401
 
@@ -253,7 +257,9 @@ class TestCreateVersion:
         assert v2.json()["prev_version"] == v1_id
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_create_version_non_existent_prev_version_returns_404(self, authenticated_client):
+    async def test_create_version_non_existent_prev_version_returns_404(
+        self, authenticated_client
+    ):
         strat_res = await authenticated_client.post(
             "/api/v1/strategy/", json={"name": "Non existent Test"}
         )
@@ -262,7 +268,10 @@ class TestCreateVersion:
 
         res = await authenticated_client.post(
             f"/api/v1/strategy/{strategy_id}/versions",
-            json={"prev_version_id": "00000000-0000-0000-0000-000000000000", "code": "Non existent forked"},
+            json={
+                "prev_version_id": "00000000-0000-0000-0000-000000000000",
+                "code": "Non existent forked",
+            },
         )
         assert res.status_code == 404
 
@@ -281,9 +290,7 @@ class TestListVersions:
             json={"prev_version_id": list_data["cur_version_id"], "code": "code"},
         )
 
-        res = await authenticated_client.get(
-            f"/api/v1/strategy/{strategy_id}/versions"
-        )
+        res = await authenticated_client.get(f"/api/v1/strategy/{strategy_id}/versions")
         assert res.status_code == 200
         data = res.json()
         assert data["page"] == 1
@@ -300,7 +307,10 @@ class TestGetVersion:
         strategy_id = strat_res.json()["id"]
         ver_res = await authenticated_client.post(
             f"/api/v1/strategy/{strategy_id}/versions",
-            json={"prev_version_id": strat_res.json()["cur_version_id"], "code": "code"},
+            json={
+                "prev_version_id": strat_res.json()["cur_version_id"],
+                "code": "code",
+            },
         )
         version_id = ver_res.json()["id"]
 
@@ -323,94 +333,6 @@ class TestGetVersion:
         assert res.status_code == 404
 
 
-# class TestUpdateVersion:
-
-#     @pytest.mark.asyncio(loop_scope="session")
-#     async def test_update_version_updates_code(self, authenticated_client):
-#         strat_res = await authenticated_client.post(
-#             "/api/v1/strategy/", json={"name": "Upd Ver"}
-#         )
-#         strategy_id = strat_res.json()["id"]
-#         ver_res = await authenticated_client.post(
-#             f"/api/v1/strategy/{strategy_id}/versions",
-#             json={"prev_version_id": strat_res.json()["cur_version_id"], "code": "old"},
-#         )
-#         version_id = ver_res.json()["id"]
-
-#         res = await authenticated_client.patch(
-#             f"/api/v1/strategy/{strategy_id}/versions/{version_id}",
-#             json={"code": "new code"},
-#         )
-#         assert res.status_code == 200
-#         assert res.json()["code"] == "new code"
-
-
-# class TestDeleteVersion:
-
-#     @pytest.mark.asyncio(loop_scope="session")
-#     async def test_delete_version_returns_204(self, authenticated_client):
-#         strat_res = await authenticated_client.post(
-#             "/api/v1/strategy/", json={"name": "Del Ver"}
-#         )
-#         strategy_id = strat_res.json()["id"]
-#         ver_res = await authenticated_client.post(
-#             f"/api/v1/strategy/{strategy_id}/versions",
-#             json={"prev_version_id": strat_res.json()["cur_version_id"], "code": "delete me"},
-#         )
-#         version_id = ver_res.json()["id"]
-
-#         res = await authenticated_client.delete(
-#             f"/api/v1/strategy/{strategy_id}/versions/{version_id}"
-#         )
-#         assert res.status_code == 204
-
-#     @pytest.mark.asyncio(loop_scope="session")
-#     async def test_get_deleted_version_returns_404(self, authenticated_client):
-#         strat_res = await authenticated_client.post(
-#             "/api/v1/strategy/", json={"name": "Del Ver 2"}
-#         )
-#         strategy_id = strat_res.json()["id"]
-#         ver_res = await authenticated_client.post(
-#             f"/api/v1/strategy/{strategy_id}/versions",
-#             json={"prev_version_id": strat_res.json()["cur_version_id"], "code": "delete me"},
-#         )
-#         version_id = ver_res.json()["id"]
-#         await authenticated_client.delete(
-#             f"/api/v1/strategy/{strategy_id}/versions/{version_id}"
-#         )
-
-#         res = await authenticated_client.get(
-#             f"/api/v1/strategy/{strategy_id}/versions/{version_id}"
-#         )
-#         assert res.status_code == 404
-
-
-# class TestActivateVersion:
-
-#     @pytest.mark.asyncio(loop_scope="session")
-#     async def test_activate_version_returns_200(self, authenticated_client):
-#         strat_res = await authenticated_client.post(
-#             "/api/v1/strategy/", json={"name": "Act Ver"}
-#         )
-#         strategy_id = strat_res.json()["id"]
-#         cur_id = strat_res.json()["cur_version_id"]
-#         v1 = await authenticated_client.post(
-#             f"/api/v1/strategy/{strategy_id}/versions",
-#             json={"prev_version_id": cur_id, "code": "v1"},
-#         )
-#         v1_id = v1.json()["id"]
-#         v2 = await authenticated_client.post(
-#             f"/api/v1/strategy/{strategy_id}/versions",
-#             json={"prev_version_id": v1_id, "code": "v2"},
-#         )
-
-#         res = await authenticated_client.put(
-#             f"/api/v1/strategy/{strategy_id}/versions/{v1_id}/activate"
-#         )
-#         assert res.status_code == 200
-#         assert res.json()["cur_version_id"] == v1_id
-
-
 class TestVersionEndpointsUnauthenticated:
 
     @pytest.mark.asyncio(loop_scope="session")
@@ -428,29 +350,5 @@ class TestVersionEndpointsUnauthenticated:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_get_version_unauthenticated_returns_401(self, client):
-        res = await client.get(
-            f"/api/v1/strategy/{uuid4()}/versions/{uuid4()}"
-        )
+        res = await client.get(f"/api/v1/strategy/{uuid4()}/versions/{uuid4()}")
         assert res.status_code == 401
-
-    # @pytest.mark.asyncio(loop_scope="session")
-    # async def test_update_version_unauthenticated_returns_401(self, client):
-    #     res = await client.patch(
-    #         f"/api/v1/strategy/{uuid4()}/versions/{uuid4()}",
-    #         json={"code": "new"},
-    #     )
-    #     assert res.status_code == 401
-
-    # @pytest.mark.asyncio(loop_scope="session")
-    # async def test_delete_version_unauthenticated_returns_401(self, client):
-    #     res = await client.delete(
-    #         f"/api/v1/strategy/{uuid4()}/versions/{uuid4()}"
-    #     )
-    #     assert res.status_code == 401
-
-    # @pytest.mark.asyncio(loop_scope="session")
-    # async def test_activate_version_unauthenticated_returns_401(self, client):
-    #     res = await client.put(
-    #         f"/api/v1/strategy/{uuid4()}/versions/{uuid4()}/activate"
-    #     )
-    #     assert res.status_code == 401
