@@ -139,7 +139,7 @@ class MarketsService:
                 OHLC.volume,
                 OHLC.timestamp,
                 OHLC.timeframe,
-                Instrument.symbol,
+                Instrument.native_symbol,
                 Instrument.broker_type,
                 Instrument.market_type,
             )
@@ -157,11 +157,6 @@ class MarketsService:
             .limit(limit + 1)
         )
 
-        # if start_time is not None:
-        #     stmt = stmt.where(OHLC.timestamp >= start_time)
-        # if end_time is not None:
-        #     stmt = stmt.where(OHLC.timestamp <= end_time)
-
         result = await db_sess.execute(stmt)
         rows = result.all()
         has_next = len(rows) > limit
@@ -176,7 +171,7 @@ class MarketsService:
                 volume=float(row.volume),
                 timestamp=row.timestamp,
                 timeframe=row.timeframe,
-                symbol=row.symbol,
+                symbol=row.native_symbol,
                 broker=row.broker_type,
                 market_type=row.market_type,
             )

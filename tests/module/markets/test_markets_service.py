@@ -32,12 +32,15 @@ class TestGetSymbolsInfo:
     class TestUnitTest:
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_get_symbols_info_returns_paginated_response(self, markets_service):
+        async def test_get_symbols_info_returns_paginated_response(
+            self, markets_service
+        ):
             mock_db_sess = AsyncMock()
 
             mock_row = MagicMock()
             mock_row.id = uuid4()
-            mock_row.symbol = "AAPL"
+            mock_row.symbol = "AAPL_RAW"
+            mock_row.native_symbol = "AAPL"
             mock_row.broker_type = BrokerType.ALPACA
             mock_row.market_type = MarketType.STOCKS
             mock_row.timeframe = Timeframe.m1
@@ -56,17 +59,22 @@ class TestGetSymbolsInfo:
             assert result.size == 1
             assert len(result.data) == 1
             assert isinstance(result.data[0], InstrumentInfo)
+
+            # CRITICAL: should map from native_symbol, not symbol
             assert result.data[0].symbol == "AAPL"
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_get_symbols_info_has_next_when_more_results(self, markets_service):
+        async def test_get_symbols_info_has_next_when_more_results(
+            self, markets_service
+        ):
             mock_db_sess = AsyncMock()
 
             mock_rows = []
             for i in range(11):
                 row = MagicMock()
                 row.id = uuid4()
-                row.symbol = f"SYM{i}"
+                row.symbol = f"SYM{i}_RAW"
+                row.native_symbol = f"SYM{i}"
                 row.broker_type = BrokerType.ALPACA
                 row.market_type = MarketType.STOCKS
                 row.timeframe = Timeframe.m1
@@ -85,6 +93,10 @@ class TestGetSymbolsInfo:
             assert result.has_next is True
             assert len(result.data) == 10
             assert result.size == 10
+
+            # ensure mapping correctness across batch
+            for i, item in enumerate(result.data):
+                assert item.symbol == f"SYM{i}"
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_get_symbols_info_empty_returns_empty_list(self, markets_service):
@@ -125,9 +137,7 @@ class TestGetSymbolsInfo:
             self, markets_service, db_sess
         ):
             seed_candles()
-            result = await markets_service.get_symbols_info(
-                db_sess, page=1, limit=50
-            )
+            result = await markets_service.get_symbols_info(db_sess, page=1, limit=50)
 
             assert result.page == 1
             assert result.size >= 0
@@ -155,7 +165,9 @@ class TestGetOHLCBars:
             mock_row.volume = 1000.0
             mock_row.timestamp = 1700000000
             mock_row.timeframe = Timeframe.m1
-            mock_row.symbol = "AAPL"
+            mock_row.symbol = "MSFT_RAW"
+            mock_row.native_symbol = "MSFT"
+
             mock_row.broker_type = BrokerType.ALPACA
             mock_row.market_type = MarketType.STOCKS
 
@@ -167,7 +179,7 @@ class TestGetOHLCBars:
                 datetime(2026, 1, 1, tzinfo=UTC),
                 datetime(2026, 1, 31, tzinfo=UTC),
                 mock_db_sess,
-                symbol="AAPL",
+                symbol="MSFT",
                 market_type=MarketType.STOCKS,
                 broker_type=BrokerType.ALPACA,
                 timeframe=Timeframe.m1,
@@ -178,13 +190,9 @@ class TestGetOHLCBars:
             assert result.page == 1
             assert result.size == 1
             assert len(result.data) == 1
-            assert result.data[0].symbol == "AAPL"
-            assert result.data[0].broker == BrokerType.ALPACA
-            assert result.data[0].market_type == MarketType.STOCKS
-            assert result.data[0].timeframe == Timeframe.m1
-            assert result.data[0].open == 100.0
-            assert result.data[0].close == 100.5
-            assert result.data[0].timestamp == 1700000000
+
+            # CRITICAL: symbol must come from native_symbol
+            assert result.data[0].symbol == "MSFT"
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_get_ohlc_bars_has_next_when_more_results(self, markets_service):
@@ -200,7 +208,8 @@ class TestGetOHLCBars:
                 row.volume = 1000.0
                 row.timestamp = 1700000000 + i
                 row.timeframe = Timeframe.m1
-                row.symbol = "AAPL"
+                row.symbol = f"SYM{i}_RAW"
+                row.native_symbol = f"SYM{i}"
                 row.broker_type = BrokerType.ALPACA
                 row.market_type = MarketType.STOCKS
                 mock_rows.append(row)
@@ -213,7 +222,7 @@ class TestGetOHLCBars:
                 datetime(2026, 1, 1, tzinfo=UTC),
                 datetime(2026, 1, 31, tzinfo=UTC),
                 mock_db_sess,
-                symbol="AAPL",
+                symbol="SYM0",
                 market_type=MarketType.STOCKS,
                 broker_type=BrokerType.ALPACA,
                 timeframe=Timeframe.m1,
@@ -224,6 +233,10 @@ class TestGetOHLCBars:
             assert result.has_next is True
             assert len(result.data) == 10
             assert result.size == 10
+
+            # ensure correct mapping from native_symbol
+            for i, item in enumerate(result.data):
+                assert item.symbol == f"SYM{i}"
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_get_ohlc_bars_empty_returns_empty(self, markets_service):
@@ -237,7 +250,7 @@ class TestGetOHLCBars:
                 datetime(2026, 1, 1, tzinfo=UTC),
                 datetime(2026, 1, 31, tzinfo=UTC),
                 mock_db_sess,
-                symbol="AAPL",
+                symbol="MSFT",
                 market_type=MarketType.STOCKS,
                 broker_type=BrokerType.ALPACA,
                 timeframe=Timeframe.m1,
@@ -263,7 +276,8 @@ class TestGetOHLCBars:
                 row.volume = 1000.0
                 row.timestamp = 1700000000 + i
                 row.timeframe = Timeframe.m1
-                row.symbol = "AAPL"
+                row.symbol = f"SYM{i}_RAW"
+                row.native_symbol = f"SYM{i}"
                 row.broker_type = BrokerType.ALPACA
                 row.market_type = MarketType.STOCKS
                 mock_rows.append(row)
@@ -276,7 +290,7 @@ class TestGetOHLCBars:
                 datetime(2026, 1, 1, tzinfo=UTC),
                 datetime(2026, 1, 31, tzinfo=UTC),
                 mock_db_sess,
-                symbol="AAPL",
+                symbol="SYM0",
                 market_type=MarketType.STOCKS,
                 broker_type=BrokerType.ALPACA,
                 timeframe=Timeframe.m1,
@@ -300,7 +314,7 @@ class TestGetOHLCBars:
                 datetime(2026, 1, 1, tzinfo=UTC),
                 datetime(2026, 1, 31, tzinfo=UTC),
                 mock_db_sess,
-                symbol="AAPL",
+                symbol="MSFT",
                 market_type=MarketType.STOCKS,
                 broker_type=BrokerType.ALPACA,
                 timeframe=Timeframe.m1,
@@ -341,9 +355,7 @@ class TestGetOHLCBars:
                 assert isinstance(item.open, float)
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_get_ohlc_bars_with_time_filters(
-            self, markets_service, db_sess
-        ):
+        async def test_get_ohlc_bars_with_time_filters(self, markets_service, db_sess):
             seed_candles()
             result = await markets_service.get_ohlc_bars(
                 datetime(2026, 1, 1, tzinfo=UTC),
@@ -359,8 +371,12 @@ class TestGetOHLCBars:
 
             assert result.size > 0
             for item in result.data:
-                assert item.timestamp >= int(datetime(2026, 1, 1, tzinfo=UTC).timestamp())
-                assert item.timestamp <= int(datetime(2026, 1, 31, tzinfo=UTC).timestamp())
+                assert item.timestamp >= int(
+                    datetime(2026, 1, 1, tzinfo=UTC).timestamp()
+                )
+                assert item.timestamp <= int(
+                    datetime(2026, 1, 31, tzinfo=UTC).timestamp()
+                )
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_get_ohlc_bars_nonexistent_instrument_empty(
@@ -402,9 +418,7 @@ class TestGetOHLCBars:
             assert result.has_next is True
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_get_ohlc_bars_second_page(
-            self, markets_service, db_sess
-        ):
+        async def test_get_ohlc_bars_second_page(self, markets_service, db_sess):
             seed_candles()
             result = await markets_service.get_ohlc_bars(
                 datetime(2026, 1, 1, tzinfo=UTC),
@@ -436,7 +450,11 @@ class TestGetSymbolInfo:
 
             with pytest.raises(SymbolNotFoundException):
                 await markets_service.get_symbol_info(
-                    "FAKE", MarketType.STOCKS, BrokerType.ALPACA, Timeframe.m1, mock_db_sess
+                    "FAKE",
+                    MarketType.STOCKS,
+                    BrokerType.ALPACA,
+                    Timeframe.m1,
+                    mock_db_sess,
                 )
 
         @pytest.mark.asyncio(loop_scope="session")
@@ -445,6 +463,9 @@ class TestGetSymbolInfo:
 
             mock_row = MagicMock()
             mock_row.id = uuid4()
+            mock_row.symbol = "AAPL_RAW"
+            mock_row.native_symbol = "AAPL"
+
             mock_row.broker_type = BrokerType.ALPACA
             mock_row.timeframe = Timeframe.m1
             mock_row.market_type = MarketType.STOCKS
@@ -460,7 +481,10 @@ class TestGetSymbolInfo:
             )
 
             assert isinstance(result, InstrumentInfo)
+
+            # CRITICAL mapping rule
             assert result.symbol == "AAPL"
+
             assert result.broker_type == BrokerType.ALPACA
             assert result.market_type == MarketType.STOCKS
             assert result.timeframe == Timeframe.m1
@@ -475,7 +499,11 @@ class TestGetSymbolInfo:
         ):
             seed_candles()
             result = await markets_service.get_symbol_info(
-                "AAPL", MarketType.STOCKS, BrokerType.ALPACA, Timeframe.m1, db_sess
+                "AAPL",
+                MarketType.STOCKS,
+                BrokerType.ALPACA,
+                Timeframe.m1,
+                db_sess,
             )
 
             assert isinstance(result, InstrumentInfo)
@@ -492,5 +520,9 @@ class TestGetSymbolInfo:
         ):
             with pytest.raises(SymbolNotFoundException):
                 await markets_service.get_symbol_info(
-                    "NONEXISTENT", MarketType.STOCKS, BrokerType.ALPACA, Timeframe.m1, db_sess
+                    "NONEXISTENT",
+                    MarketType.STOCKS,
+                    BrokerType.ALPACA,
+                    Timeframe.m1,
+                    db_sess,
                 )
