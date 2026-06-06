@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Generator
 
-from module.markets.feed import OHLCFeedClient
-from module.markets.schema import OHLC as OHLCSchema
+from vegate.markets.feed.client import OHLCFeedClient
+from vegate.markets.schema import OHLC as OHLCSchema
 from .ohlc_feed_client import BacktestOHLCFeedClient
 
 if TYPE_CHECKING:

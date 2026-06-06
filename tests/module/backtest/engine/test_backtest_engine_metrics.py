@@ -6,12 +6,12 @@ import pytest
 from module.backtest.engine import BacktestEngine
 from module.backtest.engine.ohlc_feed_client import BacktestOHLCFeedClient
 from module.backtest.engine.oms_client import BacktestOMSClient
-from module.broker.enums import BrokerType, OrderSide, OrderStatus, OrderType
-from module.broker.schema import Order, OrderRequest
 from module.event_bus import SyncEventPublisher
-from module.markets.enums import MarketType, Timeframe
-from module.markets.schema import OHLC as OHLCModel
-from module.strategy.strategy import BaseStrategy
+from vegate.markets.enums import MarketType, Timeframe
+from vegate.markets.schema import OHLC as OHLCModel
+from vegate.oms.enums import BrokerType, OrderSide, OrderStatus, OrderType
+from vegate.oms.schema import Order, OrderRequest
+from vegate.strategy.base import BaseStrategy
 
 
 def _mock_db_session_for_candles(candles):
@@ -58,7 +58,12 @@ def _make_event_publisher():
 class SimpleStrategy(BaseStrategy):
 
     def __init__(self, ohlc_feed_client, oms_client, event_publisher):
-        super().__init__(ohlc_feed_client, oms_client, event_publisher)
+        super().__init__(
+            ohlc_feed_client=ohlc_feed_client,
+            oms_client=oms_client,
+            historical_data_client=MagicMock(),
+        )
+        self.event_publisher = event_publisher
         self._order: Order = None
         self._quantity = 1
 

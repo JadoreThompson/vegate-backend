@@ -1,9 +1,9 @@
 import logging
 from datetime import datetime
 
-from module.broker import Order
-from module.broker.enums import OrderSide, OrderStatus, OrderType
-from module.markets.schema import OHLC
+from vegate.markets.schema import OHLC
+from vegate.oms.enums import OrderSide, OrderStatus, OrderType
+from vegate.oms.schema import Order
 from vegate.strategy.base import BaseStrategy
 from .schema import EquityCurvePoint, BacktestMetrics
 from .oms_client import BacktestOMSClient

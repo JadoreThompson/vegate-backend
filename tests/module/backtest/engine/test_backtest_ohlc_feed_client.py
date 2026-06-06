@@ -6,12 +6,12 @@ from uuid import uuid4
 
 from sqlalchemy import delete, select, insert
 
-from module.broker.enums import BrokerType
-from module.markets.enums import MarketType, Timeframe
-from module.markets.model import OHLC, Instrument
 from core.db import get_db_sess_sync, get_db_session
 from module.backtest.engine.ohlc_feed_client import BacktestOHLCFeedClient
-from module.markets.schema import OHLC as OHLCModel
+from module.markets.model import OHLC, Instrument
+from vegate.markets.enums import MarketType, Timeframe
+from vegate.markets.schema import OHLC as OHLCModel
+from vegate.oms.enums import BrokerType
 
 
 @pytest.fixture

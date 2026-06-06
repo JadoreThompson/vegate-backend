@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from module.broker.schema import Order
+from vegate.oms.schema import Order
 
 
 @dataclass

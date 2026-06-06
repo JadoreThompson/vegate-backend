@@ -2,11 +2,11 @@ import logging
 import uuid
 from collections import defaultdict
 
-from module.broker import Order, OrderRequest
 from module.broker.client import BrokerClientException
-from module.broker.enums import OrderSide, OrderStatus, OrderType
 from module.deployment.oms import OMSClient
-from module.markets.schema import OHLC as OHLCSchema
+from vegate.markets.schema import OHLC as OHLCSchema
+from vegate.oms.enums import OrderSide, OrderStatus, OrderType
+from vegate.oms.schema import Order, OrderRequest
 from .ohlc_feed_client import BacktestOHLCFeedClient
 
 

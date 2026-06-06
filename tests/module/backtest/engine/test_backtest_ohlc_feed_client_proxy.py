@@ -6,7 +6,7 @@ import pytest
 from module.backtest.engine.ohlc_feed_client_proxy import (
     BacktestOHLCFeedClientProxy,
 )
-from module.markets.schema import OHLC as OHLCSchema
+from vegate.markets.schema import OHLC as OHLCSchema
 
 
 def _make_candle(symbol="AAPL"):

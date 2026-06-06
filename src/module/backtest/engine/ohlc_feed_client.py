@@ -4,12 +4,12 @@ from typing import Generator
 from sqlalchemy import and_, or_, select
 
 from core.db import get_db_sess_sync
-from module.broker.enums import BrokerType
-from module.markets.enums import MarketType, Timeframe
-from module.markets.feed import OHLCFeedClient
-from module.markets.feed.schema import SubscribeRequest
+from vegate.markets.enums import MarketType, Timeframe
+from vegate.markets.feed.client import OHLCFeedClient
+from vegate.markets.feed.schema import SubscribeRequest
+from vegate.markets.schema import OHLC as OHLCSchema
+from vegate.oms.enums import BrokerType
 from module.markets.model import Instrument, OHLC
-from module.markets.schema import OHLC as OHLCSchema
 
 
 class BacktestOHLCFeedClient(OHLCFeedClient):
