@@ -73,11 +73,8 @@ async def lifespan(app: FastAPI):
     )
     object_registry.register(backtest_service)
 
-    deployment_executor = DeploymentExecutorFactory.create(BACKTEST_EXECUTOR_NAME)
-    deployment_executor.max_concurrent_deployments = MAX_CONCURRENT_DEPLOYMENTS
     deployment_service = DeploymentsService(
         markets_service=markets_service,
-        deployment_executor=deployment_executor,
         broker_connections_service=broker_connections_service,
         event_publisher=event_publisher,
     )

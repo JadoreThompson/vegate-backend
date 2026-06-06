@@ -9,8 +9,11 @@ from sqlalchemy import delete, insert, select
 from module.broker.enums import BrokerType, OrderStatus
 from module.broker_connections import BrokerConnectionsService
 from module.deployment.enums import StrategyDeploymentStatus
+from module.deployment.event import (
+    DeploymentRequestedEvent,
+    DeploymentStopRequestedEvent,
+)
 from module.deployment.exception import DeploymentNotFoundException
-from module.deployment.executor.base import DeploymentExecutor
 from module.deployment.model import StrategyDeployments, StrategyDeploymentMetrics
 from module.deployment.schema import (
     CreateDeploymentRequest,
@@ -35,27 +38,26 @@ def mock_markets_service():
 
 
 @pytest.fixture
-def mock_deployment_executor():
-    service = MagicMock(spec=DeploymentExecutor)
-    service.run = AsyncMock()
-    service.stop = AsyncMock()
-    return service
-
-
-@pytest.fixture
 def mock_broker_connections_service():
     service = MagicMock(spec=BrokerConnectionsService)
     return service
 
 
 @pytest.fixture
+def mock_event_publisher():
+    publisher = MagicMock()
+    publisher.publish = AsyncMock()
+    return publisher
+
+
+@pytest.fixture
 def deployment_service(
-    mock_markets_service, mock_deployment_executor, mock_broker_connections_service
+    mock_markets_service, mock_broker_connections_service, mock_event_publisher
 ):
     return DeploymentsService(
         markets_service=mock_markets_service,
-        deployment_executor=mock_deployment_executor,
         broker_connections_service=mock_broker_connections_service,
+        event_publisher=mock_event_publisher,
     )
 
 
@@ -84,8 +86,11 @@ class TestCreateDeployment:
     class TestUnitTest:
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_create_success_runs_deployment(
-            self, deployment_service, mock_markets_service, mock_deployment_executor
+        async def test_create_success_publishes_event(
+            self,
+            deployment_service,
+            mock_markets_service,
+            mock_event_publisher,
         ):
             mock_db_sess = MagicMock()
 
@@ -94,7 +99,9 @@ class TestCreateDeployment:
             mock_markets_service.get_symbol_info = AsyncMock(return_value=mock_info)
 
             mock_db_sess.flush = AsyncMock()
-            mock_db_sess.refresh = AsyncMock(side_effect=lambda obj: None)
+            mock_db_sess.refresh = AsyncMock(
+                side_effect=lambda obj: setattr(obj, "deployment_id", uuid4())
+            )
 
             request = CreateDeploymentRequest(
                 version_id=uuid4(),
@@ -104,7 +111,35 @@ class TestCreateDeployment:
             await deployment_service.create(request, mock_db_sess)
 
             mock_db_sess.add.assert_called_once()
-            mock_deployment_executor.run.assert_awaited_once()
+            mock_event_publisher.publish.assert_awaited_once()
+            args = mock_event_publisher.publish.call_args[0]
+            assert isinstance(args[0], DeploymentRequestedEvent)
+
+
+class TestStartDeployment:
+
+    class TestUnitTest:
+
+        @pytest.mark.asyncio(loop_scope="session")
+        async def test_start_publishes_deployment_requested_event(
+            self, deployment_service, mock_event_publisher
+        ):
+            mock_db_sess = AsyncMock()
+
+            deployment_id = uuid4()
+            mock_deployment = MagicMock()
+            mock_deployment.deployment_id = deployment_id
+            mock_deployment.status = StrategyDeploymentStatus.PENDING
+            mock_db_sess.scalar.return_value = mock_deployment
+
+            await deployment_service.start(deployment_id, uuid4(), mock_db_sess)
+
+            mock_event_publisher.publish.assert_awaited_once()
+            args = mock_event_publisher.publish.call_args[0]
+            event = args[0]
+            assert isinstance(event, DeploymentRequestedEvent)
+            assert event.deployment_id == deployment_id
+            assert args[1] is mock_db_sess
 
 
 class TestGetDeployment:
@@ -277,8 +312,8 @@ class TestStopDeployment:
                 await deployment_service.stop(uuid4(), uuid4(), mock_db_sess)
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_stop_already_stopped_does_not_call_runner(
-            self, deployment_service, mock_deployment_executor
+        async def test_stop_already_stopped_does_not_publish(
+            self, deployment_service, mock_event_publisher
         ):
             mock_db_sess = AsyncMock()
 
@@ -288,11 +323,11 @@ class TestStopDeployment:
 
             await deployment_service.stop(uuid4(), uuid4(), mock_db_sess)
 
-            mock_deployment_executor.stop.assert_not_awaited()
+            mock_event_publisher.publish.assert_not_awaited()
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_stop_already_stop_requested_does_not_call_runner(
-            self, deployment_service, mock_deployment_executor
+        async def test_stop_already_stop_requested_does_not_publish(
+            self, deployment_service, mock_event_publisher
         ):
             mock_db_sess = AsyncMock()
 
@@ -302,11 +337,11 @@ class TestStopDeployment:
 
             await deployment_service.stop(uuid4(), uuid4(), mock_db_sess)
 
-            mock_deployment_executor.stop.assert_not_awaited()
+            mock_event_publisher.publish.assert_not_awaited()
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_stop_running_deployment_calls_runner(
-            self, deployment_service, mock_deployment_executor
+        async def test_stop_running_deployment_publishes_event(
+            self, deployment_service, mock_event_publisher
         ):
             mock_db_sess = AsyncMock()
 
@@ -318,11 +353,15 @@ class TestStopDeployment:
 
             await deployment_service.stop(deployment_id, uuid4(), mock_db_sess)
 
-            mock_deployment_executor.stop.assert_awaited_once_with(deployment_id)
+            mock_event_publisher.publish.assert_awaited_once()
+            args = mock_event_publisher.publish.call_args[0]
+            event = args[0]
+            assert isinstance(event, DeploymentStopRequestedEvent)
+            assert event.deployment_id == deployment_id
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_stop_pending_deployment_calls_runner(
-            self, deployment_service, mock_deployment_executor
+        async def test_stop_pending_deployment_publishes_event(
+            self, deployment_service, mock_event_publisher
         ):
             mock_db_sess = AsyncMock()
 
@@ -334,7 +373,11 @@ class TestStopDeployment:
 
             await deployment_service.stop(deployment_id, uuid4(), mock_db_sess)
 
-            mock_deployment_executor.stop.assert_awaited_once_with(deployment_id)
+            mock_event_publisher.publish.assert_awaited_once()
+            args = mock_event_publisher.publish.call_args[0]
+            event = args[0]
+            assert isinstance(event, DeploymentStopRequestedEvent)
+            assert event.deployment_id == deployment_id
 
 
 class TestGetOrders:

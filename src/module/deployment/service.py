@@ -34,12 +34,10 @@ class DeploymentsService:
     def __init__(
         self,
         markets_service: MarketsService,
-        deployment_executor: DeploymentExecutor,
         broker_connections_service: BrokerConnectionsService,
         event_publisher: EventPublisher,
     ):
         self._markets_service = markets_service
-        self._deployment_executor = deployment_executor
         self._broker_connections_service = broker_connections_service
         self._event_publisher = event_publisher
 
@@ -56,7 +54,8 @@ class DeploymentsService:
         await db_sess.refresh(deployment)
 
         await self._event_publisher.publish(
-            DeploymentRequestedEvent(deployment_id=deployment.deployment_id)
+            DeploymentRequestedEvent(deployment_id=deployment.deployment_id),
+            db_sess
         )
 
         return deployment
@@ -70,7 +69,7 @@ class DeploymentsService:
             raise DeploymentAlreadyRunningException(deployment_id)
 
         await self._event_publisher.publish(
-            DeploymentRequestedEvent(deployment_id=deployment.deployment_id)
+            DeploymentRequestedEvent(deployment_id=deployment.deployment_id), db_sess
         )
 
     async def stop(self, deployment_id: UUID, user_id: UUID, db_sess: AsyncSession):
@@ -83,7 +82,7 @@ class DeploymentsService:
             return
 
         await self._event_publisher.publish(
-            DeploymentStopRequestedEvent(deployment_id=deployment_id)
+            DeploymentStopRequestedEvent(deployment_id=deployment_id), db_sess
         )
 
     async def get(self, deployment_id: UUID, user_id: UUID, db_sess: AsyncSession):
@@ -93,7 +92,7 @@ class DeploymentsService:
         self, deployment_id: UUID, user_id: UUID, db_sess: AsyncSession
     ):
         deployment = await self._get_user_deployment(deployment_id, user_id, db_sess)
-        metrics = deployment.metrics
+        metrics = deployment.metricsss
         return self.to_response(deployment, metrics)
 
     async def get_all(
