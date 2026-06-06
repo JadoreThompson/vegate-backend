@@ -5,8 +5,11 @@ import pytest
 
 from module.backtest.enums import BacktestStatus
 from module.backtest.event import (
+    BacktestCancelledEvent,
     BacktestEventType,
-    BacktestStatusChangedEvent
+    BacktestRequestedEvent,
+    BacktestStatusChangedEvent,
+    BacktestStopRequestedEvent,
 )
 from module.backtest.event.deserialiser import BacktestEventDeserialiser
 from module.backtest.schema import BacktestMetricsSchema
@@ -32,6 +35,40 @@ class TestBacktestEventDeserialiser:
         assert restored.type == BacktestEventType.STATUS_CHANGED
         assert restored.backtest_id == backtest_id
         assert restored.status == BacktestStatus.IN_PROGRESS
+
+    def test_deserialise_requested(self, deserialiser):
+        backtest_id = uuid4()
+        event = BacktestRequestedEvent(backtest_id=backtest_id)
+
+        data = event.model_dump(mode="json")
+        restored = deserialiser.deserialise(data)
+
+        assert restored.type == BacktestEventType.REQUESTED
+        assert restored.backtest_id == backtest_id
+
+    def test_deserialise_stop_requested(self, deserialiser):
+        backtest_id = uuid4()
+        event = BacktestStopRequestedEvent(backtest_id=backtest_id)
+
+        data = event.model_dump(mode="json")
+        restored = deserialiser.deserialise(data)
+
+        assert restored.type == BacktestEventType.STOP_REQUESTED
+        assert restored.backtest_id == backtest_id
+
+    def test_deserialise_cancelled(self, deserialiser):
+        backtest_id = uuid4()
+        reason = "User requested cancellation"
+        event = BacktestCancelledEvent(
+            backtest_id=backtest_id, reason=reason
+        )
+
+        data = event.model_dump(mode="json")
+        restored = deserialiser.deserialise(data)
+
+        assert restored.type == BacktestEventType.CANCELLED
+        assert restored.backtest_id == backtest_id
+        assert restored.reason == reason
 
     def test_deserialise_json_from_string(self, deserialiser):
         backtest_id = uuid4()
