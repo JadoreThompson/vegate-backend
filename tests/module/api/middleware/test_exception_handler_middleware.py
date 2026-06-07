@@ -100,7 +100,7 @@ async def test_dispatch_request_validation_error_fallback(middleware, mock_reque
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_dispatch_unhandled_exception(middleware, mock_request):
-    exc = RuntimeError("something broke")
+    exc = RuntimeError("Throwing side effect exception")
     call_next = AsyncMock(side_effect=exc)
     response = await middleware.dispatch(mock_request, call_next)
     assert response.status_code == 500

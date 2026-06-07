@@ -67,6 +67,7 @@ def clear_tables():
     with get_db_sess_sync() as db_sess:
         db_sess.execute(delete(StrategyDeployments))
         db_sess.execute(delete(Strategy))
+        db_sess.execute(delete(BrokerConnections))
         db_sess.commit()
 
 

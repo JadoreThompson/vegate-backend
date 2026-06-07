@@ -2,7 +2,11 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+from sqlalchemy import delete
+
+from core.db.session import get_db_sess_sync
 from module.auth import AuthService
+from module.broker_connections.model import BrokerConnections
 from module.broker_connections.service import _BrokerAccount
 from core.redis import REDIS_CLIENT
 
@@ -16,6 +20,13 @@ def broker_connections_service():
     object_registry: ObjectRegistry = app.state.object_registry
     service = object_registry.get(BrokerConnectionsService)
     return service
+
+@pytest.fixture(autouse=True)
+def clear_tables():
+    yield
+    with get_db_sess_sync() as db_sess:
+        db_sess.execute(delete(BrokerConnections))
+        db_sess.commit()
 
 
 class TestCreateBrokerConnection:
