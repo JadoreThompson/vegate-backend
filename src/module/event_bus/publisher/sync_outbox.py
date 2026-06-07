@@ -17,6 +17,7 @@ class SyncOutboxEventPublisher(SyncEventPublisher):
         if db_sess is None:
             with get_db_sess_sync() as db_sess:
                 self._persist_event(event, db_sess)
+                db_sess.commit()
         else:
             self._persist_event(event, db_sess)
 
@@ -30,4 +31,3 @@ class SyncOutboxEventPublisher(SyncEventPublisher):
                 status=EventStatus.PENDING,
             )
         )
-        db_sess.commit()

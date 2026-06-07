@@ -5,6 +5,7 @@ from uuid import UUID
 from redis.asyncio import Redis as AsyncRedis
 from sqlalchemy import or_, select, update
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import (
     REDIS_BACKTEST_HEARTBEAT_KEY_PREFIX,
@@ -161,7 +162,7 @@ class BacktestMonitor:
                 f"Backtest '{event.backtest_id}' not found, dropping event"
             )
             return
-        
+
         if backtest.status not in {
             BacktestStatus.PENDING,
             BacktestStatus.COMPLETED,
@@ -236,7 +237,15 @@ class BacktestMonitor:
         )
 
     async def _handle_backtest_cancelled(self, event: BacktestCancelledEvent) -> None:
-        user_id = await self._get_user_id_for_backtest(event.backtest_id)
+        async with get_db_session() as db_sess:
+            user_id = await self._get_user_id_for_backtest(event.backtest_id, db_sess)
+            await db_sess.execute(
+                update(Backtest)
+                .values(status=BacktestStatus.CANCELLED)
+                .where(Backtest.id == event.backtest_id)
+            )
+            await db_sess.commit()
+
         context = BacktestCapacityConstrainedNotificationContext(
             backtest_id=event.backtest_id
         )
@@ -379,8 +388,10 @@ class BacktestMonitor:
         except asyncio.CancelledError:
             pass
 
-    async def _get_user_id_for_backtest(self, backtest_id: UUID) -> UUID:
-        async with get_db_session() as session:
+    async def _get_user_id_for_backtest(
+        self, backtest_id: UUID, db_sess: AsyncSession | None = None
+    ) -> UUID:
+        async def _func(session: AsyncSession):
             user_id = await session.scalar(
                 select(User.user_id)
                 .select_from(Backtest)
@@ -393,6 +404,11 @@ class BacktestMonitor:
                 .where(Backtest.id == backtest_id)
             )
 
-        if user_id is None:
-            raise Exception(f"User not found for backtest '{backtest_id}'")
-        return user_id
+            if user_id is None:
+                raise Exception(f"User not found for backtest '{backtest_id}'")
+            return user_id
+
+        if db_sess is None:
+            async with get_db_session() as db_sess:
+                return await _func(db_sess)
+        return await _func(db_sess)

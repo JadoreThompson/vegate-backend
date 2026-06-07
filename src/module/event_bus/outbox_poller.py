@@ -9,6 +9,8 @@ from sqlalchemy import case, select, update
 from core.db import get_db_session
 from core.event import BaseEvent, EventDeserialiser
 from core.kafka import AsyncKafkaProducer
+from module.backtest.event import BacktestEventType
+from module.backtest.event.deserialiser import BacktestEventDeserialiser
 from module.deployment.event import DeploymentEventType
 from module.deployment.event.deserialiser import DeploymentEventDeserialiser
 from module.event_bus.enums import EventStatus
@@ -143,7 +145,10 @@ class OutboxPoller:
             )
 
             await asyncio.wait_for(
-                self._kafka_producer.send_and_wait(event.topic, json.dumps(raw_event).encode()), timeout=30
+                self._kafka_producer.send_and_wait(
+                    event.topic, json.dumps(raw_event).encode()
+                ),
+                timeout=30,
             )
 
             self._logger.info(
@@ -208,7 +213,7 @@ class OutboxPoller:
     def _parse_event(self, raw_event: dict) -> BaseEvent:
         cls = self.__class__
 
-        event_type = raw_event["type"]
+        event_type: str = raw_event["type"]
 
         self._logger.info(
             "Parsing event type '%s'",
@@ -221,7 +226,12 @@ class OutboxPoller:
                 cls._DESERIALISERS[DeploymentEventType] = DeploymentEventDeserialiser()
 
             deserialiser = cls._DESERIALISERS[DeploymentEventType]
+        elif event_type.startswith("backtest"):
+            if BacktestEventType not in cls._DESERIALISERS:
+                self._logger.info("Initialising backtest event deserialiser")
+                cls._DESERIALISERS[BacktestEventType] = BacktestEventDeserialiser()
 
+            deserialiser = cls._DESERIALISERS[BacktestEventType]
         else:
             raise ValueError(f"Unsupported event type '{event_type}'")
 

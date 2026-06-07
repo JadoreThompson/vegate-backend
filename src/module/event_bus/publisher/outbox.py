@@ -17,6 +17,7 @@ class OutboxEventPublisher(EventPublisher):
         if db_sess is None:
             async with get_db_session() as db_sess:
                 await self._persist_event(event, db_sess)
+                await db_sess.commit()
         else:
             await self._persist_event(event, db_sess)
 
@@ -30,4 +31,3 @@ class OutboxEventPublisher(EventPublisher):
                 status=EventStatus.PENDING,
             )
         )
-        await db_sess.commit()

@@ -70,17 +70,7 @@ def monitor():
 
 
 @monitor.command(name="run")
-def run():
-    notification_channels = {}
-
-    email_service = EmailServiceFactory.create(
-        EMAIL_SERVICE_NAME, "Vegate", "no-reply@vegate.jadore.dev"
-    )
-    email_channel = EmailNotificationChannel(
-        email_service=email_service, template_engine=EmailNotificationTemplateEngine()
-    )
-    notification_channels[NotificationChannelType.EMAIL] = email_channel
-
+def monitor_run():
     monitor_service = BacktestMonitor(
         deserialiser=BacktestEventDeserialiser(),
         redis_client=REDIS_CLIENT,

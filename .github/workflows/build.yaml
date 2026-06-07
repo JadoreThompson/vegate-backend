@@ -76,6 +76,10 @@ jobs:
       - name: Run tests
         run: docker run --network vegate_network --name vegate-backend-test vegate-backend-test uv run pytest -s -x
 
+      - name: Remove test container
+        if: always()
+        run: docker rm -f vegate-backend-test || true
+
   deploy:
     name: Deploy services
     runs-on: self-hosted
