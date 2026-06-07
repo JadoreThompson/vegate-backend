@@ -48,7 +48,6 @@ jobs:
     name: Run Tests
     runs-on: self-hosted
     needs: setup
-    if: false
     steps:
       - name: Create .env.test
         run: |
@@ -80,7 +79,7 @@ jobs:
   deploy:
     name: Deploy services
     runs-on: self-hosted
-    # needs: test
+    needs: test
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
