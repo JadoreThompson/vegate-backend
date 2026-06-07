@@ -16,21 +16,20 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-# from infra.db.model import Base
 from core.db import Base
-from core.db import Base
-from module.user.model import User
-from module.strategy.model import Strategy, StrategyVersion
-from module.markets.model import Instrument, OHLC
+from module.backtest.model import Backtest, BacktestMetrics, BacktestOrder
+from module.broker_connections.model import BrokerConnections
 from module.deployment.model import (
-    StrategyDeployments,
+    DeploymentEvent,
     StrategyDeploymentMetrics,
     StrategyDeploymentOrders,
-    DeploymentEvent,
+    StrategyDeployments,
 )
-from module.broker_connections.model import BrokerConnections
-from module.backtest.model import Backtest, BacktestMetrics, BacktestOrder
 from module.event_bus.model import EventOutbox
+from module.markets.model import Instrument, OHLC
+from module.notification.model import Notification
+from module.strategy.model import Strategy, StrategyVersion
+from module.user.model import User
 
 target_metadata = Base.metadata
 # target_metadata = None
