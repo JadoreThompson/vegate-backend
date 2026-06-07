@@ -138,8 +138,7 @@ class JWTService:
             if user is None:
                 raise JWTException("User not found.")
 
-            if user.jwt is not None and user.jwt != token:
-                self._logger.info("Invalid token detected")
+            if user.jwt is None or user.jwt != token:
                 raise JWTException("Invalid token")
 
         return payload
