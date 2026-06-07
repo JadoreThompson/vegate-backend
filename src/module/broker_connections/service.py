@@ -6,7 +6,7 @@ from sqlalchemy import and_, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from module.api.schema import PaginatedResponse
-from module.broker.enums import BrokerType
+from vegate.oms.enums import BrokerType
 from .exception import (
     BrokerAccountFetchException,
     BrokerConnectionNotFoundException,

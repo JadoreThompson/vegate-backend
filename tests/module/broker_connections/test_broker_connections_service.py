@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from sqlalchemy import delete, insert
 
 from core.db import get_db_sess_sync, get_db_session
-from module.broker.enums import BrokerType
+from vegate.oms.enums import BrokerType
 from module.broker_connections import BrokerConnectionsService
 from module.broker_connections.exception import (
     BrokerAccountFetchException,

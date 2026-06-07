@@ -6,8 +6,8 @@ from uuid import uuid4
 
 from sqlalchemy import delete
 
-from module.broker.enums import BrokerType
-from module.markets.enums import MarketType, Timeframe
+from vegate.oms.enums import BrokerType
+from vegate.markets.enums import MarketType, Timeframe
 from module.markets.exception import SymbolNotFoundException
 from module.markets.model import OHLC, Instrument
 from module.markets.schema import InstrumentInfo

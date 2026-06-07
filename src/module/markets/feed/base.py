@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Any, Awaitable, Callable
 
-from module.broker.enums import BrokerType
-from ..enums import MarketType, Timeframe
+from vegate.oms.enums import BrokerType
+from vegate.markets.enums import MarketType, Timeframe
 from ..model import OHLC
 
 

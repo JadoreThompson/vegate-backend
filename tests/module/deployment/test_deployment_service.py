@@ -6,7 +6,7 @@ from uuid import uuid4
 from unittest.mock import AsyncMock, MagicMock, patch
 from sqlalchemy import delete, insert, select
 
-from module.broker.enums import BrokerType, OrderStatus
+from vegate.oms.enums import BrokerType, OrderStatus
 from module.broker_connections import BrokerConnectionsService
 from module.deployment.enums import StrategyDeploymentStatus
 from module.deployment.event import (
@@ -21,7 +21,7 @@ from module.deployment.schema import (
     StrategyDeploymentMetricsResponse,
 )
 from module.deployment.service import DeploymentsService
-from module.markets.enums import MarketType, Timeframe
+from vegate.markets.enums import MarketType, Timeframe
 from module.markets.model import Instrument
 from module.markets.schema import InstrumentInfo
 from module.markets.service import MarketsService

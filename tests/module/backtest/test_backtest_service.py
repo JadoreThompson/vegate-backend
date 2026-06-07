@@ -11,8 +11,8 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from module.util import create_user
 from core.db import get_db_sess_sync, get_db_session
 from module.backtest.enums import BacktestStatus
-from module.broker.enums import BrokerType, OrderSide, OrderStatus, OrderType
-from module.markets.enums import MarketType, Timeframe
+from vegate.oms.enums import BrokerType, OrderSide, OrderStatus, OrderType
+from vegate.markets.enums import MarketType, Timeframe
 from module.backtest import BacktestsService
 from module.backtest.model import Backtest, BacktestMetrics, BacktestOrder
 from module.backtest.exception import (

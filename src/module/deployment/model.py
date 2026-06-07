@@ -18,9 +18,9 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.db import Base, datetime_tz, uuid_pk
-from module.broker.enums import OrderSide, OrderStatus
+from vegate.oms.enums import OrderSide, OrderStatus
 from module.deployment.enums import StrategyDeploymentStatus
-from module.markets.enums import Timeframe
+from vegate.markets.enums import Timeframe
 from util import get_datetime
 
 from .event import DeploymentEventType

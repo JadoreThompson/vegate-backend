@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from module.broker.enums import OrderStatus
+from vegate.oms.enums import OrderStatus
 from module.deployment.enums import StrategyDeploymentStatus
 from core.schema import CustomBaseModel
 

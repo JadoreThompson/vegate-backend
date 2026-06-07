@@ -7,11 +7,11 @@ from unittest.mock import AsyncMock
 from sqlalchemy import delete, select
 
 from config import ALPACA_API_KEY, ALPACA_SECRET_KEY
-from module.broker.enums import BrokerType
-from module.markets.enums import MarketType, Timeframe
+from vegate.oms.enums import BrokerType
+from vegate.markets.enums import MarketType, Timeframe
 from module.markets.model import OHLC, Instrument
 from core.db import get_db_session, get_db_sess_sync
-from module.markets.schema import OHLC as OHLCModel
+from vegate.markets.schema import OHLC as OHLCSchema
 from module.markets.feed.alpaca.service import AlpacaOHLCFeed
 
 
@@ -118,7 +118,7 @@ class TestParseCandle:
 
         result = alpaca_feed._parse_candle(candle_data)
 
-        assert isinstance(result, OHLCModel)
+        assert isinstance(result, OHLCSchema)
         assert result.open == 100.0
         assert result.high == 105.0
         assert result.low == 99.0
@@ -197,7 +197,7 @@ class TestPersistCandle:
 
         alpaca_feed._instrument_id = instrument.id
 
-        candle = OHLCModel(
+        candle = OHLCSchema(
             open=100.0,
             high=105.0,
             low=99.0,
@@ -242,7 +242,7 @@ class TestPersistCandle:
         alpaca_feed._instrument_id = instrument.id
 
         for i in range(3):
-            candle = OHLCModel(
+            candle = OHLCSchema(
                 open=100.0 + i,
                 high=105.0 + i,
                 low=99.0 + i,

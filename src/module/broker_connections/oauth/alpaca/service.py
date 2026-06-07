@@ -17,7 +17,7 @@ from config import (
     REDIS_ALPACA_OAUTH_TTL_SECS,
 )
 from core.redis import REDIS_CLIENT
-from module.broker.enums import BrokerType
+from vegate.oms.enums import BrokerType
 from module.broker_connections.model import BrokerConnections
 from .exception import AlpacaOauthException
 from .schema import AlpacaOAuthPayload, RedisOAuthPayload, AlpacaTradingEnv

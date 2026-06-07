@@ -2,7 +2,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from module.broker.enums import BrokerType
+from vegate.oms.enums import BrokerType
 from core.schema import CustomBaseModel
 
 

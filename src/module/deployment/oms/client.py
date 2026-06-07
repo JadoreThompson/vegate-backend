@@ -3,7 +3,7 @@ from uuid import UUID
 
 import requests
 
-from module.broker import Order, OrderRequest
+from vegate.oms.schema import Order, OrderRequest
 from .schema import PlaceOrderRequest
 
 

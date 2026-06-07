@@ -11,7 +11,7 @@ from core.db import get_db_sess_sync
 from module.deployment.enums import StrategyDeploymentStatus
 
 from module.event_bus import SyncEventPublisher
-from module.markets.feed import OHLCFeedClient
+from vegate.markets.feed.client import OHLCFeedClient
 from module.strategy.loader import StrategyLoader
 from module.strategy.model import Strategy, StrategyVersion
 from vegate.markets.historical.client import HistoricalDataClient

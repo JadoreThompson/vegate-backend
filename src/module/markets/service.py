@@ -4,12 +4,12 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from module.api.schema import PaginatedResponse
-from module.broker.enums import BrokerType
-from .enums import MarketType, Timeframe
+from vegate.markets.enums import MarketType, Timeframe
+from vegate.markets.schema import OHLC as OHLCResponse
+from vegate.oms.enums import BrokerType
 from .exception import SymbolNotFoundException
 from .model import OHLC, Instrument
 from .schema import InstrumentInfo
-from .schema import OHLC as OHLCResponse
 
 
 class MarketsService:

@@ -10,7 +10,7 @@ from core.db import get_db_sess_sync, get_db_session
 from module.backtest.engine.ohlc_feed_client import BacktestOHLCFeedClient
 from module.markets.model import OHLC, Instrument
 from vegate.markets.enums import MarketType, Timeframe
-from vegate.markets.schema import OHLC as OHLCModel
+from vegate.markets.schema import OHLC as OHLCSchema
 from vegate.oms.enums import BrokerType
 
 
@@ -23,14 +23,16 @@ class TestSubscribe:
     """Unit tests for the subscribe method."""
 
     def test_subscribe_stores_subscription(self, backtest_client):
-        backtest_client.subscribe([
-            {
-                "symbol": "AAPL",
-                "market_type": MarketType.STOCKS,
-                "broker_type": BrokerType.ALPACA,
-                "timeframe": [Timeframe.m1],
-            },
-        ])
+        backtest_client.subscribe(
+            [
+                {
+                    "symbol": "AAPL",
+                    "market_type": MarketType.STOCKS,
+                    "broker_type": BrokerType.ALPACA,
+                    "timeframe": [Timeframe.m1],
+                },
+            ]
+        )
         assert len(backtest_client._subscriptions) == 1
         sub = backtest_client._subscriptions[0]
         assert sub["symbol"] == "AAPL"
@@ -39,45 +41,51 @@ class TestSubscribe:
         assert sub["timeframe"] == ["1m"]
 
     def test_subscribe_multiple_timeframes(self, backtest_client):
-        backtest_client.subscribe([
-            {
-                "symbol": "AAPL",
-                "market_type": MarketType.STOCKS,
-                "broker_type": BrokerType.ALPACA,
-                "timeframe": [Timeframe.m1, Timeframe.m5],
-            },
-        ])
+        backtest_client.subscribe(
+            [
+                {
+                    "symbol": "AAPL",
+                    "market_type": MarketType.STOCKS,
+                    "broker_type": BrokerType.ALPACA,
+                    "timeframe": [Timeframe.m1, Timeframe.m5],
+                },
+            ]
+        )
         assert len(backtest_client._subscriptions) == 1
         assert backtest_client._subscriptions[0]["timeframe"] == ["1m", "5m"]
 
     def test_subscribe_multiple_instruments(self, backtest_client):
-        backtest_client.subscribe([
-            {
-                "symbol": "AAPL",
-                "market_type": MarketType.STOCKS,
-                "broker_type": BrokerType.ALPACA,
-                "timeframe": [Timeframe.m1],
-            },
-            {
-                "symbol": "BTC/USD",
-                "market_type": MarketType.CRYPTO,
-                "broker_type": BrokerType.ALPACA,
-                "timeframe": [Timeframe.H1],
-            },
-        ])
+        backtest_client.subscribe(
+            [
+                {
+                    "symbol": "AAPL",
+                    "market_type": MarketType.STOCKS,
+                    "broker_type": BrokerType.ALPACA,
+                    "timeframe": [Timeframe.m1],
+                },
+                {
+                    "symbol": "BTC/USD",
+                    "market_type": MarketType.CRYPTO,
+                    "broker_type": BrokerType.ALPACA,
+                    "timeframe": [Timeframe.H1],
+                },
+            ]
+        )
         assert len(backtest_client._subscriptions) == 2
         assert backtest_client._subscriptions[0]["symbol"] == "AAPL"
         assert backtest_client._subscriptions[1]["symbol"] == "BTC/USD"
 
     def test_subscribe_crypto_symbol(self, backtest_client):
-        backtest_client.subscribe([
-            {
-                "symbol": "BTC/USD",
-                "market_type": MarketType.CRYPTO,
-                "broker_type": BrokerType.ALPACA,
-                "timeframe": [Timeframe.H1],
-            },
-        ])
+        backtest_client.subscribe(
+            [
+                {
+                    "symbol": "BTC/USD",
+                    "market_type": MarketType.CRYPTO,
+                    "broker_type": BrokerType.ALPACA,
+                    "timeframe": [Timeframe.H1],
+                },
+            ]
+        )
         assert len(backtest_client._subscriptions) == 1
         assert backtest_client._subscriptions[0]["symbol"] == "BTC/USD"
         assert backtest_client._subscriptions[0]["market_type"] == "crypto"
@@ -111,25 +119,29 @@ class TestCandles:
         mock_db_sess = MagicMock()
         mock_db_sess.execute.return_value = mock_result
 
-        backtest_client.subscribe([
-            {
-                "symbol": "AAPL",
-                "market_type": MarketType.STOCKS,
-                "broker_type": BrokerType.ALPACA,
-                "timeframe": [Timeframe.m1],
-            },
-        ])
+        backtest_client.subscribe(
+            [
+                {
+                    "symbol": "AAPL",
+                    "market_type": MarketType.STOCKS,
+                    "broker_type": BrokerType.ALPACA,
+                    "timeframe": [Timeframe.m1],
+                },
+            ]
+        )
 
         backtest_client._end = 1500
 
-        with patch("module.backtest.engine.ohlc_feed_client.get_db_sess_sync") as mock_get_db:
+        with patch(
+            "module.backtest.engine.ohlc_feed_client.get_db_sess_sync"
+        ) as mock_get_db:
             mock_get_db.return_value.__enter__ = MagicMock(return_value=mock_db_sess)
             mock_get_db.return_value.__exit__ = MagicMock(return_value=None)
 
             candles = list(backtest_client.candles())
 
         assert len(candles) == 1
-        assert isinstance(candles[0], OHLCModel)
+        assert isinstance(candles[0], OHLCSchema)
         assert candles[0].open == 100.0
         assert candles[0].high == 105.0
         assert candles[0].low == 99.0
@@ -146,8 +158,12 @@ class TestIntegration:
     """Integration tests for BacktestOHLCFeedClient with real database."""
 
     def _create_instrument_and_candles(
-        self, symbol, market_type=MarketType.STOCKS, broker_type=BrokerType.ALPACA,
-        timestamps=None, start_price=100.0,
+        self,
+        symbol,
+        market_type=MarketType.STOCKS,
+        broker_type=BrokerType.ALPACA,
+        timestamps=None,
+        start_price=100.0,
     ):
         if timestamps is None:
             timestamps = [1500]
@@ -187,23 +203,26 @@ class TestIntegration:
     def test_integration_persist_and_iterate_candles(self, backtest_client):
         """Test end-to-end with real database records."""
         inst_id = self._create_instrument_and_candles(
-            "INTTEST", timestamps=[1500 + i for i in range(5)],
+            "INTTEST",
+            timestamps=[1500 + i for i in range(5)],
         )
 
-        backtest_client.subscribe([
-            {
-                "symbol": "INTTEST",
-                "market_type": MarketType.STOCKS,
-                "broker_type": BrokerType.ALPACA,
-                "timeframe": [Timeframe.m1],
-            },
-        ])
+        backtest_client.subscribe(
+            [
+                {
+                    "symbol": "INTTEST",
+                    "market_type": MarketType.STOCKS,
+                    "broker_type": BrokerType.ALPACA,
+                    "timeframe": [Timeframe.m1],
+                },
+            ]
+        )
 
         candles = list(backtest_client.candles())
 
         assert len(candles) == 5
         for i, candle in enumerate(candles):
-            assert isinstance(candle, OHLCModel)
+            assert isinstance(candle, OHLCSchema)
             assert candle.open == 100.0 + i
             assert candle.close == 102.0 + i
             assert candle.timestamp == 1500 + i
@@ -220,14 +239,16 @@ class TestIntegration:
             timestamps=[1000, 1200, 1400, 1600, 1800, 2000],
         )
 
-        backtest_client.subscribe([
-            {
-                "symbol": "RANGETEST",
-                "market_type": MarketType.STOCKS,
-                "broker_type": BrokerType.ALPACA,
-                "timeframe": [Timeframe.m1],
-            },
-        ])
+        backtest_client.subscribe(
+            [
+                {
+                    "symbol": "RANGETEST",
+                    "market_type": MarketType.STOCKS,
+                    "broker_type": BrokerType.ALPACA,
+                    "timeframe": [Timeframe.m1],
+                },
+            ]
+        )
         backtest_client._end = 1800
 
         candles = list(backtest_client.candles())
@@ -242,17 +263,20 @@ class TestIntegration:
     def test_integration_cur_candle_updated(self, backtest_client):
         """Test that cur_candle is updated during iteration."""
         inst_id = self._create_instrument_and_candles(
-            "CURTEST", timestamps=[1500 + i for i in range(3)],
+            "CURTEST",
+            timestamps=[1500 + i for i in range(3)],
         )
 
-        backtest_client.subscribe([
-            {
-                "symbol": "CURTEST",
-                "market_type": MarketType.STOCKS,
-                "broker_type": BrokerType.ALPACA,
-                "timeframe": [Timeframe.m1],
-            },
-        ])
+        backtest_client.subscribe(
+            [
+                {
+                    "symbol": "CURTEST",
+                    "market_type": MarketType.STOCKS,
+                    "broker_type": BrokerType.ALPACA,
+                    "timeframe": [Timeframe.m1],
+                },
+            ]
+        )
 
         gen = backtest_client.candles()
 
@@ -273,27 +297,31 @@ class TestIntegration:
     def test_integration_multi_instrument_ordered(self, backtest_client):
         """Test candles from multiple instruments are merged in timestamp order."""
         inst1_id = self._create_instrument_and_candles(
-            "MULTI_A", timestamps=[1000, 3000],
+            "MULTI_A",
+            timestamps=[1000, 3000],
         )
         inst2_id = self._create_instrument_and_candles(
-            "MULTI_B", timestamps=[2000, 4000],
+            "MULTI_B",
+            timestamps=[2000, 4000],
         )
 
         backtest_client._end = 4000
-        backtest_client.subscribe([
-            {
-                "symbol": "MULTI_A",
-                "market_type": MarketType.STOCKS,
-                "broker_type": BrokerType.ALPACA,
-                "timeframe": [Timeframe.m1],
-            },
-            {
-                "symbol": "MULTI_B",
-                "market_type": MarketType.STOCKS,
-                "broker_type": BrokerType.ALPACA,
-                "timeframe": [Timeframe.m1],
-            },
-        ])
+        backtest_client.subscribe(
+            [
+                {
+                    "symbol": "MULTI_A",
+                    "market_type": MarketType.STOCKS,
+                    "broker_type": BrokerType.ALPACA,
+                    "timeframe": [Timeframe.m1],
+                },
+                {
+                    "symbol": "MULTI_B",
+                    "market_type": MarketType.STOCKS,
+                    "broker_type": BrokerType.ALPACA,
+                    "timeframe": [Timeframe.m1],
+                },
+            ]
+        )
 
         candles = list(backtest_client.candles())
 

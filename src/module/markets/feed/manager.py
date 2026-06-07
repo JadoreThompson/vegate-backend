@@ -2,9 +2,9 @@ import asyncio
 import logging
 from collections import defaultdict
 
-from module.broker.enums import BrokerType
+from vegate.markets.enums import MarketType, Timeframe
+from vegate.oms.enums import BrokerType
 from .base import OHLCFeed
-from ..enums import MarketType
 
 
 class FeedManager:

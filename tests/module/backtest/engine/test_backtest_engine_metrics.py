@@ -8,7 +8,7 @@ from module.backtest.engine.ohlc_feed_client import BacktestOHLCFeedClient
 from module.backtest.engine.oms_client import BacktestOMSClient
 from module.event_bus import SyncEventPublisher
 from vegate.markets.enums import MarketType, Timeframe
-from vegate.markets.schema import OHLC as OHLCModel
+from vegate.markets.schema import OHLC as OHLCSchema
 from vegate.oms.enums import BrokerType, OrderSide, OrderStatus, OrderType
 from vegate.oms.schema import Order, OrderRequest
 from vegate.strategy.base import BaseStrategy
@@ -68,14 +68,16 @@ class SimpleStrategy(BaseStrategy):
         self._quantity = 1
 
     def startup(self):
-        self.ohlc_feed_client.subscribe([
-            {
-                "symbol": "AAPL",
-                "market_type": MarketType.STOCKS,
-                "timeframe":[ Timeframe.m1],
-                "broker_type": BrokerType.ALPACA,
-            },
-        ])
+        self.ohlc_feed_client.subscribe(
+            [
+                {
+                    "symbol": "AAPL",
+                    "market_type": MarketType.STOCKS,
+                    "timeframe": [Timeframe.m1],
+                    "broker_type": BrokerType.ALPACA,
+                },
+            ]
+        )
 
     def on_candle(self, candle):
         if self._order is None:
@@ -113,7 +115,7 @@ def _candle(close, ts, **kw):
         market_type=MarketType.STOCKS,
     )
     defaults.update(kw)
-    return OHLCModel(close=close, timestamp=int(ts.timestamp()), **defaults)
+    return OHLCSchema(close=close, timestamp=int(ts.timestamp()), **defaults)
 
 
 class TestBacktestMetricsCalculation:
@@ -132,14 +134,16 @@ class TestBacktestMetricsCalculation:
             end=int(end_date.timestamp()),
         )
 
-        feed.subscribe([
-            {
-                "symbol": "AAPL",
-                "market_type": MarketType.STOCKS,
-                "timeframe": [Timeframe.m1],
-                "broker_type": BrokerType.ALPACA,
-            },
-        ])
+        feed.subscribe(
+            [
+                {
+                    "symbol": "AAPL",
+                    "market_type": MarketType.STOCKS,
+                    "timeframe": [Timeframe.m1],
+                    "broker_type": BrokerType.ALPACA,
+                },
+            ]
+        )
 
         oms.ohlc_feed_client = feed
 

@@ -8,13 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import OMS_SESSION_PREFIX, STRATEGY_DEPLOYMENT_EVENTS_KEY
 from core.db import get_db_session
-from module.broker import Order
+from vegate.oms.schema import Order
 from module.broker.client import (
     AlpacaBrokerClient,
     BrokerClient,
     BrokerClientException,
 )
-from module.broker.enums import BrokerType, OrderStatus
+from vegate.oms.enums import BrokerType, OrderStatus
 from module.broker_connections.model import BrokerConnections
 from module.broker_connections.oauth import EncryptionService
 from module.broker_connections.oauth.alpaca import AlpacaOAuthPayload

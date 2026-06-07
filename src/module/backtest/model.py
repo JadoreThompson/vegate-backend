@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.db import Base, uuid_pk, datetime_tz
-from module.broker.enums import OrderStatus
+from vegate.oms.enums import OrderStatus
 from util import get_datetime
 from .enums import BacktestStatus
 from .event import BacktestEventType

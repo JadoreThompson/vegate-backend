@@ -7,8 +7,8 @@ from uuid import uuid4
 import aiohttp
 from sqlalchemy import delete, select, func
 
-from module.broker.enums import BrokerType
-from module.markets.enums import MarketType, Timeframe
+from vegate.oms.enums import BrokerType
+from vegate.markets.enums import MarketType, Timeframe
 from module.markets.model import OHLC, Instrument
 from core.db import get_db_session, get_db_sess_sync
 from module.markets.loader.alpaca import AlpacaOHLCLoader

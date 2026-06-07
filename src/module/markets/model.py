@@ -5,8 +5,8 @@ from sqlalchemy import UUID, ForeignKey, Integer, Numeric, String, UniqueConstra
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.db import Base, datetime_tz, uuid_pk
-from module.broker.enums import BrokerType
-from .enums import MarketType, Timeframe
+from vegate.markets.enums import MarketType, Timeframe
+from vegate.oms.enums import BrokerType
 
 
 class Instrument(Base):

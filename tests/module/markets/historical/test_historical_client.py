@@ -3,12 +3,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from module.broker.enums import BrokerType
-from module.markets.enums import MarketType, Timeframe
-from module.markets.schema import OHLC as OHLCSchema
-from module.markets.historical import HistoricalDataClient
+from vegate.oms.enums import BrokerType
+from vegate.markets.enums import MarketType, Timeframe
+from vegate.markets.schema import OHLC as OHLCSchema
+from vegate.markets.historical.client import HistoricalDataClient
 
-MODULE_PATH = "module.markets.historical.client"
+MODULE_PATH = "vegate.markets.historical.client"
 
 
 class TestHistoricalDataClientInit:
@@ -265,7 +265,7 @@ class TestHistoricalDataClientFetch:
 
             l = mock_get.call_args_list
             mock_get.assert_called_once_with(
-                "http://localhost:8000/markets/bars",
+                "http://localhost:8000/api/v1/markets/bars",
                 params={
                     "symbol": "AAPL",
                     "market_type": "stocks",

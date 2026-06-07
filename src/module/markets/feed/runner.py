@@ -3,12 +3,12 @@ from datetime import datetime, timedelta
 
 from config import ALPACA_API_KEY, ALPACA_SECRET_KEY, CONFIG_YAML
 
-from module.broker.enums import BrokerType
+from vegate.oms.enums import BrokerType
+from vegate.markets.enums import MarketType, Timeframe
 from .base import OHLCFeed
 from .alpaca import AlpacaOHLCFeed
 from .manager import FeedManager
 from .server import OHLCFeedServer
-from ..enums import MarketType, Timeframe
 from ..loader.alpaca import AlpacaOHLCLoader
 
 

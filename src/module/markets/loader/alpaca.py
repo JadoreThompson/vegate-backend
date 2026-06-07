@@ -8,9 +8,9 @@ from alpaca.data.timeframe import TimeFrame as AlpacaTimeFrame
 from sqlalchemy import delete, func, insert, select
 
 from core.db import get_db_session
-from module.broker.enums import BrokerType
+from vegate.markets.enums import MarketType, Timeframe
+from vegate.oms.enums import BrokerType
 from .base import OHLCLoader
-from ..enums import MarketType, Timeframe
 from ..model import Instrument, OHLC
 
 

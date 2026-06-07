@@ -4,8 +4,8 @@ from sqlalchemy import insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from core.db import get_db_sess_sync, get_db_session
-from module.broker.enums import BrokerType
-from module.markets.enums import MarketType, Timeframe
+from vegate.oms.enums import BrokerType
+from vegate.markets.enums import MarketType, Timeframe
 from module.markets.model import OHLC, Instrument
 from module.user.model import User
 

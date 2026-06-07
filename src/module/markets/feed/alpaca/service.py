@@ -10,13 +10,13 @@ from sqlalchemy import insert, select
 
 from config import ALPACA_API_KEY, ALPACA_SECRET_KEY
 from core.db import get_db_session
-from module.broker.enums import BrokerType
+from vegate.markets.enums import MarketType, Timeframe
+from vegate.markets.schema import OHLC as OHLCSchema
+from vegate.oms.enums import BrokerType
 from .exception import AlpacaOHLCFeedException
 from ..base import OHLCFeed
-from ...enums import MarketType, Timeframe
 from ..exception import MaxRetryAttemptsException
 from ...model import OHLC, Instrument
-from ...schema import OHLC as OHLCSchema
 
 
 class AlpacaOHLCFeed(OHLCFeed):

@@ -5,10 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from module.api.dependencies import depends_class, depends_db_sess
 from module.api.schema import PaginatedResponse
-from module.broker.enums import BrokerType
+from vegate.markets.enums import MarketType, Timeframe
+from vegate.markets.schema import OHLC as OHLCResponse
+from vegate.oms.enums import BrokerType
 from util import get_datetime
-from .enums import MarketType, Timeframe
-from .schema import InstrumentInfo, OHLC as OHLCResponse
+from .schema import InstrumentInfo
 from .service import MarketsService
 
 router = APIRouter(prefix="/api/v1/markets", tags=["markets"])

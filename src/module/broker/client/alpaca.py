@@ -16,11 +16,11 @@ from alpaca.trading.requests import (
     StopLimitOrderRequest,
     ReplaceOrderRequest,
 )
-from module.markets.schema import OHLC
-from ..enums import OrderSide, OrderType, OrderStatus
+from vegate.markets.schema import OHLC
+from vegate.oms.enums import OrderSide, OrderType, OrderStatus
+from vegate.oms.schema import Order, OrderRequest
 from .base import BrokerClient
 from .exception import BrokerClientException
-from ..schema import Order, OrderRequest
 
 
 # TODO: Implement async API

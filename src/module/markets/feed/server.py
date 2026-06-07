@@ -6,12 +6,12 @@ import logging
 from collections import defaultdict
 from pydantic import ValidationError
 
-from module.broker.enums import BrokerType
-from module.markets.feed.schema import SubscribeRequest
+from vegate.oms.enums import BrokerType
+from vegate.markets.enums import MarketType, Timeframe
+from vegate.markets.schema import OHLC as OHLCSchema
+from vegate.markets.feed.schema import SubscribeRequest
 from .base import OHLCFeed
 from .manager import FeedManager
-from ..enums import MarketType, Timeframe
-from ..schema import OHLC as OHLCSchema
 
 logger = logging.getLogger(__name__)
 

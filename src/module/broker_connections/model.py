@@ -5,7 +5,7 @@ from sqlalchemy import ForeignKey, String, UUID as SaUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.db import Base, datetime_tz, uuid_pk
-from module.broker.enums import BrokerType
+from vegate.oms.enums import BrokerType
 from util import get_datetime
 
 

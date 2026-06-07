@@ -1,2 +1,0 @@
-class HistoricalDataClientException(Exception):
-    pass

@@ -1,4 +1,4 @@
-from module.broker.enums import BrokerType
+from vegate.oms.enums import BrokerType
 
 
 class BrokerAccountFetchException(Exception):

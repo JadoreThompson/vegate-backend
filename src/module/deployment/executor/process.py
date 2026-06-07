@@ -9,7 +9,7 @@ from module.event_bus import (
     OutboxEventPublisher,
     SyncOutboxEventPublisher,
 )
-from module.markets.feed import OHLCFeedClient
+from vegate.markets.feed.client import OHLCFeedClient
 from .base import DeploymentExecutor
 from ..exception import DeploymentNotFoundException, DeploymentAlreadyRunningException
 from ..runner import StrategyDeploymentRunner

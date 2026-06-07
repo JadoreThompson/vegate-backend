@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from module.api.dependencies import depends_db_sess, depends_jwt, depends_class
 from module.api.schema import PaginatedResponse
 from config import FRONTEND_DOMAIN, FRONTEND_SUB_DOMAIN, SCHEME
-from module.broker.enums import BrokerType
+from vegate.oms.enums import BrokerType
 from module.jwt import JWTPayload
 from .oauth import AlpacaOauthService
 from .schema import (

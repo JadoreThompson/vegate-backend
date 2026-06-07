@@ -20,7 +20,7 @@ from module.backtest.exception import (
     InvalidDateRange,
 )
 from module.backtest.executor.exception import BacktestLimitReached
-from module.broker.enums import BrokerType
+from vegate.oms.enums import BrokerType
 from module.broker_connections.exception import (
     BrokerAccountFetchException,
     BrokerConnectionNotFoundException,

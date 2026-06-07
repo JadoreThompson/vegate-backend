@@ -23,7 +23,7 @@ from module.strategy.agents.strategy_gen import StrategyGenOutput
 from module.util import seed_candles
 from core.db import get_db_sess_sync, get_db_session
 from module.broker_connections.model import BrokerConnections
-from module.broker.enums import BrokerType
+from vegate.oms.enums import BrokerType
 
 
 async def create_strategy(

@@ -14,7 +14,6 @@ from module.deployment.runner import StrategyDeploymentRunner
 from module.email import EmailServiceFactory
 from module.event_bus import OutboxEventPublisher, SyncOutboxEventPublisher
 from module.health.server import HealthCheckServer
-from module.markets.feed import OHLCFeedClient
 from module.notification.channel import (
     EmailNotificationChannel,
     NotificationChannelType,
@@ -22,6 +21,7 @@ from module.notification.channel import (
 from module.notification.poller import NotificationPoller
 from module.notification.publisher import NotificationPublisher
 from module.notification.template import EmailNotificationTemplateEngine
+from vegate.markets.feed.client import OHLCFeedClient
 
 logger = logging.getLogger("commands.deployment")
 

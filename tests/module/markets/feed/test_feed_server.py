@@ -6,9 +6,9 @@ from collections import defaultdict
 from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock, call
 from uuid import uuid4
 
-from module.broker.enums import BrokerType
-from module.markets.enums import MarketType, Timeframe
-from module.markets.schema import OHLC as OHLCModel
+from vegate.oms.enums import BrokerType
+from vegate.markets.enums import MarketType, Timeframe
+from vegate.markets.schema import OHLC as OHLCSchema
 from module.markets.feed.base import OHLCFeed
 from module.markets.feed.manager import FeedManager
 from module.markets.feed.server import OHLCFeedServer, SocketConnection
@@ -29,7 +29,7 @@ def make_ohlc_model(**kwargs):
         "market_type": MarketType.STOCKS,
     }
     defaults.update(kwargs)
-    return OHLCModel(**defaults)
+    return OHLCSchema(**defaults)
 
 
 @pytest.fixture
@@ -445,13 +445,19 @@ class TestOHLCFeedServerHandleClient:
         # Mock server._feed_manager lookups
         with patch.object(server._feed_manager, "get_symbols", return_value={"AAPL"}):
             with patch.object(
-                server._feed_manager, "get_market_types", return_value={MarketType.STOCKS}
+                server._feed_manager,
+                "get_market_types",
+                return_value={MarketType.STOCKS},
             ):
                 with patch.object(
-                    server._feed_manager, "get_brokers", return_value={BrokerType.ALPACA}
+                    server._feed_manager,
+                    "get_brokers",
+                    return_value={BrokerType.ALPACA},
                 ):
                     with patch.object(
-                        server._feed_manager, "get_timeframes", return_value={Timeframe.m1}
+                        server._feed_manager,
+                        "get_timeframes",
+                        return_value={Timeframe.m1},
                     ):
                         reader = MagicMock(spec=asyncio.StreamReader)
                         reader.readline = AsyncMock(
@@ -590,7 +596,9 @@ class TestOHLCFeedServerHandleSubscribe:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_handle_subscribe_unsupported_market_type(self, server, mock_writer):
         with patch.object(server._feed_manager, "get_symbols", return_value={"AAPL"}):
-            with patch.object(server._feed_manager, "get_market_types", return_value=set()):
+            with patch.object(
+                server._feed_manager, "get_market_types", return_value=set()
+            ):
                 payload = {
                     "instruments": [
                         {
@@ -616,9 +624,13 @@ class TestOHLCFeedServerHandleSubscribe:
     async def test_handle_subscribe_unsupported_broker(self, server, mock_writer):
         with patch.object(server._feed_manager, "get_symbols", return_value={"AAPL"}):
             with patch.object(
-                server._feed_manager, "get_market_types", return_value={MarketType.STOCKS}
+                server._feed_manager,
+                "get_market_types",
+                return_value={MarketType.STOCKS},
             ):
-                with patch.object(server._feed_manager, "get_brokers", return_value=set()):
+                with patch.object(
+                    server._feed_manager, "get_brokers", return_value=set()
+                ):
                     payload = {
                         "instruments": [
                             {
@@ -644,10 +656,14 @@ class TestOHLCFeedServerHandleSubscribe:
     async def test_handle_subscribe_unsupported_timeframe(self, server, mock_writer):
         with patch.object(server._feed_manager, "get_symbols", return_value={"AAPL"}):
             with patch.object(
-                server._feed_manager, "get_market_types", return_value={MarketType.STOCKS}
+                server._feed_manager,
+                "get_market_types",
+                return_value={MarketType.STOCKS},
             ):
                 with patch.object(
-                    server._feed_manager, "get_brokers", return_value={BrokerType.ALPACA}
+                    server._feed_manager,
+                    "get_brokers",
+                    return_value={BrokerType.ALPACA},
                 ):
                     with patch.object(
                         server._feed_manager, "get_timeframes", return_value=set()
@@ -679,13 +695,19 @@ class TestOHLCFeedServerHandleSubscribe:
     ):
         with patch.object(server._feed_manager, "get_symbols", return_value={"AAPL"}):
             with patch.object(
-                server._feed_manager, "get_market_types", return_value={MarketType.STOCKS}
+                server._feed_manager,
+                "get_market_types",
+                return_value={MarketType.STOCKS},
             ):
                 with patch.object(
-                    server._feed_manager, "get_brokers", return_value={BrokerType.ALPACA}
+                    server._feed_manager,
+                    "get_brokers",
+                    return_value={BrokerType.ALPACA},
                 ):
                     with patch.object(
-                        server._feed_manager, "get_timeframes", return_value={Timeframe.m1}
+                        server._feed_manager,
+                        "get_timeframes",
+                        return_value={Timeframe.m1},
                     ):
                         payload = {
                             "instruments": [
@@ -717,12 +739,18 @@ class TestOHLCFeedServerHandleSubscribe:
     async def test_handle_subscribe_success_multiple_instruments(
         self, server, mock_writer
     ):
-        with patch.object(server._feed_manager, "get_symbols", return_value={"AAPL", "MSFT"}):
+        with patch.object(
+            server._feed_manager, "get_symbols", return_value={"AAPL", "MSFT"}
+        ):
             with patch.object(
-                server._feed_manager, "get_market_types", return_value={MarketType.STOCKS}
+                server._feed_manager,
+                "get_market_types",
+                return_value={MarketType.STOCKS},
             ):
                 with patch.object(
-                    server._feed_manager, "get_brokers", return_value={BrokerType.ALPACA}
+                    server._feed_manager,
+                    "get_brokers",
+                    return_value={BrokerType.ALPACA},
                 ):
                     with patch.object(
                         server._feed_manager,
@@ -817,13 +845,19 @@ class TestIntegration:
         """Test subscribe -> live bootstrap flow."""
         with patch.object(server._feed_manager, "get_symbols", return_value={"AAPL"}):
             with patch.object(
-                server._feed_manager, "get_market_types", return_value={MarketType.STOCKS}
+                server._feed_manager,
+                "get_market_types",
+                return_value={MarketType.STOCKS},
             ):
                 with patch.object(
-                    server._feed_manager, "get_brokers", return_value={BrokerType.ALPACA}
+                    server._feed_manager,
+                    "get_brokers",
+                    return_value={BrokerType.ALPACA},
                 ):
                     with patch.object(
-                        server._feed_manager, "get_timeframes", return_value={Timeframe.m1}
+                        server._feed_manager,
+                        "get_timeframes",
+                        return_value={Timeframe.m1},
                     ):
                         payload = {
                             "instruments": [

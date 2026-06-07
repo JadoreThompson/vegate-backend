@@ -3,8 +3,8 @@ import pytest
 import pytest_asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from module.broker.enums import BrokerType
-from module.markets.enums import MarketType, Timeframe
+from vegate.oms.enums import BrokerType
+from vegate.markets.enums import MarketType, Timeframe
 from module.markets.feed.base import OHLCFeed
 from module.markets.feed.manager import FeedManager
 

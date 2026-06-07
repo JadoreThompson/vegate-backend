@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from ..schema import Order, OrderRequest
+from vegate.oms.schema import Order, OrderRequest
 
 
 class BrokerClient(ABC):

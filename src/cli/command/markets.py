@@ -7,15 +7,15 @@ import click
 
 from cli.param.enum import EnumParam
 from config import ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_API_KEY, CONFIG_YAML
-from module.broker.enums import BrokerType
+from vegate.oms.enums import BrokerType
 from module.health.server import HealthCheckServer
-from module.markets.enums import MarketType, Timeframe
 from module.markets.feed.alpaca.service import AlpacaOHLCFeed
 from module.markets.feed.base import OHLCFeed
 from module.markets.feed.manager import FeedManager
 from module.markets.feed.server import OHLCFeedServer
 from module.markets.loader.alpaca import AlpacaOHLCLoader
 from util import get_datetime
+from vegate.markets.enums import MarketType, Timeframe
 
 logger = logging.getLogger("commands.markets")
 
