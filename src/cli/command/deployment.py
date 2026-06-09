@@ -4,7 +4,7 @@ from uuid import UUID
 
 import click
 
-from config import DEPLOYMENT_EXECUTOR_NAME
+from config import DEPLOYMENT_EXECUTOR_NAME, MAX_CONCURRENT_DEPLOYMENTS
 from core.redis import REDIS_CLIENT_SYNC, REDIS_CLIENT
 from module.deployment.event.listener import DeploymentEventListenerService
 from module.deployment.event.deserialiser import DeploymentEventDeserialiser
@@ -69,7 +69,7 @@ def listener():
 def listener_run():
     # Creating listener service
     deployment_executor = DeploymentExecutorFactory.create(DEPLOYMENT_EXECUTOR_NAME)
-    deployment_executor.max_concurrent_deployments = 2
+    deployment_executor.max_concurrent_deployments = MAX_CONCURRENT_DEPLOYMENTS
     
     listener_service = DeploymentEventListenerService(
         deserialiser=DeploymentEventDeserialiser(),

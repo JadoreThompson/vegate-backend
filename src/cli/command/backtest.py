@@ -4,21 +4,15 @@ import sys
 
 import click
 
-from config import BACKTEST_EXECUTOR_NAME, EMAIL_SERVICE_NAME
+from config import BACKTEST_EXECUTOR_NAME, MAX_CONCURRENT_BACKTESTS
 from core.redis import REDIS_CLIENT, REDIS_CLIENT_SYNC
 from module.backtest.event.deserialiser import BacktestEventDeserialiser
 from module.backtest.executor import BacktestExecutorFactory
 from module.backtest.monitor import BacktestMonitor
 from module.backtest.runner import BacktestRunner
-from module.email import EmailServiceFactory
 from module.event_bus import OutboxEventPublisher, SyncOutboxEventPublisher
 from module.health.server import HealthCheckServer
-from module.notification.channel import (
-    EmailNotificationChannel,
-    NotificationChannelType,
-)
 from module.notification.publisher import NotificationPublisher
-from module.notification.template import EmailNotificationTemplateEngine
 
 logger = logging.getLogger("commands.backtest")
 
@@ -71,11 +65,14 @@ def monitor():
 
 @monitor.command(name="run")
 def monitor_run():
+    backtest_executor = BacktestExecutorFactory.create(BACKTEST_EXECUTOR_NAME)
+    backtest_executor.max_concurrent_backtests = MAX_CONCURRENT_BACKTESTS
+
     monitor_service = BacktestMonitor(
         deserialiser=BacktestEventDeserialiser(),
         redis_client=REDIS_CLIENT,
         event_publisher=OutboxEventPublisher(),
-        backtest_executor=BacktestExecutorFactory.create(BACKTEST_EXECUTOR_NAME),
+        backtest_executor=backtest_executor,
         notification_publisher=NotificationPublisher(),
     )
     monitor_service.setup()
