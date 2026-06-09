@@ -136,9 +136,15 @@ class DeploymentsService:
         )
 
     async def get_by_strategy_id(
-        self, strategy_id: UUID, db_sess: AsyncSession, *, page: int, limit: int
+        self,
+        strategy_id: UUID,
+        db_sess: AsyncSession,
+        *,
+        page: int,
+        limit: int,
+        status: list[StrategyDeploymentStatus] | None = None,
     ):
-        res = await db_sess.execute(
+        stmt = (
             select(StrategyDeployments, StrategyDeploymentMetrics)
             .outerjoin(
                 StrategyDeploymentMetrics,
@@ -152,6 +158,11 @@ class DeploymentsService:
             .offset((page - 1) * limit)
             .limit(limit + 1)
         )
+
+        if status is not None:
+            stmt = stmt.where(StrategyDeployments.status.in_(status))
+
+        res = await db_sess.execute(stmt)
 
         rows = res.all()
 

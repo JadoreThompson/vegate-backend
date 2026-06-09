@@ -31,6 +31,7 @@ from module.deployment.executor.exception import DeploymentLimitReached
 from module.jwt import JWTException
 from module.markets.exception import SymbolNotFoundException
 from module.strategy.exception import (
+    DeploymentExistsException,
     StrategyNotFoundException,
     StrategyVersionNotFoundException,
     VersionForkDetectedException,
@@ -63,6 +64,7 @@ class GlobalExceptionHandlerMiddleware(BaseHTTPMiddleware):
             BrokerConnectionNotFoundException: self._handle_broker_connection_not_found_exception,
             BacktestLimitReached: self._handle_backtest_limit_reached_exception,
             DeploymentLimitReached: self._handle_deployment_limit_reached_exception,
+            DeploymentExistsException: lambda req, exc: self._create_error_response(400, str(exc)),
         }
         self._logger = logging.getLogger(self.__class__.__name__)
 

@@ -5,6 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from module.api.schema import PaginatedResponse
+from module.deployment.enums import StrategyDeploymentStatus
+from module.deployment.service import DeploymentsService
 from .agents import code_review_agent, strategy_gen_agent
 from .agents.code_review import CodeReviewOutput
 from .agents.strategy_gen import StrategyGenOutput
@@ -13,7 +15,7 @@ from .exception import (
     StrategyValidationException,
     StrategyNotFoundException,
     StrategyVersionNotFoundException,
-    VersionForkDetectedException,
+    DeploymentExistsException,
 )
 from .model import Strategy, StrategyVersion
 from .schema import (
@@ -26,7 +28,8 @@ from .schema import (
 
 class StrategyService:
 
-    def __init__(self):
+    def __init__(self, deployment_service: DeploymentsService):
+        self._deployment_service = deployment_service
         pass
 
     async def create(
@@ -148,6 +151,22 @@ class StrategyService:
         self, strategy_id: UUID, user_id: UUID, db_sess: AsyncSession
     ) -> None:
         strategy = await self.get_user_strategy(strategy_id, user_id, db_sess)
+        page = await self._deployment_service.get_by_strategy_id(
+            strategy_id,
+            db_sess,
+            page=1,
+            limit=1,
+            status=[
+                StrategyDeploymentStatus.PENDING,
+                StrategyDeploymentStatus.RUNNING,
+                StrategyDeploymentStatus.STOP_REQUESTED,
+                StrategyDeploymentStatus.SUSPICIOUS,
+            ],
+        )
+
+        if page.size:
+            raise DeploymentExistsException()
+
         await db_sess.delete(strategy)
 
     async def get_user_strategy(

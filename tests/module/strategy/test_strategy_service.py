@@ -5,6 +5,8 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import delete
 
+from module.deployment.enums import StrategyDeploymentStatus
+from module.deployment.service import DeploymentsService
 from module.strategy.schema import CreateStrategyRequest, UpdateStrategyRequest
 from module.strategy import StrategyService
 from module.strategy.agents.strategy_gen import StrategyGenOutput
@@ -19,9 +21,14 @@ from module.util import create_user
 from core.db import get_db_sess_sync, get_db_session, smaker
 
 
+@pytest.fixture()
+def mock_deployment_service():
+    return AsyncMock(spec=DeploymentsService)
+
+
 @pytest.fixture
-def strategy_service():
-    return StrategyService()
+def strategy_service(mock_deployment_service):
+    return StrategyService(deployment_service=mock_deployment_service)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -162,7 +169,9 @@ class TestDeleteStrategy:
                     await strategy_service.delete(uuid4(), uuid4(), mock_db_sess)
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_delete_strategy_calls_delete(self, strategy_service):
+        async def test_delete_strategy_calls_delete(
+            self, strategy_service, mock_deployment_service
+        ):
             mock_db_sess = AsyncMock()
 
             mock_strategy = MagicMock()
@@ -172,14 +181,35 @@ class TestDeleteStrategy:
             with patch.object(
                 strategy_service, "get_user_strategy", return_value=mock_strategy
             ):
-                await strategy_service.delete(uuid4(), uuid4(), mock_db_sess)
+                mock_page = MagicMock()
+                mock_page.size = 0
+                mock_page.data = []
+                mock_deployment_service.get_by_strategy_id.return_value = mock_page
 
+                strategy_id = uuid4()
+                user_id = uuid4()
+                await strategy_service.delete(strategy_id, user_id, mock_db_sess)
+
+                mock_deployment_service.get_by_strategy_id.assert_awaited_once_with(
+                    strategy_id,
+                    mock_db_sess,
+                    page=1,
+                    limit=1,
+                    status=[
+                        StrategyDeploymentStatus.PENDING,
+                        StrategyDeploymentStatus.RUNNING,
+                        StrategyDeploymentStatus.STOP_REQUESTED,
+                        StrategyDeploymentStatus.SUSPICIOUS,
+                    ],
+                )
                 mock_db_sess.delete.assert_called_once_with(mock_strategy)
 
     class TestIntegrationTest:
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_delete_strategy_removes_from_db(self, strategy_service, db_sess):
+        async def test_delete_strategy_removes_from_db(
+            self, strategy_service, db_sess, mock_deployment_service
+        ):
             user = await create_user("delete-strategy-1")
             user_id = user.user_id
 
@@ -189,6 +219,11 @@ class TestDeleteStrategy:
             await db_sess.commit()
 
             strategy_id = strategy.strategy_id
+
+            mock_page = MagicMock()
+            mock_page.size = 0
+            mock_page.data = []
+            mock_deployment_service.get_by_strategy_id.return_value = mock_page
 
             async with get_db_session() as new_db_sess:
                 await strategy_service.delete(strategy_id, user_id, new_db_sess)
@@ -340,7 +375,9 @@ class TestGetVersion:
             from module.strategy.exception import StrategyVersionNotFoundException
 
             with pytest.raises(StrategyVersionNotFoundException):
-                await strategy_service.get_version(uuid4(), strat.strategy_id, user_id, db_sess)
+                await strategy_service.get_version(
+                    uuid4(), strat.strategy_id, user_id, db_sess
+                )
 
 
 # class TestUpdateVersion:

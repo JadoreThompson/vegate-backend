@@ -29,4 +29,13 @@ class StrategyVersionNotFoundException(Exception):
 
 class VersionForkDetectedException(Exception):
     def __init__(self):
-        super().__init__("Version fork detected: the current version has changed since you last fetched it")
+        super().__init__(
+            "Version fork detected: the current version has changed since you last fetched it"
+        )
+
+
+class DeploymentExistsException(Exception):
+    def __init__(self, *args):
+        super().__init__(
+            "Cannot delete strategy with running deployment. Stop all deployments before deleting"
+        )

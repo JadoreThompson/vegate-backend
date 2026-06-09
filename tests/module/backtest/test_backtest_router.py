@@ -35,9 +35,14 @@ def auth_service(email_service, monkeypatch):
     yield service
 
 
+@pytest.fixture()
+def mock_deployment_service():
+    return AsyncMock()
+
+
 @pytest.fixture
-def strategy_service():
-    return StrategyService()
+def strategy_service(mock_deployment_service):
+    return StrategyService(deployment_service=mock_deployment_service)
 
 
 @pytest.fixture
@@ -137,6 +142,7 @@ class TestCreateBacktest:
         res = await authenticated_client.post("/api/v1/backtests/", json=payload)
 
         assert res.status_code == 422
+
 
 class TestGetBacktest:
 

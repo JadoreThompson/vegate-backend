@@ -56,7 +56,14 @@ async def lifespan(app: FastAPI):
     broker_connections_service = BrokerConnectionsService()
     object_registry.register(broker_connections_service)
 
-    strategy_service = StrategyService()
+    deployment_service = DeploymentsService(
+        markets_service=markets_service,
+        broker_connections_service=broker_connections_service,
+        event_publisher=event_publisher,
+    )
+    object_registry.register(deployment_service)
+
+    strategy_service = StrategyService(deployment_service=deployment_service)
     object_registry.register(strategy_service)
 
     backtest_service = BacktestsService(
@@ -65,13 +72,6 @@ async def lifespan(app: FastAPI):
         markets_service=markets_service,
     )
     object_registry.register(backtest_service)
-
-    deployment_service = DeploymentsService(
-        markets_service=markets_service,
-        broker_connections_service=broker_connections_service,
-        event_publisher=event_publisher,
-    )
-    object_registry.register(deployment_service)
 
     event_relay = DeploymentEventRelay(deserialiser=DeploymentEventDeserialiser())
     task = asyncio.create_task(event_relay.run())

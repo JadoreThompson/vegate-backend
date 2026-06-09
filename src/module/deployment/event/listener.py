@@ -123,7 +123,6 @@ class DeploymentEventListenerService:
             )
 
             if event.type == DeploymentEventType.DEPLOYMENT_STATUS:
-                print("Setting deployment status")
                 deployment.status = event.status
 
             if event.type == DeploymentEventType.DEPLOYMENT_CANCELLED:
@@ -132,16 +131,14 @@ class DeploymentEventListenerService:
             await session.commit()
 
     async def _handle_status_changed(self, event: DeploymentStatusChangedEvent) -> None:
-        if event.status != StrategyDeploymentStatus.RUNNING:
-            return
-
-        self._logger.info(
-            f"Handling status changed. Pushing deployment with id '{event.deployment_id}' to running deployments"
-        )
-        async with self._lock:
-            self._pending_deployments.discard(event.deployment_id)
-            self._suspicious_deployments.discard(event.deployment_id)
-            self._running_deployments.add(event.deployment_id)
+        if event.status == StrategyDeploymentStatus.RUNNING:
+            self._logger.info(
+                f"Handling status changed. Pushing deployment with id '{event.deployment_id}' to running deployments"
+            )
+            async with self._lock:
+                self._pending_deployments.discard(event.deployment_id)
+                self._suspicious_deployments.discard(event.deployment_id)
+                self._running_deployments.add(event.deployment_id)
 
     async def _handle_deployment_requested(
         self, event: DeploymentRequestedEvent
@@ -261,7 +258,6 @@ class DeploymentEventListenerService:
 
         try:
             await self._kafka_consumer.start()
-            print(self._kafka_consumer.__aiter__)
 
             async for record in self._kafka_consumer:
                 event = self._deserialiser.deserialise_json(record.value)
@@ -305,31 +301,24 @@ class DeploymentEventListenerService:
                     )
                 }
 
-                print("Deployment ids:", deployment_ids)
-
                 to_suspicious = []
                 to_stopped = []
                 to_running = []
 
                 for pending_id in pending_deployments:
-                    if pending_id in deployment_ids:
-                        to_running.append(pending_id)
-                        deployment_ids.discard(pending_id)
-                    else:
+                    if pending_id not in deployment_ids:
                         to_suspicious.append(pending_id)
+                        deployment_ids.discard(pending_id)
 
                 for running_id in running_deployments:
                     if running_id not in deployment_ids:
                         to_suspicious.append(running_id)
-                    else:
                         deployment_ids.discard(running_id)
 
                 for suspicious_id in suspicious_deployments:
-                    if suspicious_id in deployment_ids:
-                        to_running.append(suspicious_id)
-                        deployment_ids.discard(suspicious_id)
-                    else:
+                    if suspicious_id not in deployment_ids:
                         to_stopped.append(suspicious_id)
+                        deployment_ids.discard(suspicious_id)
 
                 for deployment_id in deployment_ids:
                     to_running.append(deployment_id)
