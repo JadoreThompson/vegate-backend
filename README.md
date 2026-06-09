@@ -4,20 +4,20 @@
 
 # Vegate
 
-Vegate is an open-source, event-driven algorithmic trading platform for backtesting and live-trading across multiple brokers. It is built with a modular architecture — every component (data loaders, market feeds, broker clients, order management, execution engines) is a pluggable module that can be swapped, extended, or composed independently.
+Vegate is an open-source, event-driven algorithmic trading platform for backtesting and live-trading across multiple brokers. It is built with a modular architecture - every component (data loaders, market feeds, broker clients, order management, execution engines) is a pluggable module that can be swapped, extended, or composed independently.
 
 ## Features
 
-- **Backtesting Engine** — replay historical OHLC data through your strategy and compute PnL, equity curves, and performance metrics
-- **Live Trading** — deploy strategies to Docker containers that connect to live market feeds and broker APIs
-- **Pluggable Data Loaders** — fetch historical OHLC data from any provider (Alpaca built-in); implement `OHLCLoader` to add your own
-- **Pluggable Market Feeds** — stream live OHLC via a TCP socket server; implement `OHLCFeed` for any data source
-- **Pluggable Broker Clients** — trade through any broker by implementing `BrokerClient` (Alpaca built-in)
-- **Order Management System (OMS)** — HTTP server that manages broker sessions, routes orders, and persists order lifecycle events
-- **Strategy Lifecycle** — `startup()` / `on_candle()` / `shutdown()` hooks with injected feed, OMS, and historical data clients
-- **Event-Driven Architecture** — outbox pattern with Kafka for reliable asynchronous event processing
-- **CLI** — Click-based command-line tool to run backtests, deployments, feeds, OMS, migrations, and more
-- **Infrastructure** — Docker Swarm deployment with PostgreSQL, Redis, and Kafka; CI/CD via GitHub Actions
+- **Backtesting Engine** - replay historical OHLC data through your strategy and compute PnL, equity curves, and performance metrics
+- **Live Trading** - deploy strategies to Docker containers that connect to live market feeds and broker APIs
+- **Pluggable Data Loaders** - fetch historical OHLC data from any provider (Alpaca built-in); implement `OHLCLoader` to add your own
+- **Pluggable Market Feeds** - stream live OHLC via a TCP socket server; implement `OHLCFeed` for any data source
+- **Pluggable Broker Clients** - trade through any broker by implementing `BrokerClient` (Alpaca built-in)
+- **Order Management System (OMS)** - HTTP server that manages broker sessions, routes orders, and persists order lifecycle events
+- **Strategy Lifecycle** - `startup()` / `on_candle()` / `shutdown()` hooks with injected feed, OMS, and historical data clients
+- **Event-Driven Architecture** - outbox pattern with Kafka for reliable asynchronous event processing
+- **CLI** - Click-based command-line tool to run backtests, deployments, feeds, OMS, migrations, and more
+- **Infrastructure** - Docker Swarm deployment with PostgreSQL, Redis, and Kafka; CI/CD via GitHub Actions
 
 ## Architecture
 
@@ -73,7 +73,7 @@ The shared domain library defines the contracts and data types used by all other
 | ----------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `markets/`  | `OHLCSchema`, `MarketType`, `Timeframe` enums, `OHLCFeedClient` (TCP socket client), `HistoricalDataClient` (REST client) |
 | `oms/`      | `Order`, `OrderRequest`, `OrderType`, `OrderSide`, `OrderStatus`, `BrokerType` enums, `OMSClient`                         |
-| `strategy/` | `BaseStrategy` — the abstract base class every user strategy must extend                                                  |
+| `strategy/` | `BaseStrategy` - the abstract base class every user strategy must extend                                                  |
 
 ### `BaseStrategy`
 
@@ -81,9 +81,9 @@ The user-facing strategy ABC defines three lifecycle hooks and injects three cli
 
 | Hook                | Purpose                                                              |
 | ------------------- | -------------------------------------------------------------------- |
-| `startup()`         | Called once on initialisation — subscribe to feeds, initialise state |
-| `on_candle(candle)` | Called on every new OHLC candle — core trading logic                 |
-| `shutdown()`        | Called on teardown — cancel orders, close positions                  |
+| `startup()`         | Called once on initialisation - subscribe to feeds, initialise state |
+| `on_candle(candle)` | Called on every new OHLC candle - core trading logic                 |
+| `shutdown()`        | Called on teardown - cancel orders, close positions                  |
 
 | Client                        | Type                   | Purpose                                                          |
 | ----------------------------- | ---------------------- | ---------------------------------------------------------------- |
@@ -155,7 +155,7 @@ The backtesting subsystem replays historical OHLC data through a strategy and co
 
 1. Loads the user strategy via `StrategyLoader`
 2. Creates a `BacktestOHLCFeedClient` that reads 1m candles from PostgreSQL
-3. Creates a `BacktestOMSClient` — an in-memory simulated broker that validates balance and matches orders:
+3. Creates a `BacktestOMSClient` - an in-memory simulated broker that validates balance and matches orders:
    - Market orders fill at the current candle's close price
    - Limit/stop orders trigger when price crosses the threshold
 4. Iterates through candles: executes pending orders, aggregates higher timeframes from 1m data, calls `strategy.on_candle()`
@@ -178,9 +178,9 @@ Two execution strategies for running backtests:
 
 #### Models
 
-- `Backtest` — top-level backtest record (status, timestamps, reference to strategy/configuration)
-- `BacktestMetrics` — computed metrics (total PnL, profit factor, Sharpe ratio, drawdown, etc.)
-- `BacktestOrder` — simulated order records with fill prices and timestamps
+- `Backtest` - top-level backtest record (status, timestamps, reference to strategy/configuration)
+- `BacktestMetrics` - computed metrics (total PnL, profit factor, Sharpe ratio, drawdown, etc.)
+- `BacktestOrder` - simulated order records with fill prices and timestamps
 
 ### CLI
 
@@ -237,10 +237,10 @@ Data loading and live feeds live side by side under `module/markets/`.
 
 The live feed subsystem is a layered architecture:
 
-1. **`OHLCFeed`** (ABC) — connects to a broker's streaming API; `AlpacaOHLCFeed` uses WebSockets to subscribe to bar channels
-2. **`FeedManager`** — registry of available feeds by symbol, market type, broker, and timeframe
-3. **`OHLCFeedServer`** — TCP socket server that fans out candles from all registered feeds to subscribed client connections over a JSON-line protocol
-4. **`OHLCFeedClient`** (in `vegate/`) — TCP socket client used by strategy runners; supports subscribe, heartbeat, reconnection with backoff
+1. **`OHLCFeed`** (ABC) - connects to a broker's streaming API; `AlpacaOHLCFeed` uses WebSockets to subscribe to bar channels
+2. **`FeedManager`** - registry of available feeds by symbol, market type, broker, and timeframe
+3. **`OHLCFeedServer`** - TCP socket server that fans out candles from all registered feeds to subscribed client connections over a JSON-line protocol
+4. **`OHLCFeedClient`** (in `vegate/`) - TCP socket client used by strategy runners; supports subscribe, heartbeat, reconnection with backoff
 
 The feed persists every candle to the database and calls the `on_candle` callback for real-time fan-out.
 
@@ -287,9 +287,9 @@ Session lifecycle: a deployment creates a session (associated with a `BrokerClie
 
 `StrategyDeploymentRunner` is the core loop for a live strategy instance:
 
-1. **Setup** — loads strategy code, connects to OHLC feed (TCP), creates an OMS session, subscribes to feeds
-2. **Candle loop** — iterates live candles from `OHLCFeedClient.candles()`, calls `strategy.on_candle()`, sends heartbeats to Redis
-3. **Shutdown** — cancels orders, closes OMS session, cleans up
+1. **Setup** - loads strategy code, connects to OHLC feed (TCP), creates an OMS session, subscribes to feeds
+2. **Candle loop** - iterates live candles from `OHLCFeedClient.candles()`, calls `strategy.on_candle()`, sends heartbeats to Redis
+3. **Shutdown** - cancels orders, closes OMS session, cleans up
 
 #### Executors
 
@@ -380,10 +380,10 @@ flowchart LR
 
 #### Infrastructure Stack
 
-- **PostgreSQL 18** — primary data store (OHLC data, backtest results, deployments, orders, users, outbox)
-- **Redis 7/8** — session persistence, deployment heartbeats, rate limiting, caching
-- **Apache Kafka 4** (KRaft mode) — event bus for decoupled microservice communication
-- **Docker Swarm** — container orchestration and service discovery
+- **PostgreSQL 18** - primary data store (OHLC data, backtest results, deployments, orders, users, outbox)
+- **Redis 7/8** - session persistence, deployment heartbeats, rate limiting, caching
+- **Apache Kafka 4** (KRaft mode) - event bus for decoupled microservice communication
+- **Docker Swarm** - container orchestration and service discovery
 
 ### CLI
 
@@ -411,22 +411,22 @@ uv run src/main.py oms run --host 0.0.0.0 --port 8082
 
 FastAPI application providing the HTTP API layer. Routes are organised by domain:
 
-- `auth/` — authentication (login, register, JWT tokens)
-- `user/` — user management
-- `strategy/` — CRUD for strategies
-- `backtest/` — create and query backtests
-- `deployment/` — create and manage live deployments
-- `markets/` — query instruments and OHLC data
-- `broker_connections/` — manage broker credentials and OAuth flows
-- `contact/` — contact form submissions
+- `auth/` - authentication (login, register, JWT tokens)
+- `user/` - user management
+- `strategy/` - CRUD for strategies
+- `backtest/` - create and query backtests
+- `deployment/` - create and manage live deployments
+- `markets/` - query instruments and OHLC data
+- `broker_connections/` - manage broker credentials and OAuth flows
+- `contact/` - contact form submissions
 
 ## Common Modules
 
 ### Strategy Management (`module/strategy/`)
 
-- **`StrategyService`** — CRUD for strategies, versioning, metadata
-- **`StrategyLoader`** — writes user Python code to `src/user_strategy.py` and dynamically imports the `UserStrategy` class; validates it extends `BaseStrategy`
-- **`agents/`** — LLM-powered agents (using `pydantic-ai-slim` with Mistral) for automated strategy generation and analysis
+- **`StrategyService`** - CRUD for strategies, versioning, metadata
+- **`StrategyLoader`** - writes user Python code to `src/user_strategy.py` and dynamically imports the `UserStrategy` class; validates it extends `BaseStrategy`
+- **`agents/`** - LLM-powered agents (using `pydantic-ai-slim` with Mistral) for automated strategy generation and analysis
 
 ### Event Bus (`module/event_bus/`)
 
@@ -446,9 +446,9 @@ This guarantees at-least-once delivery without distributed transactions. Multipl
 
 ### Notifications (`module/notification/` & `module/email/`)
 
-- **`NotificationPoller`** — periodic DB poller that picks up pending notifications and sends them through configured channels (email, Discord)
-- **`NotificationPublisher`** — publishes notification events
-- **Email services** — pluggable email delivery via Brevo, Postmark, or SMTPGo; selected via `EmailServiceFactory`
+- **`NotificationPoller`** - periodic DB poller that picks up pending notifications and sends them through configured channels (email, Discord)
+- **`NotificationPublisher`** - publishes notification events
+- **Email services** - pluggable email delivery via Brevo, Postmark, or SMTPGo; selected via `EmailServiceFactory`
 
 ### CLI Reference
 
