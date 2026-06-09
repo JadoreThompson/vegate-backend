@@ -1,540 +1,505 @@
+[![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/downloads/release/python-3130/)
+[![Build image](https://github.com/JadoreThompson/vegate-backend/actions/workflows/build.yaml/badge.svg)](https://github.com/JadoreThompson/vegate-backend/actions/workflows/build.yaml)
+[![Licence](https://img.shields.io/badge/licence-MIT-green.svg)](LICENCE)
+
 # Vegate
 
-**Algorithmic Trading Platform** — Write, backtest, and deploy quantitative trading strategies to live markets.
+Vegate is an open-source, event-driven algorithmic trading platform for backtesting and live-trading across multiple brokers. It is built with a modular architecture — every component (data loaders, market feeds, broker clients, order management, execution engines) is a pluggable module that can be swapped, extended, or composed independently.
 
-> Vegate is a modular monolith backend that manages the full lifecycle of algorithmic trading: strategy authoring (with optional AI assistance), historical backtesting against OHLC market data, live deployment via broker APIs, and real-time monitoring through Server-Sent Events.
+## Features
 
----
+- **Backtesting Engine** — replay historical OHLC data through your strategy and compute PnL, equity curves, and performance metrics
+- **Live Trading** — deploy strategies to Docker containers that connect to live market feeds and broker APIs
+- **Pluggable Data Loaders** — fetch historical OHLC data from any provider (Alpaca built-in); implement `OHLCLoader` to add your own
+- **Pluggable Market Feeds** — stream live OHLC via a TCP socket server; implement `OHLCFeed` for any data source
+- **Pluggable Broker Clients** — trade through any broker by implementing `BrokerClient` (Alpaca built-in)
+- **Order Management System (OMS)** — HTTP server that manages broker sessions, routes orders, and persists order lifecycle events
+- **Strategy Lifecycle** — `startup()` / `on_candle()` / `shutdown()` hooks with injected feed, OMS, and historical data clients
+- **Event-Driven Architecture** — outbox pattern with Kafka for reliable asynchronous event processing
+- **CLI** — Click-based command-line tool to run backtests, deployments, feeds, OMS, migrations, and more
+- **Infrastructure** — Docker Swarm deployment with PostgreSQL, Redis, and Kafka; CI/CD via GitHub Actions
 
-## Tech Stack
+## Architecture
 
-| Layer                | Technology                                        |
-| -------------------- | ------------------------------------------------- |
-| **Language**         | Python 3.13                                       |
-| **Web Framework**    | FastAPI (async)                                   |
-| **ASGI Server**      | Uvicorn                                           |
-| **CLI Framework**    | Click                                             |
-| **ORM**              | SQLAlchemy 2.0 + Alembic                          |
-| **Database**         | PostgreSQL 18                                     |
-| **Cache / State**    | Redis 8                                           |
-| **Message Broker**   | Apache Kafka 4.0 (KRaft)                          |
-| **AI / LLM**         | Pydantic AI + Mistral                             |
-| **Broker API**       | Alpaca Markets                                    |
-| **Email**            | Brevo (Sendinblue)                                |
-| **Auth**             | JWT + Argon2                                      |
-| **Package Manager**  | `uv`                                              |
-| **Containerization** | Docker, Docker Compose (dev), Docker Swarm (prod) |
-| **Reverse Proxy**    | Traefik                                           |
-| **CI/CD**            | GitHub Actions                                    |
-
----
-
-## System Architecture
-
-### High-Level Overview
+Vegate is organised into three layers: the **domain library** (`src/vegate/`), the **application modules** (`src/module/`), and the **infrastructure** (`src/core/`). The domain library defines shared schemas and abstract interfaces that the application modules implement.
 
 ```mermaid
-flowchart TB
-    subgraph Client["Client Layer"]
-        UI["Web Frontend"]
+flowchart TD
+    API["FASTAPI REST API"]
+
+    subgraph Services["Application Services"]
+        direction LR
+        subgraph Exec["Data & Execution"]
+            direction TB
+            S1["Backtest"]
+            S2["Deployment"]
+            S3["Markets"]
+            S4["Broker"]
+        end
+        subgraph Mgmt["Management & Comms"]
+            direction TB
+            S5["Strategy"]
+            S6["Event Bus"]
+            S7["Notification"]
+            S8["Email"]
+        end
     end
 
-    subgraph API["API Layer"]
-        HTTP["FastAPI HTTP Server<br/>(port 8000)"]
-        OMS["Order Management Server<br/>(separate port)"]
+    subgraph Domain["Domain Library"]
+        direction LR
+        D1["Markets"]
+        D2["OMS"]
+        D3["Strategy"]
     end
 
-    subgraph Workers["Worker Layer"]
-        BT["Backtest Runner"]
-        DP["Deployment Runner"]
-        EV["Event Monitors"]
-        OB["Outbox Relay"]
-        LD["OHLC Loader"]
-        FD["Feed Server"]
+    subgraph Infra["Infrastructure"]
+        direction LR
+        I1["PostgreSQL"]
+        I2["Redis"]
+        I3["Kafka"]
+        I4["Docker"]
     end
 
-    subgraph Data["Data Layer"]
-        PG[("PostgreSQL<br/>Strategy, Backtest,<br/>Deployment data")]
-        RD[("Redis<br/>Caching, Auth tokens,<br/>Heartbeats, Verification")]
-        KF{{"Kafka<br/>Event streaming"}}
-    end
-
-    subgraph External["External Systems"]
-        ALPACA["Alpaca Markets API"]
-        MISTRAL["Mistral AI"]
-        BREVO["Brevo Email API"]
-    end
-
-    UI --> HTTP
-    HTTP --> PG
-    HTTP --> RD
-    HTTP --> KF
-    OMS --> ALPACA
-    BT --> KF
-    DP --> OMS
-    DP --> KF
-    KF --> EV
-    EV --> PG
-    OB --> KF
-    LD --> PG
-    FD --> KF
+    API --> Services
+    Services --> Domain
+    Domain --> Infra
 ```
 
-### Container Architecture
+## Domain Library (`src/vegate/`)
+
+The shared domain library defines the contracts and data types used by all other modules. It has zero application dependencies and is importable from user strategy code and all internal modules.
+
+| Submodule   | Key Contents                                                                                                              |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `markets/`  | `OHLCSchema`, `MarketType`, `Timeframe` enums, `OHLCFeedClient` (TCP socket client), `HistoricalDataClient` (REST client) |
+| `oms/`      | `Order`, `OrderRequest`, `OrderType`, `OrderSide`, `OrderStatus`, `BrokerType` enums, `OMSClient`                         |
+| `strategy/` | `BaseStrategy` — the abstract base class every user strategy must extend                                                  |
+
+### `BaseStrategy`
+
+The user-facing strategy ABC defines three lifecycle hooks and injects three clients as instance attributes:
+
+| Hook                | Purpose                                                              |
+| ------------------- | -------------------------------------------------------------------- |
+| `startup()`         | Called once on initialisation — subscribe to feeds, initialise state |
+| `on_candle(candle)` | Called on every new OHLC candle — core trading logic                 |
+| `shutdown()`        | Called on teardown — cancel orders, close positions                  |
+
+| Client                        | Type                   | Purpose                                                          |
+| ----------------------------- | ---------------------- | ---------------------------------------------------------------- |
+| `self.ohlc_feed_client`       | `OHLCFeedClient`       | Subscribe to live or backtest OHLC streams (TCP socket protocol) |
+| `self.oms_client`             | `OMSClient`            | Place, modify, cancel orders and query positions/balance         |
+| `self.historical_data_client` | `HistoricalDataClient` | Fetch historical OHLC data for analysis                          |
+
+## Backtesting
+
+### Data Flow
 
 ```mermaid
 flowchart LR
-    subgraph Docker["Docker Swarm Cluster"]
-        TR["Traefik<br/>:80 / :443 / :8080"]
-
-        subgraph Services["Application Services"]
-            B["backend<br/>vegate http run"]
-            EH["event_handler<br/>vegate events run"]
-            OL["ohlc_loader<br/>vegate loader run"]
-        end
-
-        subgraph Infrastructure["Infrastructure"]
-            PG[("PostgreSQL 18")]
-            RD[("Redis 8")]
-            KF{{"Kafka 4.0"}}
-        end
-
-        TR --> B
-        TR --> EH
-        B --> PG
-        B --> RD
-        B --> KF
-        EH --> KF
-        EH --> PG
-        OL --> PG
-        OL --> KF
+    subgraph Orchestration
+        BT["BacktestMonitor<br/>Kafka Consumer"]
+        BE["BacktestExecutor<br/>subprocess / Docker"]
+        EN["BacktestEngine"]
     end
 
-    B --> ALPACA
-    B --> MISTRAL
-    B --> BREVO
+    subgraph Data Sources
+        DB[(<b>PostgreSQL</b><br/>ohlcs table)]
+        FC["BacktestOHLCFeedClient<br/>reads 1m candles"]
+    end
+
+    subgraph Simulation
+        OMS["BacktestOMSClient"]
+    end
+
+    BT -->|"BacktestRequestedEvent"| BE
+    BE -->|"spawns"| EN
+    DB --> FC
+    FC -->|"candles"| EN
+    OMS -->|"simulated fills"| EN
+    EN -->|"candles"| S["<b>UserStrategy</b><br/>startup() / on_candle() / shutdown()"]
+    S -->|"orders"| OMS
+    EN -->|"metrics + orders"| R[(<b>PostgreSQL</b><br/>backtest_metrics, backtest_orders)]
 ```
 
----
-
-## Data Flow
-
-### Backtest Flow
+### Engine
 
 ```mermaid
-sequenceDiagram
-    participant User
-    participant API as FastAPI
-    participant DB as PostgreSQL
-    participant CLI as vegate backtest run
-    participant KF as Kafka
-    participant Monitor as Backtest Monitor
+flowchart TD
+    DB[(PostgreSQL)]
+    FC["BacktestOHLCFeedClient"]
+    S["strategy.on_candle(candle)"]
+    OC["BacktestOMSClient"]
+    M["compute metrics"]
+    SD["strategy.shutdown()"]
+    R1[(backtest_metrics)]
+    R2[(backtest_orders)]
 
-    User->>API: POST /backtests (strategy_id, params)
-    API->>DB: Insert backtest (status=pending)
-    API-->>User: Backtest created
-
-    Note over CLI: Separate OS process
-    CLI->>DB: Read backtest + strategy code
-    CLI->>DB: Read OHLC candles
-    CLI->>CLI: Execute strategy logic
-    CLI->>KF: Publish backtest_events
-    CLI->>DB: Write backtest_metrics, orders
-
-    KF->>Monitor: Consume events
-    Monitor->>DB: Update backtest status
-
-    User->>API: GET /backtests/{id}
-    API->>DB: Read backtest + metrics + orders
-    API-->>User: Results
+    DB --> FC
+    FC -->|"candles"| S
+    S -->|"orders"| OC
+    OC -->|"fills"| S
+    S -->|"shutdown"| M
+    M --> SD
+    SD --> R1
+    SD --> R2
 ```
 
-### Live Deployment Flow
+### Module
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant API as FastAPI
-    participant DB as PostgreSQL
-    participant RD as Redis
-    participant CLI as vegate deployment run
-    participant OMS as OMS Server
-    participant KF as Kafka
-    participant Monitor as Event Monitor
-    participant SSE as SSE Stream
+The backtesting subsystem replays historical OHLC data through a strategy and computes performance metrics.
 
-    User->>API: POST /deployments
-    API->>DB: Insert deployment (status=stopped)
-    API-->>User: Deployment created
+#### Engine (`engine/`)
 
-    User->>API: POST /deployments/{id}/start
-    API->>DB: Set status=starting
+`BacktestEngine` orchestrates the simulation:
 
-    Note over CLI: Separate OS process
-    CLI->>DB: Read deployment + strategy code
-    CLI->>RD: Start heartbeat emission
-    CLI->>OMS: Register strategy
-    OMS->>ALPACA: Place orders via broker API
-    CLI->>KF: Publish deployment events
+1. Loads the user strategy via `StrategyLoader`
+2. Creates a `BacktestOHLCFeedClient` that reads 1m candles from PostgreSQL
+3. Creates a `BacktestOMSClient` — an in-memory simulated broker that validates balance and matches orders:
+   - Market orders fill at the current candle's close price
+   - Limit/stop orders trigger when price crosses the threshold
+4. Iterates through candles: executes pending orders, aggregates higher timeframes from 1m data, calls `strategy.on_candle()`
+5. Tracks an equity curve and computes metrics (PnL, profit factor, total return, etc.)
 
-    KF->>Monitor: Consume events
-    Monitor->>DB: Persist deployment_events
-    Monitor->>RD: Cache events for SSE
+#### Executors (`executor/`)
 
-    SSE-->>User: Real-time event stream
+Two execution strategies for running backtests:
 
-    RD-->>Monitor: Heartbeat health check
-    Monitor->>DB: Auto-stop deployments missing heartbeats
+| Executor                  | Description                                                 |
+| ------------------------- | ----------------------------------------------------------- |
+| `ProcessBacktestExecutor` | Runs the backtest in a child subprocess on the same machine |
+| `DockerBacktestExecutor`  | Runs the backtest in an isolated Docker container           |
+
+`BacktestExecutorFactory` selects the appropriate executor based on configuration.
+
+#### Monitor
+
+`BacktestMonitor` is a Kafka consumer that listens for `BacktestRequestedEvent` messages and delegates to the configured executor. It serves as the lifecycle manager for backtest jobs.
+
+#### Models
+
+- `Backtest` — top-level backtest record (status, timestamps, reference to strategy/configuration)
+- `BacktestMetrics` — computed metrics (total PnL, profit factor, Sharpe ratio, drawdown, etc.)
+- `BacktestOrder` — simulated order records with fill prices and timestamps
+
+### CLI
+
+```bash
+# Run a single backtest by ID
+uv run src/main.py backtest run --backtest-id 123e4567-e89b-12d3-a456-426614174000
+
+# Start the backtest lifecycle monitor (Kafka consumer)
+uv run src/main.py backtest monitor run
 ```
 
-### Transactional Outbox Pattern
+## Live Trading
+
+### Data Flow
 
 ```mermaid
 flowchart LR
-    subgraph App["Application"]
-        S["Service Layer"]
-        DB[("PostgreSQL<br/>event_outbox table")]
+    subgraph Feed Layer
+        AF["AlpacaOHLCFeed"]
     end
 
-    subgraph Outbox["Outbox Relay"]
-        OB["OutboxService<br/>(polls every N seconds)"]
+    FS["OHLCFeedServer"]
+
+    subgraph Strategy Container["Strategy Container"]
+        direction TB
+        FC["OHLCFeedClient"]
+        S["<b>UserStrategy</b><br/>startup() / on_candle() / shutdown()"]
+        OC["OMSClient"]
     end
 
-    subgraph Stream["Event Streaming"]
-        KF{{"Kafka"}}
+    subgraph OMS Layer
+        OS["OMSServer"]
+        OSvc["OMSService<br/>session manager"]
     end
 
-    subgraph Consumers["Event Consumers"]
-        M1["Backtest Monitor"]
-        M2["Deployment Monitor"]
+    subgraph Broker Layer
+        BC["AlpacaBrokerClient"]
     end
 
-    S -->|"1. Write event"| DB
-    OB -->|"2. Poll pending"| DB
-    OB -->|"3. Publish to topic"| KF
-    KF --> M1
-    KF --> M2
-    OB -->|"4. Mark as completed"| DB
+    AF --> FS
+    FS -->|"candles"| FC
+    FC -->|"candles"| S
+    S -->|"orders"| OC
+    OC --> OS
+    OS --> OSvc
+    OSvc -->|"route"| BC
 ```
 
----
+### Market Feeds & Data Loader
 
-## Database Schema
+Data loading and live feeds live side by side under `module/markets/`.
 
-### Entity-Relationship Diagram
+#### Feed
+
+The live feed subsystem is a layered architecture:
+
+1. **`OHLCFeed`** (ABC) — connects to a broker's streaming API; `AlpacaOHLCFeed` uses WebSockets to subscribe to bar channels
+2. **`FeedManager`** — registry of available feeds by symbol, market type, broker, and timeframe
+3. **`OHLCFeedServer`** — TCP socket server that fans out candles from all registered feeds to subscribed client connections over a JSON-line protocol
+4. **`OHLCFeedClient`** (in `vegate/`) — TCP socket client used by strategy runners; supports subscribe, heartbeat, reconnection with backoff
+
+The feed persists every candle to the database and calls the `on_candle` callback for real-time fan-out.
+
+#### Loader
+
+`OHLCLoader` is an abstract base class. The built-in `AlpacaOHLCLoader` fetches bars from Alpaca's REST API and handles idempotency.
+
+Add a new data source by subclassing `OHLCLoader` and implementing `load_candles()`.
+
+### Broker Clients
+
+`BrokerClient` is the abstract interface for broker integration:
+
+```python
+class BrokerClient(ABC):
+    def connect(self, api_key, api_secret, oauth_token=None): ...
+    def disconnect(self): ...
+    def get_balance(self) -> Balance: ...
+    def get_equity(self) -> Decimal: ...
+    def get_position(self, symbol) -> Decimal: ...
+    def place_order(self, request: OrderRequest) -> Order: ...
+    def modify_order(self, order_id, **changes) -> Order: ...
+    def cancel_order(self, order_id): ...
+    def cancel_all_orders(self): ...
+    def get_order(self, order_id) -> Order: ...
+    def get_orders(self) -> list[Order]: ...
+```
+
+Add a new broker by subclassing `BrokerClient` and implementing the interface.
+
+### Order Management System
+
+The OMS is a full-featured HTTP service for order routing in live deployments:
+
+| Component    | Role                                                                                                |
+| ------------ | --------------------------------------------------------------------------------------------------- |
+| `OMSServer`  | FastAPI server on port 8082; endpoints for sessions, orders, positions, balances                    |
+| `OMSService` | In-memory session manager with Redis-backed persistence; routes orders to the active `BrokerClient` |
+| `OMSClient`  | HTTP client used by strategy runners to interact with the server                                    |
+
+Session lifecycle: a deployment creates a session (associated with a `BrokerClient` instance), places/modifies/cancels orders through it, and closes it on shutdown. Orders are persisted to `strategy_deployment_orders` and lifecycle events are published to Kafka.
+
+### Strategy Deployment
+
+`StrategyDeploymentRunner` is the core loop for a live strategy instance:
+
+1. **Setup** — loads strategy code, connects to OHLC feed (TCP), creates an OMS session, subscribes to feeds
+2. **Candle loop** — iterates live candles from `OHLCFeedClient.candles()`, calls `strategy.on_candle()`, sends heartbeats to Redis
+3. **Shutdown** — cancels orders, closes OMS session, cleans up
+
+#### Executors
+
+| Executor                    | Description                                                                       |
+| --------------------------- | --------------------------------------------------------------------------------- |
+| `DockerDeploymentExecutor`  | Creates a Docker container named `dp_{deployment_id}` running the strategy runner |
+| `ProcessDeploymentExecutor` | Runs the strategy runner in a subprocess                                          |
+
+#### Event Listener
+
+`DeploymentEventListenerService` consumes `DeploymentRequestedEvent` from Kafka and delegates to the configured executor. `DeploymentEventRelay` handles event publishing for status transitions.
+
+### Engine
 
 ```mermaid
-erDiagram
-    users ||--o{ strategy : owns
-    users ||--o{ broker_connections : has
-    strategy ||--o{ backtests : has
-    strategy ||--o{ strategy_deployments : has
-    backtests ||--o{ backtest_metrics : has
-    backtests ||--o{ backtest_orders : has
-    backtests ||--o{ backtest_events : logs
-    strategy_deployments ||--o{ strategy_deployment_metrics : has
-    strategy_deployments ||--o{ strategy_deployment_orders : has
-    strategy_deployments ||--o{ deployment_events : logs
-    broker_connections ||--o{ strategy_deployments : uses
-    instruments ||--o{ ohlcs : contains
+flowchart TD
+    FC["OHLCFeedClient"]
+    S["strategy.on_candle(candle)"]
+    OS["OMSClient"]
+    R[(Redis)]
+    SD["strategy.shutdown()"]
+    CL["close session"]
 
-    users {
-        uuid user_id PK
-        varchar username UK
-        varchar email UK
-        text password
-        varchar jwt
-        timestamptz created_at
-    }
-
-    strategy {
-        uuid strategy_id PK
-        uuid user_id FK
-        varchar name
-        text description
-        text prompt
-        text code
-        timestamptz created_at
-    }
-
-    backtests {
-        uuid id PK
-        uuid strategy_id FK
-        numeric starting_balance
-        date start_date
-        date end_date
-        varchar status
-        timestamptz created_at
-    }
-
-    backtest_metrics {
-        uuid id PK
-        uuid backtest_id FK
-        numeric realised_pnl
-        numeric unrealised_pnl
-        numeric total_return_pct
-        numeric profit_factor
-        integer total_orders
-        jsonb equity_curve
-        jsonb balance_curve
-    }
-
-    backtest_orders {
-        uuid id PK
-        uuid backtest_id FK
-        varchar symbol
-        varchar side
-        varchar order_type
-        numeric quantity
-        numeric filled_qty
-        numeric avg_fill_price
-        varchar status
-        timestamptz created_at
-    }
-
-    strategy_deployments {
-        uuid deployment_id PK
-        uuid strategy_id FK
-        uuid broker_connection_id FK
-        varchar status
-        text error_message
-        jsonb server_data
-        varchar service_id
-        timestamptz created_at
-    }
-
-    broker_connections {
-        uuid connection_id PK
-        uuid user_id FK
-        varchar broker
-        text api_key
-        text secret_key
-        jsonb oauth_payload
-        varchar broker_account_id
-        varchar broker_account_number
-    }
-
-    instruments {
-        uuid id PK
-        varchar symbol
-        varchar native_symbol
-        varchar broker_type
-        varchar market_type
-        timestamptz created_at
-    }
-
-    ohlcs {
-        uuid ohlc_id PK
-        uuid instrument_id FK
-        numeric open
-        numeric high
-        numeric low
-        numeric close
-        numeric volume
-        timestamptz timestamp
-        varchar timeframe
-    }
-
-    event_outbox {
-        uuid id PK
-        varchar type
-        jsonb payload
-        varchar status
-        timestamptz timestamp
-    }
+    FC -->|"candles"| S
+    S -->|"orders"| OS
+    S -->|"heartbeat"| R
+    S -->|"shutdown"| SD
+    SD --> CL
 ```
 
----
+### Deployment Architecture
 
-## API Endpoints
+Vegate is deployed as a Docker Swarm stack with the following services:
 
-### Authentication (`/auth`)
+```mermaid
+flowchart LR
+    subgraph Swarm["Docker Swarm Stack"]
+        direction TB
+        subgraph Services["Services"]
+            direction TB
+            B["backend<br/>FastAPI :8000"]
+            O["oms<br/>FastAPI :8082"]
+            F["ohlc_feed<br/>TCP :8001"]
+            DL["deployment_listener<br/>Kafka consumer"]
+            BM["backtest_monitor<br/>Kafka consumer"]
+            OP["outbox_poller<br/>DB → Kafka"]
+            NP["notification_poller<br/>DB → Email"]
 
-| Method | Path                            | Auth     | Description                     |
-| ------ | ------------------------------- | -------- | ------------------------------- |
-| POST   | `/auth/register`                | —        | Register account                |
-| POST   | `/auth/login`                   | —        | Login                           |
-| POST   | `/auth/logout`                  | Optional | Logout                          |
-| POST   | `/auth/verify-email/request`    | —        | Request email verification code |
-| POST   | `/auth/verify-email`            | —        | Verify email with code          |
-| POST   | `/auth/change-username/request` | Yes      | Request username change         |
-| POST   | `/auth/change-username`         | Yes      | Confirm username change         |
-| POST   | `/auth/change-password/request` | Yes      | Request password change         |
-| POST   | `/auth/change-password`         | Yes      | Confirm password change         |
-| POST   | `/auth/change-email/request`    | Yes      | Request email change            |
-| POST   | `/auth/change-email`            | Yes      | Confirm email change            |
-| POST   | `/auth/reset-password/request`  | —        | Request password reset          |
-| PATCH  | `/auth/reset-password`          | —        | Confirm password reset          |
+            BM -->|"spawns"| DC["Docker containers<br/>for each backtest"]
+            DL -->|"spawns"| DC2["Docker containers<br/>dp_{id} for each deployment"]
+        end
 
-### Users (`/users`)
+        subgraph Data["Data Stores"]
+            PQ[(PostgreSQL<br/>:5432)]
+            RD[(Redis<br/>:6379)]
+            KF[(Kafka<br/>:9092)]
+        end
 
-| Method | Path        | Auth | Description          |
-| ------ | ----------- | ---- | -------------------- |
-| GET    | `/users/me` | Yes  | Current user profile |
+        TR["Traefik<br/>reverse proxy / TLS"]
+    end
 
-### Strategies (`/strategy`)
-
-| Method | Path                         | Auth | Description                      |
-| ------ | ---------------------------- | ---- | -------------------------------- |
-| POST   | `/strategy`                  | Yes  | Create strategy                  |
-| GET    | `/strategy`                  | Yes  | List strategies (paginated)      |
-| GET    | `/strategy/{id}`             | Yes  | Get strategy details             |
-| PATCH  | `/strategy/{id}`             | Yes  | Update strategy name/description |
-| DELETE | `/strategy/{id}`             | Yes  | Delete strategy                  |
-| GET    | `/strategy/{id}/code`        | Yes  | Get strategy code                |
-| PUT    | `/strategy/{id}/code`        | Yes  | Upload strategy code (.py)       |
-| PATCH  | `/strategy/{id}/code`        | Yes  | Update strategy code             |
-| GET    | `/strategy/{id}/backtests`   | Yes  | List backtests for strategy      |
-| GET    | `/strategy/{id}/deployments` | Yes  | List deployments for strategy    |
-
-### Backtests (`/backtests`)
-
-| Method | Path                     | Auth | Description                            |
-| ------ | ------------------------ | ---- | -------------------------------------- |
-| POST   | `/backtests`             | Yes  | Create backtest                        |
-| GET    | `/backtests`             | Yes  | List backtests (paginated, filterable) |
-| GET    | `/backtests/{id}`        | Yes  | Get backtest with metrics              |
-| DELETE | `/backtests/{id}`        | Yes  | Delete backtest                        |
-| GET    | `/backtests/{id}/orders` | Yes  | Get backtest orders                    |
-
-### Deployments (`/deployments`)
-
-| Method | Path                              | Auth | Description                  |
-| ------ | --------------------------------- | ---- | ---------------------------- |
-| POST   | `/deployments`                    | Yes  | Create deployment            |
-| GET    | `/deployments`                    | Yes  | List deployments (paginated) |
-| GET    | `/deployments/{id}`               | Yes  | Get deployment details       |
-| POST   | `/deployments/{id}/start`         | Yes  | Start deployment             |
-| POST   | `/deployments/{id}/stop`          | Yes  | Stop deployment              |
-| GET    | `/deployments/{id}/orders`        | Yes  | Get deployment orders        |
-| GET    | `/deployments/{id}/events`        | Yes  | Get deployment event log     |
-| GET    | `/deployments/{id}/events/stream` | Yes  | SSE stream of live events    |
-
-### Markets (`/markets`)
-
-| Method | Path            | Auth | Description                           |
-| ------ | --------------- | ---- | ------------------------------------- |
-| GET    | `/markets/info` | —    | List instruments (paginated)          |
-| GET    | `/markets/bars` | —    | Get OHLC bars (paginated, filterable) |
-
-### Broker Connections (`/broker-connections`)
-
-| Method | Path                                        | Auth | Description              |
-| ------ | ------------------------------------------- | ---- | ------------------------ |
-| POST   | `/broker-connections`                       | Yes  | Create broker connection |
-| GET    | `/broker-connections`                       | Yes  | List connections         |
-| GET    | `/broker-connections/{id}`                  | Yes  | Get connection details   |
-| DELETE | `/broker-connections/{id}`                  | Yes  | Delete connection        |
-| GET    | `/broker-connections/alpaca/oauth`          | Yes  | Get Alpaca OAuth URL     |
-| GET    | `/broker-connections/alpaca/oauth/callback` | Yes  | Handle OAuth callback    |
-
-### Contact (`/contact`)
-
-| Method | Path       | Auth | Description         |
-| ------ | ---------- | ---- | ------------------- |
-| POST   | `/contact` | —    | Submit contact form |
-
----
-
-## CLI Commands
-
-Every component runs as a subcommand of the unified `vegate` CLI:
-
-| Command                   | Subcommand     | Description                                         |
-| ------------------------- | -------------- | --------------------------------------------------- |
-| `vegate http`             | `run`          | Start FastAPI HTTP server (Uvicorn, port 8000)      |
-| `vegate backtest`         | `run`          | Execute a single backtest by ID                     |
-| `vegate backtest monitor` | `run`          | Consume backtest Kafka events and persist to DB     |
-| `vegate deployment`       | `run`          | Execute a live strategy deployment                  |
-| `vegate monitor`          | `run`          | Consume deployment events + heartbeat health checks |
-| `vegate monitor`          | `run-backtest` | Alias for `backtest monitor run`                    |
-| `vegate feed`             | `run`          | Start OHLC live feed server (WebSocket)             |
-| `vegate oms`              | `run`          | Start Order Management System                       |
-| `vegate loader`           | `run`          | Load historical OHLC data from broker               |
-| `vegate outbox`           | `run`          | Relay transactional outbox → Kafka                  |
-| `vegate db`               | `upgrade`      | Run Alembic migrations                              |
-
----
-
-## Project Structure
-
-```
-vegate-backend/
-├── src/
-│   ├── main.py                   # Entry point → vegate CLI
-│   ├── config.py                 # Configuration (env + config.yaml)
-│   ├── util.py                   # Shared utilities
-│   ├── user_strategy.py          # BaseStrategy subclass for user code
-│   ├── cli/                      # Click CLI framework
-│   │   ├── main.py               # Root CLI group
-│   │   └── command/              # Subcommands (backtest, deployment, http, ...)
-│   ├── core/                     # Shared infrastructure
-│   │   ├── db/                   # SQLAlchemy engine, sessions, base model
-│   │   ├── kafka/                # Kafka producers/consumers (async + sync)
-│   │   ├── redis/                # Redis clients (async + sync)
-│   │   ├── event/                # Event models + deserialisation
-│   │   ├── strategy.py           # Abstract Strategy base class
-│   │   ├── schema.py             # Pydantic base model
-│   │   └── protocol/             # Closeable protocols
-│   ├── module/                   # Business modules
-│   │   ├── api/                  # FastAPI app setup, middleware, DI registry
-│   │   ├── auth/                 # Registration, login, password/email changes
-│   │   ├── backtest/             # Backtesting engine + models
-│   │   ├── broker/               # Broker abstractions (Alpaca, Tradier, cTrader)
-│   │   ├── broker_connections/   # User broker account connections
-│   │   ├── contact/              # Public contact form
-│   │   ├── deployment/           # Live strategy deployment engine
-│   │   ├── email/                # Email service (Brevo)
-│   │   ├── event_bus/            # Event publishing + transactional outbox
-│   │   ├── jwt/                  # JWT token service
-│   │   ├── markets/              # Instruments, OHLC bars, feeds
-│   │   ├── strategy/             # Strategy CRUD + AI generation
-│   │   └── user/                 # User model
-│   └── alembic/                  # 38 database migration files
-├── tests/                        # pytest suite (unit + integration)
-├── scripts/                      # Shell helpers
-├── Dockerfile
-├── dev-compose.yaml              # Dev: postgres + redis + kafka
-├── prod-compose.yaml             # Prod: Docker Swarm stack
-├── config.yaml                   # OHLC feed config (symbols, timeframes)
-├── pyproject.toml                # Dependencies + pytest config
-└── alembic.ini                   # Alembic configuration
+    B --> TR
+    B --> PQ
+    B --> RD
+    OP --> PQ --> KF
+    BM --> KF
+    DL --> KF
+    NP --> PQ
+    F --> PQ
+    F --> RD
+    F --> KF
+    O --> PQ
+    O --> RD
+    O --> KF
 ```
 
----
+#### Service Dependencies
 
-## Key Design Patterns
+| Service               | Depends On                           | Purpose                                              |
+| --------------------- | ------------------------------------ | ---------------------------------------------------- |
+| `backend`             | PostgreSQL, Redis                    | Serves the REST API; writes to outbox                |
+| `outbox_poller`       | PostgreSQL, Kafka                    | Polls outbox table, publishes to Kafka topics        |
+| `backtest_monitor`    | Kafka, Docker                        | Consumes backtest events, spawns Docker containers   |
+| `deployment_listener` | Kafka, Docker                        | Consumes deployment events, spawns Docker containers |
+| `ohlc_feed`           | PostgreSQL, Redis, Kafka             | Connects to broker WS, streams candles over TCP      |
+| `oms`                 | PostgreSQL, Redis, Kafka, broker API | Routes orders from deployments to broker APIs        |
+| `notification_poller` | PostgreSQL, email API                | Polls notification table, sends emails               |
 
-- **Modular Monolith** — Single codebase, single Docker image; different entrypoint commands for different service roles.
-- **CLI-First Architecture** — Everything (HTTP server, workers, loaders, monitors) is a subcommand of the `vegate` Click CLI.
-- **Process Isolation** — Each backtest and live deployment runs in a separate OS process (`multiprocessing.Process`) for safety and resource isolation.
-- **Transactional Outbox** — Events are first written to the `event_outbox` table in the same DB transaction as the business operation, then relayed to Kafka by a polling service. This guarantees at-least-once delivery without distributed transactions.
-- **Heartbeat Health Monitoring** — Deployed strategies emit heartbeats to Redis. A monitor service automatically transitions deployments to `suspicious` or `stopped` if heartbeats are missed.
-- **Async + Sync Coexistence** — FastAPI/asyncpg/aiokafka for I/O-bound HTTP and event handling. Sync psycopg2/kafka-python for CPU-bound worker processes that don't run an event loop.
-- **SSE for Real-Time** — Deployment events streamed to frontends via Server-Sent Events with per-deployment `asyncio.Queue`.
+#### Infrastructure Stack
 
----
+- **PostgreSQL 18** — primary data store (OHLC data, backtest results, deployments, orders, users, outbox)
+- **Redis 7/8** — session persistence, deployment heartbeats, rate limiting, caching
+- **Apache Kafka 4** (KRaft mode) — event bus for decoupled microservice communication
+- **Docker Swarm** — container orchestration and service discovery
+
+### CLI
+
+```bash
+# Deploy a strategy to live trading
+uv run src/main.py deployment run \
+    --deployment-id 123e4567-e89b-12d3-a456-426614174000 \
+    --ohlc-feed-host localhost \
+    --ohlc-feed-port 8001 \
+    --oms-base-url http://localhost:8082/v1
+
+# Start the deployment lifecycle listener (Kafka consumer)
+uv run src/main.py deployment listener run
+
+# Start the live OHLC feed TCP server
+uv run src/main.py markets feed run \
+    --host 0.0.0.0 \
+    --port 8001
+
+# Start the Order Management System HTTP server
+uv run src/main.py oms run --host 0.0.0.0 --port 8082
+```
+
+## REST API (`module/api/`)
+
+FastAPI application providing the HTTP API layer. Routes are organised by domain:
+
+- `auth/` — authentication (login, register, JWT tokens)
+- `user/` — user management
+- `strategy/` — CRUD for strategies
+- `backtest/` — create and query backtests
+- `deployment/` — create and manage live deployments
+- `markets/` — query instruments and OHLC data
+- `broker_connections/` — manage broker credentials and OAuth flows
+- `contact/` — contact form submissions
+
+## Common Modules
+
+### Strategy Management (`module/strategy/`)
+
+- **`StrategyService`** — CRUD for strategies, versioning, metadata
+- **`StrategyLoader`** — writes user Python code to `src/user_strategy.py` and dynamically imports the `UserStrategy` class; validates it extends `BaseStrategy`
+- **`agents/`** — LLM-powered agents (using `pydantic-ai-slim` with Mistral) for automated strategy generation and analysis
+
+### Event Bus (`module/event_bus/`)
+
+Reliable asynchronous event processing using the outbox pattern:
+
+1. Events are written to the `EventOutbox` table in PostgreSQL within the same transaction as the business operation
+2. `OutboxPoller` periodically reads unprocessed rows and publishes them to Kafka topics
+3. Consumers (`BacktestMonitor`, `DeploymentEventListenerService`, etc.) process events from Kafka
+
+This guarantees at-least-once delivery without distributed transactions. Multiple publisher implementations are available:
+
+| Publisher              | Behaviour                                             |
+| ---------------------- | ----------------------------------------------------- |
+| `SyncOutboxPublisher`  | Writes to outbox synchronously (blocking)             |
+| `AsyncOutboxPublisher` | Writes to outbox asynchronously                       |
+| `KafkaPublisher`       | Publishes directly to Kafka (for non-critical events) |
+
+### Notifications (`module/notification/` & `module/email/`)
+
+- **`NotificationPoller`** — periodic DB poller that picks up pending notifications and sends them through configured channels (email, Discord)
+- **`NotificationPublisher`** — publishes notification events
+- **Email services** — pluggable email delivery via Brevo, Postmark, or SMTPGo; selected via `EmailServiceFactory`
+
+### CLI Reference
+
+The CLI is built with [Click](https://click.palletsprojects.com/) and invoked via `uv run src/main.py`.
+
+```bash
+# Start the FastAPI REST API server
+uv run src/main.py http run
+
+# Start the outbox poller (PostgreSQL -> Kafka)
+uv run src/main.py outbox run --interval 5 --batch-size 1000
+
+# Start the notification poller (PostgreSQL -> email)
+uv run src/main.py notification poller run \
+    --interval 2 \
+    --batch-size 1000 \
+    --timeout 5
+
+# Load historical OHLC data from a broker
+uv run src/main.py markets loader run \
+    --broker alpaca \
+    --symbol ETH/USD \
+    --market-type crypto \
+    --timeframe 1m \
+    --start-date 2026-01-01
+
+# Run Alembic database migrations
+uv run src/main.py db upgrade
+```
 
 ## Getting Started
 
 ### Prerequisites
 
 - Python 3.13+
-- `uv` package manager
-- Docker + Docker Compose (for infrastructure)
+- [uv](https://docs.astral.sh/uv/) package manager
+- Docker and Docker Compose (for infrastructure and live trading)
 
 ### Setup
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/vegate-backend
+git clone https://github.com/vegate/vegate-backend.git
 cd vegate-backend
 
-# Copy environment file
-cp .env.example .env
-
-# Install dependencies
+# Create virtual environment and install dependencies
 uv sync
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your database, broker, and API credentials
 
 # Start infrastructure (PostgreSQL, Redis, Kafka)
 docker compose -f dev-compose.yaml up -d
@@ -542,35 +507,40 @@ docker compose -f dev-compose.yaml up -d
 # Run database migrations
 uv run src/main.py db upgrade
 
-# Start the HTTP server
+# Start the API server
 uv run src/main.py http run
 ```
 
-### Running Tests
+### Example Strategy
 
-```bash
-uv run pytest
-uv run pytest -m "not integration"   # unit tests only
-uv run pytest -m "integration"       # integration tests only
+```python
+from vegate.oms.schema import OrderRequest
+from vegate.oms.enums import OrderType, OrderSide
+from vegate.markets.enums import Timeframe
+from vegate.strategy.base import BaseStrategy
+
+
+class UserStrategy(BaseStrategy):
+    def startup(self):
+        self.ohlc_feed_client.subscribe([{
+            "symbol": "ETH/USD",
+            "broker_type": "alpaca",
+            "market_type": "crypto",
+            "timeframe": [Timeframe.m1],
+        }])
+
+    def on_candle(self, candle):
+        position = self.oms_client.get_position("ETH/USD")
+        if position == 0:
+            self.oms_client.place_order(
+                OrderRequest(
+                    symbol="ETH/USD",
+                    side=OrderSide.buy,
+                    order_type=OrderType.market,
+                    quantity=1,
+                )
+            )
+
+    def shutdown(self):
+        self.oms_client.cancel_all_orders()
 ```
-
----
-
-## Deployment
-
-Vegate deploys as a Docker Swarm stack behind a Traefik reverse proxy, orchestrated via GitHub Actions CI/CD.
-
-### Production Stack
-
-```yaml
-# prod-compose.yaml (abbreviated)
-services:
-  backend:      # vegate http run --upgrade-db
-  event_handler:# vegate events run
-  ohlc_loader:  # vegate loader run
-  postgres:     # PostgreSQL 18
-  redis:        # Redis 8
-  traefik:      # Reverse proxy (ports 80, 443, 8080)
-```
-
-The CI/CD pipeline builds the Docker image, pushes to Docker Hub, and deploys to a Swarm cluster on push to `main`.
