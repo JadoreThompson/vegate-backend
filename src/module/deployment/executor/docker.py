@@ -21,13 +21,12 @@ class DockerDeploymentExecutor(DeploymentExecutor):
     async def run(self, deployment_id: UUID) -> dict:
         container = self._find_container(deployment_id)
 
-        if container:
+        if container is not None:
             if container.status == "running":
                 raise DeploymentAlreadyRunningException(deployment_id)
 
-            container.stop()
             container.remove(force=True)
-        elif self._count_backtests() >= self.max_concurrent_deployments:
+        elif self._count_deployments() >= self.max_concurrent_deployments:
             raise DeploymentLimitReached()
 
         container = self._create_container(deployment_id)
@@ -49,16 +48,20 @@ class DockerDeploymentExecutor(DeploymentExecutor):
     async def stop(self, deployment_id: UUID) -> dict:
         container = self._find_container(deployment_id)
 
-        if not container:
+        if container is None:
             raise DeploymentNotFoundException(deployment_id)
-
-        container.stop(timeout=10)
-        container.remove(force=True)
-
+        
+        self._stop_container(container)
         return {
             "deployment_id": str(deployment_id),
             "status": "stopped",
         }
+
+    def _stop_container(self, container: Container) -> dict:
+        if container.status == "running":
+            container.stop(timeout=10)
+        else:
+            container.remove(force=True)
 
     async def stop_all(self) -> dict:
         containers: list[Container] = self._docker_client.containers.list(
@@ -70,14 +73,9 @@ class DockerDeploymentExecutor(DeploymentExecutor):
 
         for container in containers:
             try:
-                deployment_id = container.name.removeprefix("dp_")
-
-                if container.status == "running":
-                    container.stop(timeout=10)
-
-                container.remove(force=True)
+                deployment_id = UUID(container.name.removeprefix("dp_"))
+                self._stop_container(container)
                 stopped.append(deployment_id)
-
             except Exception:
                 continue
 
@@ -104,7 +102,7 @@ class DockerDeploymentExecutor(DeploymentExecutor):
             auto_remove=True,
         )
 
-    def _count_backtests(self):
+    def _count_deployments(self):
         return len(
             self._docker_client.containers.list(all=True, filters={"name": "dp_"})
         )

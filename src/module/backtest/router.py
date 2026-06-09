@@ -48,31 +48,6 @@ async def get_backtest_endpoint(
     return await backtest_service.get_backtest(backtest_id, jwt.sub, db_sess)
 
 
-@router.get("/", response_model=PaginatedResponse[BacktestResponse])
-async def list_backtests_endpoint(
-    page: int = Query(1, ge=1),
-    limit: int = Query(50, ge=1, le=100),
-    status: list[BacktestStatus] | None = CSVQuery(
-        "status",
-        BacktestStatus,
-        None,
-    ),
-    symbols: list[str] | None = CSVQuery("symbols", str, None),
-    jwt: JWTPayload = Depends(depends_jwt()),
-    db_sess: AsyncSession = Depends(depends_db_sess),
-    backtest_service: BacktestsService = Depends(depends_class(BacktestsService)),
-):
-    """List all backtests with pagination."""
-    return await backtest_service.get_backtests(
-        jwt.sub,
-        db_sess,
-        page=page,
-        limit=limit,
-        status=status,
-        symbols=symbols,
-    )
-
-
 @router.delete("/{backtest_id}", status_code=204)
 async def delete_backtest_endpoint(
     backtest_id: UUID,

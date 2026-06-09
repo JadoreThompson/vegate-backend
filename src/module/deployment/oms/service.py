@@ -6,21 +6,21 @@ from redis.asyncio import Redis as AsyncRedis
 from sqlalchemy import func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config import OMS_SESSION_PREFIX, STRATEGY_DEPLOYMENT_EVENTS_KEY
+from config import OMS_SESSION_PREFIX
 from core.db import get_db_session
-from vegate.oms.schema import Order
 from module.broker.client import (
     AlpacaBrokerClient,
     BrokerClient,
     BrokerClientException,
 )
-from vegate.oms.enums import BrokerType, OrderStatus
 from module.broker_connections.model import BrokerConnections
 from module.broker_connections.oauth import EncryptionService
 from module.broker_connections.oauth.alpaca import AlpacaOAuthPayload
 from module.event_bus import EventPublisher
 from module.strategy.model import Strategy, StrategyVersion
 from module.user.model import User
+from vegate.oms.enums import BrokerType, OrderStatus
+from vegate.oms.schema import Order
 from .exception import (
     BrokerConnectionDoesNotExistException,
     DuplicateOrderException,
@@ -69,7 +69,10 @@ class OMSService:
                     BrokerConnections.connection_id
                     == StrategyDeployments.broker_connection_id,
                 )
-                .join(StrategyVersion, StrategyVersion.id == StrategyDeployments.version_id)
+                .join(
+                    StrategyVersion,
+                    StrategyVersion.id == StrategyDeployments.version_id,
+                )
                 .join(Strategy, Strategy.strategy_id == StrategyVersion.strategy_id)
                 .join(
                     User,
@@ -142,6 +145,12 @@ class OMSService:
     async def place_order(self, token: str, request: PlaceOrderRequest) -> Order:
         session = await self._get_session(token)
 
+        await self._event_publisher.publish(
+            DeploymentOrderSubmitted(
+                deployment_id=session.deployment_id, order=request.order
+            ),
+        )
+        
         try:
             order = session.broker_client.place_order(request.order)
             broker_order_id = order.id
@@ -149,18 +158,11 @@ class OMSService:
             order.id = str(order_id)
 
             await self._event_publisher.publish(
-                DeploymentOrderSubmitted(
-                    deployment_id=session.deployment_id, order=request.order
-                ),
-                STRATEGY_DEPLOYMENT_EVENTS_KEY,
-            )
-            await self._event_publisher.publish(
                 DeploymentOrderAcknowledged(
                     deployment_id=session.deployment_id,
                     order=order,
                     broker_order_id=broker_order_id,
                 ),
-                STRATEGY_DEPLOYMENT_EVENTS_KEY,
             )
 
             async with get_db_session() as db_sess:
@@ -210,14 +212,15 @@ class OMSService:
                     )
                     .returning(StrategyDeploymentOrders.id)
                 )
-                await db_sess.commit()
 
-            await self._event_publisher.publish(
-                DeploymentOrderRejected(
-                    deployment_id=session.deployment_id, order_id=order_id
-                ),
-                STRATEGY_DEPLOYMENT_EVENTS_KEY,
-            )
+                await self._event_publisher.publish(
+                    DeploymentOrderRejected(
+                        deployment_id=session.deployment_id, order_id=order_id
+                    ),
+                    db_sess,
+                )
+
+                await db_sess.commit()
 
             raise e
 
@@ -243,7 +246,6 @@ class OMSService:
                 limit_price=limit_price,
                 stop_price=stop_price,
             ),
-            STRATEGY_DEPLOYMENT_EVENTS_KEY,
         )
 
         async with get_db_session() as db_sess:
@@ -274,7 +276,6 @@ class OMSService:
                 order_id=order_id,
                 broker_order_id=broker_order_id,
             ),
-            STRATEGY_DEPLOYMENT_EVENTS_KEY,
         )
 
         async with get_db_session() as db_sess:

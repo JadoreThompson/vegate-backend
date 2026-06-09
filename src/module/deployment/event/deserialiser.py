@@ -2,7 +2,7 @@ import json
 
 from core.protocol import EventDeserialiser
 from .event import (
-    BaseDeploymentEvent,
+    DeploymentEventUnion,
     DeploymentCancelOrderSubmitted,
     DeploymentCancelledEvent,
     DeploymentErrorEvent,
@@ -17,10 +17,10 @@ from .event import (
 )
 
 
-class DeploymentEventDeserialiser(EventDeserialiser[BaseDeploymentEvent]):
+class DeploymentEventDeserialiser(EventDeserialiser[DeploymentEventUnion]):
 
     def __init__(self):
-        self._registry: dict[DeploymentEventType, BaseDeploymentEvent] = {
+        self._registry: dict[DeploymentEventType, DeploymentEventUnion] = {
             DeploymentEventType.DEPLOYMENT_STATUS: DeploymentStatusChangedEvent,
             DeploymentEventType.DEPLOYMENT_ERROR: DeploymentErrorEvent,
             DeploymentEventType.DEPLOYMENT_STOP_REQUESTED: DeploymentStopRequestedEvent,

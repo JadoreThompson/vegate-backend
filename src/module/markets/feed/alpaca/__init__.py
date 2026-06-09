@@ -1,2 +1,2 @@
-from .service import AlpacaOHLCFeed
+from .feed import AlpacaOHLCFeed
 from .exception import AlpacaOHLCFeedException

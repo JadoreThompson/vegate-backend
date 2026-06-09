@@ -1,3 +1,4 @@
+from typing import TypeAlias
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -14,8 +15,7 @@ from module.api.schema import PaginatedResponse
 
 from module.deployment.enums import StrategyDeploymentStatus
 from module.jwt import JWTPayload
-from module.markets.model import Instrument
-from .event import DeploymentEventT
+from .event import DeploymentEventUnion, DeploymentEventT
 from .event.relay import DeploymentEventRelay
 from .schema import (
     CreateDeploymentRequest,
@@ -128,8 +128,12 @@ async def get_deployment_orders_endpoint(
     )
 
 
+A: TypeAlias = DeploymentEventUnion
+
+
 @router.get(
-    "/{deployment_id}/events", response_model=PaginatedResponse[DeploymentEventT]
+    "/{deployment_id}/events",
+    response_model=PaginatedResponse[DeploymentEventT],
 )
 async def get_events(
     deployment_id: UUID,

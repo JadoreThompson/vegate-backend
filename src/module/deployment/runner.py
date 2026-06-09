@@ -1,4 +1,5 @@
 import logging
+import signal
 import time
 from threading import Thread
 from uuid import UUID
@@ -51,7 +52,10 @@ class StrategyDeploymentRunner:
         with get_db_sess_sync() as db_sess:
             res = db_sess.execute(
                 select(StrategyDeployments, StrategyVersion)
-                .join(StrategyVersion, StrategyVersion.id == StrategyDeployments.version_id)
+                .join(
+                    StrategyVersion,
+                    StrategyVersion.id == StrategyDeployments.version_id,
+                )
                 .where(StrategyDeployments.deployment_id == self._deployment_id)
             )
 
@@ -83,6 +87,7 @@ class StrategyDeploymentRunner:
 
     def run(self) -> None:
         try:
+            self._register_signal_handlers()
             self.setup()
             self._alive = True
             self._event_publisher.publish(
@@ -107,23 +112,29 @@ class StrategyDeploymentRunner:
         except KeyboardInterrupt:
             pass
         finally:
-            self._alive = False
-            self._event_publisher.publish(
-                DeploymentStatusChangedEvent(
-                    deployment_id=self._deployment_id,
-                    status=StrategyDeploymentStatus.STOPPED,
-                )
+            self._cleanup()
+
+    def _register_signal_handlers(self):
+        signal.signal(signal.SIGTERM, lambda signum, frame: self._cleanup())
+
+    def _cleanup(self):
+        self._alive = False
+        self._event_publisher.publish(
+            DeploymentStatusChangedEvent(
+                deployment_id=self._deployment_id,
+                status=StrategyDeploymentStatus.STOPPED,
             )
+        )
 
-            if self._heartbeat_th is not None and self._heartbeat_th.is_alive():
-                try:
-                    self._heartbeat_th.join(timeout=self._heartbeat_interval + 1)
-                except TimeoutError:
-                    self._logger.info("Heartbeat thread failed to stop")
+        if self._heartbeat_th is not None and self._heartbeat_th.is_alive():
+            try:
+                self._heartbeat_th.join(timeout=self._heartbeat_interval + 1)
+            except TimeoutError:
+                self._logger.info("Heartbeat thread failed to stop")
 
-            self._strategy.shutdown()
-            self._ohlc_feed_client.close()
-            self._oms_client.disconnect()
+        self._strategy.shutdown()
+        self._ohlc_feed_client.close()
+        self._oms_client.disconnect()
 
     def _heartbeat_loop(self):
         try:

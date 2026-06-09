@@ -1,6 +1,5 @@
 from .event import (
     DeploymentEventType,
-    BaseDeploymentEvent,
     DeploymentStatusChangedEvent,
     DeploymentErrorEvent,
     DeploymentStopRequestedEvent,
@@ -11,5 +10,6 @@ from .event import (
     DeploymentOrderAcknowledged,
     DeploymentRequestedEvent,
     DeploymentStopRequestedEvent,
+    DeploymentEventUnion,
     DeploymentEventT,
 )

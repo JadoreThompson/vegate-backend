@@ -8,12 +8,14 @@ from module.api.schema import PaginatedResponse
 from module.broker_connections import BrokerConnectionsService
 from module.event_bus import EventPublisher
 from module.markets import MarketsService
-from module.markets.model import Instrument
 from module.strategy.model import Strategy, StrategyVersion
 from .enums import StrategyDeploymentStatus
-from .event import DeploymentEventT, DeploymentRequestedEvent, DeploymentStopRequestedEvent
+from .event import (
+    DeploymentEventUnion,
+    DeploymentRequestedEvent,
+    DeploymentStopRequestedEvent,
+)
 from .event.deserialiser import DeploymentEventDeserialiser
-from .executor import DeploymentExecutor
 from .exception import DeploymentAlreadyRunningException, DeploymentNotFoundException
 from .model import (
     StrategyDeployments,
@@ -54,8 +56,7 @@ class DeploymentsService:
         await db_sess.refresh(deployment)
 
         await self._event_publisher.publish(
-            DeploymentRequestedEvent(deployment_id=deployment.deployment_id),
-            db_sess
+            DeploymentRequestedEvent(deployment_id=deployment.deployment_id), db_sess
         )
 
         return deployment
@@ -92,7 +93,7 @@ class DeploymentsService:
         self, deployment_id: UUID, user_id: UUID, db_sess: AsyncSession
     ):
         deployment = await self._get_user_deployment(deployment_id, user_id, db_sess)
-        metrics = deployment.metricsss
+        metrics = deployment.metrics
         return self.to_response(deployment, metrics)
 
     async def get_all(
@@ -234,7 +235,6 @@ class DeploymentsService:
                     avg_fill_price=order.avg_fill_price,
                     status=order.status,
                     created_at=order.created_at,
-                    candle_ts=order.candle_ts,
                 )
                 for order in rows[:limit]
             ],
@@ -261,13 +261,11 @@ class DeploymentsService:
         rows = res.scalars().all()
 
         deserialiser = DeploymentEventDeserialiser()
-        return PaginatedResponse[DeploymentEventT](
+        return PaginatedResponse[DeploymentEventUnion](
             page=page,
             size=min(limit, len(rows)),
             has_next=len(rows) > limit,
-            data=[
-                deserialiser.deserialise(item.payload) for item in rows[:limit]
-            ],
+            data=[deserialiser.deserialise(item.payload) for item in rows[:limit]],
         )
 
     async def _get_user_deployment(

@@ -15,6 +15,7 @@ from module.deployment.event import DeploymentEventType
 from module.deployment.event.deserialiser import DeploymentEventDeserialiser
 from module.event_bus.enums import EventStatus
 from module.event_bus.model import EventOutbox
+from .publisher.util import build_headers
 
 
 class OutboxPoller:
@@ -146,7 +147,7 @@ class OutboxPoller:
 
             await asyncio.wait_for(
                 self._kafka_producer.send_and_wait(
-                    event.topic, json.dumps(raw_event).encode()
+                    event.topic, json.dumps(raw_event).encode(), headers=build_headers(event)
                 ),
                 timeout=30,
             )

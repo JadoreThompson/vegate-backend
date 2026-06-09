@@ -20,7 +20,7 @@ from module.strategy.model import Strategy, StrategyVersion
 from module.user.model import User
 from .deserialiser import DeploymentEventDeserialiser
 from .event import (
-    BaseDeploymentEvent,
+    DeploymentEventUnion,
     DeploymentCancelledEvent,
     DeploymentEventType,
     DeploymentRequestedEvent,
@@ -101,7 +101,7 @@ class DeploymentEventListenerService:
         if res:
             raise ExceptionGroup("", res)
 
-    async def _persist(self, event: BaseDeploymentEvent) -> None:
+    async def _persist(self, event: DeploymentEventUnion) -> None:
         async with get_db_session() as session:
             deployment = await session.get(StrategyDeployments, event.deployment_id)
             if deployment is None:
@@ -123,18 +123,11 @@ class DeploymentEventListenerService:
             )
 
             if event.type == DeploymentEventType.DEPLOYMENT_STATUS:
-                await session.execute(
-                    update(StrategyDeployments)
-                    .where(StrategyDeployments.deployment_id == event.deployment_id)
-                    .values(status=event.status)
-                )
+                print("Setting deployment status")
+                deployment.status = event.status
 
             if event.type == DeploymentEventType.DEPLOYMENT_CANCELLED:
-                await session.execute(
-                    update(StrategyDeployments)
-                    .where(StrategyDeployments.deployment_id == event.deployment_id)
-                    .values(status=StrategyDeploymentStatus.CANCELLED)
-                )
+                deployment.status = StrategyDeploymentStatus.CANCELLED
 
             await session.commit()
 
@@ -143,7 +136,7 @@ class DeploymentEventListenerService:
             return
 
         self._logger.info(
-            f"Pushing deployment with id '{event.deployment_id}' to running deployments"
+            f"Handling status changed. Pushing deployment with id '{event.deployment_id}' to running deployments"
         )
         async with self._lock:
             self._pending_deployments.discard(event.deployment_id)
@@ -214,6 +207,9 @@ class DeploymentEventListenerService:
         max_retries = 5
         for attempt in range(max_retries):
             try:
+                self._logger.info(
+                    f"Attempting to stop deployment '{event.deployment_id}'"
+                )
                 await self._deployment_executor.stop(event.deployment_id)
                 self._logger.info(
                     f"Successfully sent stop request for deployment '{event.deployment_id}'"
@@ -224,8 +220,8 @@ class DeploymentEventListenerService:
                     f"Attempt {attempt + 1}/{max_retries} failed to stop "
                     f"deployment '{event.deployment_id}': {e}"
                 )
-                if attempt < max_retries - 1:
-                    await asyncio.sleep(2**attempt)
+
+            await asyncio.sleep(2**attempt)
 
         self._logger.error(
             f"Failed to stop deployment '{event.deployment_id}' after "
@@ -265,6 +261,7 @@ class DeploymentEventListenerService:
 
         try:
             await self._kafka_consumer.start()
+            print(self._kafka_consumer.__aiter__)
 
             async for record in self._kafka_consumer:
                 event = self._deserialiser.deserialise_json(record.value)
@@ -296,12 +293,19 @@ class DeploymentEventListenerService:
                     running_deployments = self._running_deployments.copy()
                     suspicious_deployments = self._suspicious_deployments.copy()
 
+                self._logger.info(
+                    f"Pending: {pending_deployments}, Running: {running_deployments}, "
+                    f"Suspicious: {suspicious_deployments}"
+                )
+
                 deployment_ids = {
                     UUID(key.decode().replace(self._heartbeat_prefix_key, ""))
                     async for key in self._redis_client.scan_iter(
                         match=f"{self._heartbeat_prefix_key}*"
                     )
                 }
+
+                print("Deployment ids:", deployment_ids)
 
                 to_suspicious = []
                 to_stopped = []

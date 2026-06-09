@@ -4,23 +4,16 @@ from uuid import UUID
 
 import click
 
-from config import DEPLOYMENT_EXECUTOR_NAME, EMAIL_SERVICE_NAME
+from config import DEPLOYMENT_EXECUTOR_NAME
 from core.redis import REDIS_CLIENT_SYNC, REDIS_CLIENT
 from module.deployment.event.listener import DeploymentEventListenerService
 from module.deployment.event.deserialiser import DeploymentEventDeserialiser
 from module.deployment.executor import DeploymentExecutorFactory
 from module.deployment.oms import OMSClient
 from module.deployment.runner import StrategyDeploymentRunner
-from module.email import EmailServiceFactory
 from module.event_bus import OutboxEventPublisher, SyncOutboxEventPublisher
 from module.health.server import HealthCheckServer
-from module.notification.channel import (
-    EmailNotificationChannel,
-    NotificationChannelType,
-)
-from module.notification.poller import NotificationPoller
 from module.notification.publisher import NotificationPublisher
-from module.notification.template import EmailNotificationTemplateEngine
 from vegate.markets.feed.client import OHLCFeedClient
 
 logger = logging.getLogger("commands.deployment")
@@ -43,7 +36,7 @@ def deployment():
 @click.option("--ohlc-feed-port", type=int, required=True)
 @click.option("--oms-base-url", type=str, required=True)
 @click.option("--verbose", is_flag=True, help="Enable verbose output")
-def run(deployment_id, ohlc_feed_host, ohlc_feed_port, oms_base_url, verbose):
+def deployment_run(deployment_id, ohlc_feed_host, ohlc_feed_port, oms_base_url, verbose):
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
@@ -73,42 +66,23 @@ def listener():
 
 
 @listener.command(name="run")
-def run():
-    # Create notification channels
-    notification_channels = {}
-
-    email_service = EmailServiceFactory.create(
-        EMAIL_SERVICE_NAME, "Vegate", "no-reply@vegate.jadore.dev"
-    )
-    email_channel = EmailNotificationChannel(
-        email_service=email_service, template_engine=EmailNotificationTemplateEngine()
-    )
-    notification_channels[NotificationChannelType.EMAIL] = email_channel
-
+def listener_run():
     # Creating listener service
+    deployment_executor = DeploymentExecutorFactory.create(DEPLOYMENT_EXECUTOR_NAME)
+    deployment_executor.max_concurrent_deployments = 2
+    
     listener_service = DeploymentEventListenerService(
         deserialiser=DeploymentEventDeserialiser(),
         redis_client=REDIS_CLIENT,
         event_publisher=OutboxEventPublisher(),
         notification_publisher=NotificationPublisher(),
-        deployment_executor=DeploymentExecutorFactory.create(DEPLOYMENT_EXECUTOR_NAME),
+        deployment_executor=deployment_executor,
     )
     listener_service.setup()
-
-    notification_poller = NotificationPoller(
-        notification_channels=notification_channels,
-        interval=5,
-        batch_size=100,
-        timeout=30,
-    )
 
     health_server = HealthCheckServer()
 
     async def _run():
-        await asyncio.gather(
-            listener_service.run(),
-            notification_poller.run(),
-            health_server.run_forever(),
-        )
+        await asyncio.gather(listener_service.run(), health_server.run_forever())
 
     asyncio.run(_run())

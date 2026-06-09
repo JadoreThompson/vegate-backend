@@ -9,7 +9,7 @@ from cli.param.enum import EnumParam
 from config import ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_API_KEY, CONFIG_YAML
 from vegate.oms.enums import BrokerType
 from module.health.server import HealthCheckServer
-from module.markets.feed.alpaca.service import AlpacaOHLCFeed
+from module.markets.feed.alpaca import AlpacaOHLCFeed
 from module.markets.feed.base import OHLCFeed
 from module.markets.feed.manager import FeedManager
 from module.markets.feed.server import OHLCFeedServer
@@ -187,7 +187,6 @@ def run(host, port):
                     item["start_date"],
                     datetime.now() + timedelta(days=1),
                 )
-                asyncio.create_task(_wrapper(feed.run()))
                 feeds.append(feed)
 
         feed_manager = FeedManager()
@@ -196,7 +195,11 @@ def run(host, port):
 
         try:
             await server.init(feeds)
-            await asyncio.gather(server.run(), health_server.run_forever())
+            await asyncio.gather(
+                *[feed.run() for feed in feeds],
+                server.run(),
+                health_server.run_forever(),
+            )
         except KeyboardInterrupt:
             pass
         finally:

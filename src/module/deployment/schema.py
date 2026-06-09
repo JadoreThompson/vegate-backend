@@ -55,4 +55,3 @@ class StrategyDeploymentOrderResponse(BaseModel):
     filled_at: datetime | None = None
     details: dict[str, Any] | None = None
     created_at: datetime
-    candle_ts: int

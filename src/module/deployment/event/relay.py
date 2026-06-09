@@ -4,7 +4,7 @@ from uuid import UUID
 from config import STRATEGY_DEPLOYMENT_EVENTS_KEY
 from core.kafka import AsyncKafkaConsumer
 from .deserialiser import DeploymentEventDeserialiser
-from .event import DeploymentEventT
+from .event import DeploymentEventUnion
 
 
 class DeploymentEventRelay:
@@ -20,7 +20,7 @@ class DeploymentEventRelay:
     ):
         self._topic = topic
         self._deserialiser = deserialiser
-        self._registry: dict[UUID, asyncio.Queue[DeploymentEventT]] = {}
+        self._registry: dict[UUID, asyncio.Queue[DeploymentEventUnion]] = {}
         self._lock = asyncio.Lock()
         pass
 
@@ -60,6 +60,7 @@ class DeploymentEventRelay:
                             queue.put_nowait(
                                 self._deserialiser.deserialise_json(record.value)
                             )
+
                         break
 
                 await consumer.commit()

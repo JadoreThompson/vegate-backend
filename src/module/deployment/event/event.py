@@ -1,11 +1,13 @@
 from enum import Enum
-from typing import ClassVar, Literal
+from typing import Annotated, ClassVar, Literal
 from uuid import UUID
+
+from pydantic import Field, RootModel
 
 from config import STRATEGY_DEPLOYMENT_EVENTS_KEY
 from core.event import BaseEvent
-from vegate.oms.schema import Order, OrderRequest
 from module.deployment.enums import StrategyDeploymentStatus
+from vegate.oms.schema import Order, OrderRequest
 
 
 class DeploymentEventType(str, Enum):
@@ -44,12 +46,6 @@ class DeploymentErrorEvent(BaseDeploymentEvent):
         DeploymentEventType.DEPLOYMENT_ERROR
     )
     error_msg: str
-
-
-class DeploymentStopRequestedEvent(BaseDeploymentEvent):
-    type: Literal[DeploymentEventType.DEPLOYMENT_STOP_REQUESTED] = (
-        DeploymentEventType.DEPLOYMENT_STOP_REQUESTED
-    )
 
 
 class DeploymentOrderSubmitted(BaseDeploymentEvent):
@@ -108,10 +104,10 @@ class DeploymentCancelledEvent(BaseDeploymentEvent):
     type: Literal[DeploymentEventType.DEPLOYMENT_CANCELLED] = (
         DeploymentEventType.DEPLOYMENT_CANCELLED
     )
-    reason: Literal['capacity_constraint']
+    reason: Literal["capacity_constraint"]
 
 
-DeploymentEventT = (
+DeploymentEventUnion = (
     DeploymentStatusChangedEvent
     | DeploymentErrorEvent
     | DeploymentStopRequestedEvent
@@ -123,3 +119,7 @@ DeploymentEventT = (
     | DeploymentRequestedEvent
     | DeploymentCancelledEvent
 )
+
+
+class DeploymentEventT(RootModel[DeploymentEventUnion]):
+    root: Annotated[DeploymentEventUnion, Field(discriminator="type")]

@@ -1,7 +1,7 @@
 from core.event import BaseEvent
 
 
-def build_headers(event: BaseEvent):
+def build_headers(event: BaseEvent) -> list[tuple[str, bytes]]:
     headers = [("event_type", event.type.value.encode())]
 
     if event.type.value.startswith("deployment."):

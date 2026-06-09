@@ -5,7 +5,6 @@ from uuid import UUID
 from config import BACKTEST_EVENTS_KEY
 from core.event import BaseEvent
 from ..enums import BacktestStatus
-from ..schema import BacktestMetricsSchema
 
 
 class BacktestEventType(str, Enum):
@@ -14,10 +13,12 @@ class BacktestEventType(str, Enum):
     REQUESTED = "backtest.requested"
     STOP_REQUESTED = "backtest.stop_requested"
     CANCELLED = "backtest.cancelled"
+    FAILED = "backtest.failed"
 
 
 class BacktestEvent(BaseEvent):
     topic: ClassVar[str] = BACKTEST_EVENTS_KEY
+    
     type: BacktestEventType
     backtest_id: UUID
 
@@ -40,9 +41,15 @@ class BacktestCancelledEvent(BacktestEvent):
     reason: str
 
 
+class BacktestFailedEvent(BacktestEvent):
+    type: Literal[BacktestEventType.FAILED] = BacktestEventType.FAILED
+    reason: str
+
+
 BacktestEventT = (
     BacktestStatusChangedEvent
     | BacktestRequestedEvent
     | BacktestStopRequestedEvent
     | BacktestCancelledEvent
+    | BacktestFailedEvent
 )

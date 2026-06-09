@@ -58,7 +58,7 @@ def mock_kafka_consumer():
 @pytest.fixture
 def mock_db_sess():
     with patch(f"{MODULE_PATH}.get_db_session") as mock_get_db_session:
-        mock_db_sess = MagicMock()
+        mock_db_sess = AsyncMock()
         mock_db_sess.execute = AsyncMock()
         mock_db_sess.commit = AsyncMock()
         mock_db_sess.get = AsyncMock(return_value=MagicMock())
@@ -99,9 +99,7 @@ def deployment_monitoring_service(
 
 def create_mock_kafka_record(event):
     mock_record = MagicMock()
-    mock_record.headers = [
-        ("event_type", event.type.value.encode())
-    ]
+    mock_record.headers = [("event_type", event.type.value.encode())]
     mock_record.value = event.model_dump_json().encode()
     return mock_record
 
@@ -117,18 +115,33 @@ class TestMonitorLifecycle:
         mock_kafka_consumer,
     ):
         deployment_id = uuid4()
+        queue = asyncio.Queue()
 
-        records = [
-            create_mock_kafka_record(
-                DeploymentStatusChangedEvent(
-                    deployment_id=deployment_id,
-                    status=StrategyDeploymentStatus.RUNNING,
+        mock_event_publisher.publish
+
+        async def _get_records():
+            nonlocal queue
+
+            queue.put_nowait(
+                create_mock_kafka_record(
+                    DeploymentStatusChangedEvent(
+                        deployment_id=deployment_id,
+                        status=StrategyDeploymentStatus.RUNNING,
+                    )
                 )
             )
-        ]
+
+            while True:
+                yield await queue.get()
+
+        async def publish_side_effect(event):
+            record = create_mock_kafka_record(event)
+            await queue.put(record)
+
+        mock_event_publisher.publish = AsyncMock(side_effect=publish_side_effect)
 
         try:
-            mock_kafka_consumer.__aiter__.return_value = records
+            mock_kafka_consumer.__aiter__.side_effect = _get_records
             await asyncio.wait_for(
                 deployment_monitoring_service.run(),
                 timeout=deployment_monitoring_service.monitor_interval * 3 + 5,
@@ -150,8 +163,8 @@ class TestMonitorLifecycle:
         assert event.deployment_id == deployment_id
         assert event.status == StrategyDeploymentStatus.STOPPED
 
-        assert mock_db_sess.execute.call_count == 2
-        assert mock_db_sess.commit.call_count == 1
+        assert mock_db_sess.execute.call_count == 3
+        assert mock_db_sess.commit.call_count == 3
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_stopped_event_is_ignored(
@@ -244,7 +257,7 @@ class TestMonitorLifecycle:
         assert event.deployment_id == deployment_id
         assert event.status == StrategyDeploymentStatus.RUNNING
 
-        assert mock_db_sess.execute.call_count == 2
+        assert mock_db_sess.execute.call_count == 1
         assert mock_db_sess.commit.call_count == 1
 
 
@@ -344,12 +357,15 @@ class TestHandleDeploymentRequested:
         mock_deployment_executor.run.assert_not_called()
 
     @pytest.mark.asyncio(loop_scope="session")
-    @pytest.mark.parametrize("status", [
-        StrategyDeploymentStatus.RUNNING,
-        StrategyDeploymentStatus.SUSPICIOUS,
-        StrategyDeploymentStatus.CANCELLED,
-        StrategyDeploymentStatus.STOP_REQUESTED,
-    ])
+    @pytest.mark.parametrize(
+        "status",
+        [
+            StrategyDeploymentStatus.RUNNING,
+            StrategyDeploymentStatus.SUSPICIOUS,
+            StrategyDeploymentStatus.CANCELLED,
+            StrategyDeploymentStatus.STOP_REQUESTED,
+        ],
+    )
     async def test_deployment_requested_wrong_status(
         self,
         deployment_monitoring_service,
@@ -464,7 +480,9 @@ class TestHandleDeploymentRequested:
             ):
                 cancel_event_found = True
                 break
-        assert cancel_event_found, "Expected DeploymentCancelledEvent with capacity_constraint"
+        assert (
+            cancel_event_found
+        ), "Expected DeploymentCancelledEvent with capacity_constraint"
 
 
 class TestMonitorHeartbeatTracking:

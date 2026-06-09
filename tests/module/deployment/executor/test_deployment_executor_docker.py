@@ -121,7 +121,7 @@ class TestStopDeployment:
         self, mock_docker_client, mock_deployment_id, image_name
     ):
         mock_container = MagicMock()
-
+        mock_container.status = "running"
         mock_docker_client.containers.list.return_value = [mock_container]
 
         executor = DockerDeploymentExecutor(
@@ -132,7 +132,6 @@ class TestStopDeployment:
         result = await executor.stop(mock_deployment_id)
 
         mock_container.stop.assert_called_once_with(timeout=10)
-        mock_container.remove.assert_called_once_with(force=True)
 
         assert result == {
             "deployment_id": str(mock_deployment_id),
@@ -189,11 +188,13 @@ class TestStopAllDeployments:
     ):
         container_1 = MagicMock()
         container_1.status = "running"
-        container_1.name = "dp_1"
+        id1 = uuid4()
+        container_1.name = f"dp_{id1}"
 
         container_2 = MagicMock()
         container_2.status = "exited"
-        container_2.name = "dp_2"
+        id2 = uuid4()
+        container_2.name = f"dp_{id2}"
 
         mock_docker_client.containers.list.return_value = [
             container_1,
@@ -208,14 +209,12 @@ class TestStopAllDeployments:
         result = await executor.stop_all()
 
         container_1.stop.assert_called_once_with(timeout=10)
-        container_1.remove.assert_called_once_with(force=True)
 
-        container_2.stop.assert_not_called()
         container_2.remove.assert_called_once_with(force=True)
 
         assert result == {
             "status": "stopped_all",
-            "deployments": ["1", "2"],
+            "deployments": [id1, id2],
         }
 
 

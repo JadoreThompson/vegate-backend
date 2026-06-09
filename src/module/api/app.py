@@ -4,19 +4,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import (
-    BACKTEST_EXECUTOR_NAME,
     EMAIL_SERVICE_NAME,
     EVENT_PUBLISHER_NAME,
     FRONTEND_DOMAIN,
     FRONTEND_SUB_DOMAIN,
-    MAX_CONCURRENT_BACKTESTS,
-    MAX_CONCURRENT_DEPLOYMENTS,
     SCHEME,
 )
 from module.auth.router import router as auth_router
 from module.auth.service import AuthService
 from module.backtest import BacktestsService
-from module.backtest.executor import BacktestExecutorFactory
 from module.backtest.router import router as backtests_router
 from module.broker_connections import BrokerConnectionsService
 from module.broker_connections.router import router as broker_connections_router
@@ -24,7 +20,6 @@ from module.contact.router import router as contact_router
 from module.deployment import DeploymentsService
 from module.deployment.event.deserialiser import DeploymentEventDeserialiser
 from module.deployment.event.relay import DeploymentEventRelay
-from module.deployment.executor import DeploymentExecutorFactory
 from module.deployment.router import router as deployment_router
 from module.email import EmailServiceFactory
 from module.event_bus import EventPublisherFactory
@@ -64,8 +59,6 @@ async def lifespan(app: FastAPI):
     strategy_service = StrategyService()
     object_registry.register(strategy_service)
 
-    backtest_executor = BacktestExecutorFactory.create(BACKTEST_EXECUTOR_NAME)
-    backtest_executor.max_concurrent_backtests = MAX_CONCURRENT_BACKTESTS
     backtest_service = BacktestsService(
         strategy_service=strategy_service,
         event_publisher=event_publisher,
@@ -108,8 +101,9 @@ app.add_middleware(
     allow_headers=["*"],
     allow_credentials=True,
 )
-app.add_middleware(RateLimitMiddleware, redis_client=REDIS_CLIENT, limit=1000, window=60)
-
+app.add_middleware(
+    RateLimitMiddleware, redis_client=REDIS_CLIENT, limit=1000, window=60
+)
 
 app.include_router(api_router)
 app.include_router(auth_router)

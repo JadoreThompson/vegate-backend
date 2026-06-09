@@ -4,15 +4,15 @@ import pytest_asyncio
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
-from sqlalchemy import delete, select
+from sqlalchemy import select
 
 from config import ALPACA_API_KEY, ALPACA_SECRET_KEY
-from vegate.oms.enums import BrokerType
-from vegate.markets.enums import MarketType, Timeframe
+from core.db import get_db_session
 from module.markets.model import OHLC, Instrument
-from core.db import get_db_session, get_db_sess_sync
+from module.markets.feed.alpaca import AlpacaOHLCFeed
+from vegate.markets.enums import MarketType, Timeframe
 from vegate.markets.schema import OHLC as OHLCSchema
-from module.markets.feed.alpaca.service import AlpacaOHLCFeed
+from vegate.oms.enums import BrokerType
 
 
 @pytest.fixture
