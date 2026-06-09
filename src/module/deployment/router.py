@@ -1,3 +1,4 @@
+import asyncio
 from typing import TypeAlias
 from uuid import UUID
 
@@ -16,6 +17,7 @@ from module.api.schema import PaginatedResponse
 from module.deployment.enums import StrategyDeploymentStatus
 from module.jwt import JWTPayload
 from .event import DeploymentEventUnion, DeploymentEventT
+from .event.broadcast import DeploymentEventBroadcast, QueueDeploymentObserver
 from .event.relay import DeploymentEventRelay
 from .schema import (
     CreateDeploymentRequest,
@@ -158,14 +160,19 @@ async def sse_stream(
     deployments_service: DeploymentsService = Depends(
         depends_class(DeploymentsService)
     ),
-    relay: DeploymentEventRelay = Depends(depends_class(DeploymentEventRelay)),
+    broadcast: DeploymentEventBroadcast = Depends(
+        depends_class(DeploymentEventBroadcast)
+    ),
 ):
     await deployments_service.get(deployment_id, jwt.sub, db_sess)
 
     try:
-        queue = await relay.register(deployment_id)
+        queue = asyncio.Queue()
+        observer = QueueDeploymentObserver(queue)
+        await broadcast.subscribe(deployment_id, observer)
+
         while True:
             event = await queue.get()
             yield event
     finally:
-        await relay.remove(deployment_id)
+        await broadcast.unsubscribe(deployment_id, observer)

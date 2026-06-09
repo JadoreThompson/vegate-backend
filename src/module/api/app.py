@@ -18,6 +18,7 @@ from module.broker_connections import BrokerConnectionsService
 from module.broker_connections.router import router as broker_connections_router
 from module.contact.router import router as contact_router
 from module.deployment import DeploymentsService
+from module.deployment.event.broadcast import DeploymentEventBroadcast
 from module.deployment.event.deserialiser import DeploymentEventDeserialiser
 from module.deployment.event.relay import DeploymentEventRelay
 from module.deployment.router import router as deployment_router
@@ -73,9 +74,11 @@ async def lifespan(app: FastAPI):
     )
     object_registry.register(backtest_service)
 
-    event_relay = DeploymentEventRelay(deserialiser=DeploymentEventDeserialiser())
-    task = asyncio.create_task(event_relay.run())
-    object_registry.register(event_relay)
+    deployment_event_broadcast = DeploymentEventBroadcast(
+        deserialiser=DeploymentEventDeserialiser()
+    )
+    task = asyncio.create_task(deployment_event_broadcast.run())
+    object_registry.register(deployment_event_broadcast)
 
     yield
 
