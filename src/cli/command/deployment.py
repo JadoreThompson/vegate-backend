@@ -7,6 +7,9 @@ import click
 from config import DEPLOYMENT_EXECUTOR_NAME, MAX_CONCURRENT_DEPLOYMENTS
 from core.redis import REDIS_CLIENT_SYNC, REDIS_CLIENT
 from module.deployment.manager import DeploymentManager
+from module.deployment.manager.event_handler import DeploymentEventHandler
+from module.deployment.manager.monitor import DeploymentMonitor
+from module.deployment.manager.state import State
 from module.deployment.event.deserialiser import DeploymentEventDeserialiser
 from module.deployment.executor import DeploymentExecutorFactory
 from module.deployment.oms import OMSClient
@@ -69,22 +72,30 @@ def listener():
 
 @listener.command(name="run")
 def listener_run():
-    # Creating listener service
     deployment_executor = DeploymentExecutorFactory.create(DEPLOYMENT_EXECUTOR_NAME)
     deployment_executor.max_concurrent_deployments = MAX_CONCURRENT_DEPLOYMENTS
 
-    manager_service = DeploymentManager(
+    state = State()
+    event_publisher = OutboxEventPublisher()
+
+    event_handler = DeploymentEventHandler(
+        state=state,
         deserialiser=DeploymentEventDeserialiser(),
-        redis_client=REDIS_CLIENT,
-        event_publisher=OutboxEventPublisher(),
-        notification_publisher=NotificationPublisher(),
+        event_publisher=event_publisher,
         deployment_executor=deployment_executor,
+        notification_publisher=NotificationPublisher(),
     )
+    monitor = DeploymentMonitor(
+        state=state,
+        redis_client=REDIS_CLIENT,
+        event_publisher=event_publisher,
+    )
+    manager = DeploymentManager(event_handler=event_handler, monitor=monitor)
 
     health_server = HealthCheckServer()
 
     async def _run():
-        await manager_service.setup()
-        await asyncio.gather(manager_service.run(), health_server.run_forever())
+        manager.setup()
+        await asyncio.gather(manager.run(), health_server.run_forever())
 
     asyncio.run(_run())

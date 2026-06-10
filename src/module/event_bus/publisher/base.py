@@ -9,7 +9,9 @@ from core.event import BaseEvent
 class EventPublisher(ABC):
 
     @abstractmethod
-    async def publish(self, event: BaseEvent, db_sess: AsyncSession | None = None) -> None: ...
+    async def publish(
+        self, event: BaseEvent, db_sess: AsyncSession | None = None
+    ) -> None: ...
 
 
 class SyncEventPublisher(ABC):
