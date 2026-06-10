@@ -8,9 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from module.api.schema import PaginatedResponse
 from module.event_bus import EventPublisher
 from module.markets import MarketsService
-from module.markets.model import Instrument
 from module.strategy import StrategyService
-from module.strategy.model import Strategy, StrategyVersion
 from .enums import BacktestStatus
 from .event import BacktestRequestedEvent
 from .exception import BacktestNotFoundException, BacktestInProgressException
@@ -43,6 +41,8 @@ class BacktestsService:
             request.version_id, user_id, db_sess
         )
         backtest = Backtest(
+            user_id=user_id,
+            strategy_id=version.strategy_id,
             version_id=version.id,
             starting_balance=request.starting_balance,
             start_date=request.start_date,
@@ -72,9 +72,7 @@ class BacktestsService:
         backtest = await db_sess.scalar(
             select(Backtest)
             .where(Backtest.id == id)
-            .join(StrategyVersion, StrategyVersion.id == Backtest.version_id)
-            .join(Strategy, Strategy.strategy_id == StrategyVersion.strategy_id)
-            .where(Strategy.user_id == user_id)
+            .where(Backtest.user_id == user_id)
         )
         if backtest is None:
             raise BacktestNotFoundException(id)
@@ -87,15 +85,12 @@ class BacktestsService:
         *,
         page: int,
         limit: int,
-        status: list[BacktestStatus] | None = None,
-        symbols: list[str] | None = None,
+        status: list[BacktestStatus] | None = None
     ) -> PaginatedResponse[BacktestResponse]:
         stmt = (
-            select(Backtest, BacktestMetrics, Instrument)
+            select(Backtest, BacktestMetrics)
             .outerjoin(BacktestMetrics)
-            .join(StrategyVersion, StrategyVersion.id == Backtest.version_id)
-            .join(Strategy, Strategy.strategy_id == StrategyVersion.strategy_id)
-            .where(Strategy.user_id == user_id)
+            .where(Backtest.user_id == user_id)
             .offset((page - 1) * limit)
             .limit(limit + 1)
             .order_by(Backtest.created_at.desc())
@@ -103,8 +98,6 @@ class BacktestsService:
 
         if status is not None:
             stmt = stmt.where(Backtest.status.in_(status))
-        if symbols is not None:
-            stmt = stmt.where(Instrument.symbol.in_(symbols))
 
         res = await db_sess.execute(stmt)
 
@@ -125,9 +118,7 @@ class BacktestsService:
         res = await db_sess.execute(
             select(Backtest, BacktestMetrics)
             .outerjoin(BacktestMetrics)
-            .join(StrategyVersion, StrategyVersion.id == Backtest.version_id)
-            .join(Strategy, Strategy.strategy_id == StrategyVersion.strategy_id)
-            .where(Strategy.strategy_id == strategy_id)
+            .where(Backtest.strategy_id == strategy_id)
             .offset((page - 1) * limit)
             .limit(limit + 1)
             .order_by(Backtest.created_at.desc())
@@ -215,9 +206,7 @@ class BacktestsService:
         res = await db_sess.execute(
             select(BacktestOrder)
             .join(Backtest)
-            .join(StrategyVersion, StrategyVersion.id == Backtest.version_id)
-            .join(Strategy, Strategy.strategy_id == StrategyVersion.strategy_id)
-            .where(BacktestOrder.backtest_id == id, Strategy.user_id == user_id)
+            .where(BacktestOrder.backtest_id == id, Backtest.user_id == user_id)
             .offset((page - 1) * limit)
             .limit(limit)
             .order_by(BacktestOrder.submitted_at.desc())

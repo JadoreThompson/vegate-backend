@@ -31,6 +31,20 @@ class StrategyDeployments(Base):
 
     deployment_id: Mapped[uuid.UUID] = uuid_pk()
 
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.user_id", name="strategy_deployments_user_id_fkey", ondelete="CASCADE"),
+        nullable=False,
+    )
+    strategy_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "strategy.strategy_id",
+            name="strategy_deployments_strategy_id_fkey",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
     version_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("strategy_versions.id", name="fk_strategy_versions_id", ondelete="CASCADE"),

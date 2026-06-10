@@ -16,8 +16,6 @@ from module.event_bus import EventPublisher
 from module.notification.publisher import NotificationPublisher
 from module.notification.schema import DeploymentCapacityConstrainedNotificationContext
 from module.notification.enums import NotificationType
-from module.strategy.model import Strategy, StrategyVersion
-from module.user.model import User
 from .deserialiser import DeploymentEventDeserialiser
 from .event import (
     DeploymentEventUnion,
@@ -363,14 +361,7 @@ class DeploymentEventListenerService:
     async def _get_user_id_for_deployment(self, deployment_id: UUID) -> UUID:
         async with get_db_session() as session:
             user_id = await session.scalar(
-                select(User.user_id)
-                .select_from(StrategyDeployments)
-                .join(
-                    StrategyVersion,
-                    StrategyVersion.id == StrategyDeployments.version_id,
-                )
-                .join(Strategy, Strategy.strategy_id == StrategyVersion.strategy_id)
-                .join(User, User.user_id == Strategy.user_id)
+                select(StrategyDeployments.user_id)
                 .where(StrategyDeployments.deployment_id == deployment_id)
             )
 

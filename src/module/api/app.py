@@ -57,15 +57,18 @@ async def lifespan(app: FastAPI):
     broker_connections_service = BrokerConnectionsService()
     object_registry.register(broker_connections_service)
 
+    strategy_service = StrategyService(deployment_service=None)  # type: ignore[arg-type]
+    object_registry.register(strategy_service)
+
     deployment_service = DeploymentsService(
+        strategy_service=strategy_service,
         markets_service=markets_service,
         broker_connections_service=broker_connections_service,
         event_publisher=event_publisher,
     )
     object_registry.register(deployment_service)
 
-    strategy_service = StrategyService(deployment_service=deployment_service)
-    object_registry.register(strategy_service)
+    strategy_service._deployment_service = deployment_service
 
     backtest_service = BacktestsService(
         strategy_service=strategy_service,

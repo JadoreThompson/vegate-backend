@@ -14,7 +14,7 @@ from module.deployment.enums import StrategyDeploymentStatus
 from module.event_bus import SyncEventPublisher
 from vegate.markets.feed.client import OHLCFeedClient
 from module.strategy.loader import StrategyLoader
-from module.strategy.model import Strategy, StrategyVersion
+from module.strategy.model import StrategyVersion
 from vegate.markets.historical.client import HistoricalDataClient
 from vegate.strategy.base import BaseStrategy
 from .event import DeploymentStatusChangedEvent

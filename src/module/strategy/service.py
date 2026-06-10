@@ -231,6 +231,15 @@ class StrategyService:
             has_next=len(versions) > limit,
             data=versions[:limit],
         )
+    
+
+    async def get_version_by_id(self, version_id: UUID, db_sess: AsyncSession) -> StrategyVersion:
+        version = await db_sess.get(StrategyVersion, version_id)
+
+        if version is None:
+            raise StrategyVersionNotFoundException()
+
+        return version
 
     async def get_version(
         self,

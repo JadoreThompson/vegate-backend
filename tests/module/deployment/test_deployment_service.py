@@ -51,10 +51,18 @@ def mock_event_publisher():
 
 
 @pytest.fixture
+def mock_strategy_service():
+    service = MagicMock()
+    service.get_version_by_id = AsyncMock()
+    return service
+
+
+@pytest.fixture
 def deployment_service(
-    mock_markets_service, mock_broker_connections_service, mock_event_publisher
+    mock_strategy_service, mock_markets_service, mock_broker_connections_service, mock_event_publisher
 ):
     return DeploymentsService(
+        strategy_service=mock_strategy_service,
         markets_service=mock_markets_service,
         broker_connections_service=mock_broker_connections_service,
         event_publisher=mock_event_publisher,
@@ -90,6 +98,7 @@ class TestCreateDeployment:
         async def test_create_success_publishes_event(
             self,
             deployment_service,
+            mock_strategy_service,
             mock_markets_service,
             mock_event_publisher,
         ):
@@ -98,6 +107,10 @@ class TestCreateDeployment:
             mock_info = MagicMock(spec=InstrumentInfo)
             mock_info.id = uuid4()
             mock_markets_service.get_symbol_info = AsyncMock(return_value=mock_info)
+
+            mock_version = MagicMock()
+            mock_version.strategy_id = uuid4()
+            mock_strategy_service.get_version_by_id = AsyncMock(return_value=mock_version)
 
             mock_db_sess.flush = AsyncMock()
             mock_db_sess.refresh = AsyncMock(
@@ -109,7 +122,8 @@ class TestCreateDeployment:
                 broker_connection_id=uuid4(),
             )
 
-            await deployment_service.create(request, mock_db_sess)
+            user_id = uuid4()
+            await deployment_service.create(request, user_id, mock_db_sess)
 
             mock_db_sess.add.assert_called_once()
             mock_event_publisher.publish.assert_awaited_once()
@@ -209,6 +223,8 @@ class TestGetDeployment:
             await db_sess.refresh(broker_connection)
 
             deployment = StrategyDeployments(
+                user_id=user_a.user_id,
+                strategy_id=strategy.strategy_id,
                 version_id=version.id,
                 broker_connection_id=broker_connection.connection_id,
             )

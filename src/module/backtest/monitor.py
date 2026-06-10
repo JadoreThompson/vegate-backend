@@ -17,8 +17,6 @@ from module.event_bus import EventPublisher
 from module.notification.publisher import NotificationPublisher
 from module.notification.schema import BacktestCapacityConstrainedNotificationContext
 from module.notification.enums import NotificationType
-from module.strategy.model import Strategy, StrategyVersion
-from module.user.model import User
 from .event.deserialiser import BacktestEventDeserialiser
 from .enums import BacktestStatus
 from .event import (
@@ -393,14 +391,7 @@ class BacktestMonitor:
     ) -> UUID:
         async def _func(session: AsyncSession):
             user_id = await session.scalar(
-                select(User.user_id)
-                .select_from(Backtest)
-                .join(
-                    StrategyVersion,
-                    StrategyVersion.id == Backtest.version_id,
-                )
-                .join(Strategy, Strategy.strategy_id == StrategyVersion.strategy_id)
-                .join(User, User.user_id == Strategy.user_id)
+                select(Backtest.user_id)
                 .where(Backtest.id == backtest_id)
             )
 

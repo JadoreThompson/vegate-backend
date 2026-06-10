@@ -1,3 +1,4 @@
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import select
@@ -8,7 +9,7 @@ from module.api.schema import PaginatedResponse
 from module.broker_connections import BrokerConnectionsService
 from module.event_bus import EventPublisher
 from module.markets import MarketsService
-from module.strategy.model import Strategy, StrategyVersion
+# from module.strategy import StrategyService
 from .enums import StrategyDeploymentStatus
 from .event import (
     DeploymentEventUnion,
@@ -30,23 +31,33 @@ from .schema import (
     StrategyDeploymentOrderResponse,
 )
 
+if TYPE_CHECKING:
+    from module.strategy import StrategyService
+
+
 
 class DeploymentsService:
 
     def __init__(
         self,
+        strategy_service: "StrategyService",
         markets_service: MarketsService,
         broker_connections_service: BrokerConnectionsService,
         event_publisher: EventPublisher,
     ):
+        self._strategy_service = strategy_service
         self._markets_service = markets_service
         self._broker_connections_service = broker_connections_service
         self._event_publisher = event_publisher
 
     async def create(
-        self, request: CreateDeploymentRequest, db_sess: AsyncSession
+        self, request: CreateDeploymentRequest, user_id: UUID, db_sess: AsyncSession
     ) -> StrategyDeployments:
+        # version = await db_sess.get(StrategyVersion, request.version_id)
+        version = await self._strategy_service.get_version_by_id(request.version_id, db_sess)
         deployment = StrategyDeployments(
+            user_id=user_id,
+            strategy_id=version.strategy_id,
             version_id=request.version_id,
             broker_connection_id=request.broker_connection_id,
         )
@@ -107,10 +118,8 @@ class DeploymentsService:
     ):
         stmt = (
             select(StrategyDeployments, StrategyDeploymentMetrics)
-            .join(StrategyVersion, StrategyVersion.id == StrategyDeployments.version_id)
-            .join(Strategy, Strategy.strategy_id == StrategyVersion.strategy_id)
             .outerjoin(StrategyDeploymentMetrics)
-            .where(Strategy.user_id == user_id)
+            .where(StrategyDeployments.user_id == user_id)
         )
 
         # Apply status filter if provided
@@ -151,9 +160,7 @@ class DeploymentsService:
                 StrategyDeploymentMetrics.deployment_id
                 == StrategyDeployments.deployment_id,
             )
-            .join(StrategyVersion, StrategyVersion.id == StrategyDeployments.version_id)
-            .join(Strategy, Strategy.strategy_id == StrategyVersion.strategy_id)
-            .where(Strategy.strategy_id == strategy_id)
+            .where(StrategyDeployments.strategy_id == strategy_id)
             .order_by(StrategyDeployments.created_at.desc())
             .offset((page - 1) * limit)
             .limit(limit + 1)
@@ -186,8 +193,7 @@ class DeploymentsService:
                 StrategyDeploymentMetrics.deployment_id
                 == StrategyDeployments.deployment_id,
             )
-            .join(StrategyVersion, StrategyVersion.id == StrategyDeployments.version_id)
-            .where(StrategyVersion.id == version_id)
+            .where(StrategyDeployments.version_id == version_id)
             .order_by(StrategyDeployments.created_at.desc())
             .offset((page - 1) * limit)
             .limit(limit + 1)
@@ -284,10 +290,8 @@ class DeploymentsService:
     ) -> StrategyDeployments:
         deployment = await db_sess.scalar(
             select(StrategyDeployments)
-            .join(StrategyVersion, StrategyVersion.id == StrategyDeployments.version_id)
-            .join(Strategy, Strategy.strategy_id == StrategyVersion.strategy_id)
             .where(StrategyDeployments.deployment_id == deployment_id)
-            .where(Strategy.user_id == user_id)
+            .where(StrategyDeployments.user_id == user_id)
             .options(selectinload(StrategyDeployments.metrics))
         )
 

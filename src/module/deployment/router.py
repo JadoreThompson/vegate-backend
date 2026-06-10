@@ -38,12 +38,13 @@ router = APIRouter(prefix="/api/v1/deployments", tags=["Deployments"])
 )
 async def create_deployment(
     body: CreateDeploymentRequest,
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     deployments_service: DeploymentsService = Depends(
         depends_class(DeploymentsService)
     ),
 ):
-    deployment = await deployments_service.create(body, db_sess)
+    deployment = await deployments_service.create(body, jwt.sub, db_sess)
     await db_sess.commit()
     return {"id": deployment.deployment_id}
 

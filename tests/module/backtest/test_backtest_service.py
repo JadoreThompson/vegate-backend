@@ -432,6 +432,8 @@ class TestIntegrationTests:
         await db_sess.flush()
 
         backtest = Backtest(
+            user_id=user_id,
+            strategy_id=strategy.strategy_id,
             version_id=version.id,
             starting_balance=10000,
             start_date=date(2024, 1, 1),
@@ -490,6 +492,8 @@ class TestIntegrationTests:
         await db_sess.flush()
 
         backtest = Backtest(
+            user_id=user_id,
+            strategy_id=strategy.strategy_id,
             version_id=version.id,
             starting_balance=10000,
             start_date=date(2024, 1, 1),
@@ -499,6 +503,8 @@ class TestIntegrationTests:
         db_sess.add(backtest)
 
         other_backtest = Backtest(
+            user_id=other_user_id,
+            strategy_id=other_strategy.strategy_id,
             version_id=other_version.id,
             starting_balance=5000,
             start_date=date(2024, 1, 1),

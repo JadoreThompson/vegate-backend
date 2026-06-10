@@ -18,6 +18,20 @@ class Backtest(Base):
     __tablename__ = "backtests"
 
     id: Mapped[uuid.UUID] = uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.user_id", name="backtests_user_id_fkey", ondelete="CASCADE"),
+        nullable=False,
+    )
+    strategy_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "strategy.strategy_id",
+            name="backtests_strategy_id_fkey",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
     version_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey(

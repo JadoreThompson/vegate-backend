@@ -17,8 +17,6 @@ from module.broker_connections.model import BrokerConnections
 from module.broker_connections.oauth import EncryptionService
 from module.broker_connections.oauth.alpaca import AlpacaOAuthPayload
 from module.event_bus import EventPublisher
-from module.strategy.model import Strategy, StrategyVersion
-from module.user.model import User
 from vegate.oms.enums import BrokerType, OrderStatus
 from vegate.oms.schema import Order
 from .exception import (
@@ -62,21 +60,12 @@ class OMSService:
         """
         async with get_db_session() as db_sess:
             res = await db_sess.execute(
-                select(User.user_id, BrokerConnections)
+                select(StrategyDeployments.user_id, BrokerConnections)
                 .select_from(StrategyDeployments)
                 .join(
                     BrokerConnections,
                     BrokerConnections.connection_id
                     == StrategyDeployments.broker_connection_id,
-                )
-                .join(
-                    StrategyVersion,
-                    StrategyVersion.id == StrategyDeployments.version_id,
-                )
-                .join(Strategy, Strategy.strategy_id == StrategyVersion.strategy_id)
-                .join(
-                    User,
-                    Strategy.user_id == User.user_id,
                 )
                 .where(StrategyDeployments.deployment_id == deployment_id)
             )
