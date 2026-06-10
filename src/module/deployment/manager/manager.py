@@ -16,8 +16,9 @@ from module.event_bus import EventPublisher
 from module.notification.publisher import NotificationPublisher
 from module.notification.schema import DeploymentCapacityConstrainedNotificationContext
 from module.notification.enums import NotificationType
-from .deserialiser import DeploymentEventDeserialiser
-from .event import (
+from .state import State
+from ..enums import StrategyDeploymentStatus
+from ..event import (
     DeploymentEventUnion,
     DeploymentCancelledEvent,
     DeploymentEventType,
@@ -25,13 +26,13 @@ from .event import (
     DeploymentStatusChangedEvent,
     DeploymentStopRequestedEvent,
 )
-from ..enums import StrategyDeploymentStatus
+from ..event.deserialiser import DeploymentEventDeserialiser
 from ..executor import DeploymentExecutor
 from ..executor.exception import DeploymentLimitReached
 from ..model import StrategyDeployments, DeploymentEvent
 
 
-class DeploymentEventListenerService:
+class DeploymentManager:
     """
     Consumes strategy deployment events, persists them to the DB,
     and monitors deployment heartbeats to transition statuses.
@@ -56,11 +57,8 @@ class DeploymentEventListenerService:
         self._heartbeat_prefix_key = heartbeat_prefix_key
         self._monitor_interval = monitor_interval
         self._kafka_consumer: AsyncKafkaConsumer | None = None
-        self._pending_deployments: set[UUID] = set()
-        self._running_deployments: set[UUID] = set()
-        self._suspicious_deployments: set[UUID] = set()
+        self._state = State()
         self._alive = False
-        self._lock = asyncio.Lock()
         self._logger = logging.getLogger(self.__class__.__name__)
 
     @property
@@ -71,7 +69,7 @@ class DeploymentEventListenerService:
         if self._kafka_consumer:
             await self._kafka_consumer.stop()
 
-    def setup(self):
+    async def setup(self):
         with get_db_sess_sync() as db_sess:
             res = db_sess.execute(
                 select(
@@ -88,9 +86,9 @@ class DeploymentEventListenerService:
 
         for id, status in data:
             if status == StrategyDeploymentStatus.RUNNING:
-                self._running_deployments.add(id)
+                await self._state.add_running(id)
             else:
-                self._suspicious_deployments.add(id)
+                await self._state.add_suspicious(id)
 
     async def run(self):
         self._alive = True
@@ -133,10 +131,7 @@ class DeploymentEventListenerService:
             self._logger.info(
                 f"Handling status changed. Pushing deployment with id '{event.deployment_id}' to running deployments"
             )
-            async with self._lock:
-                self._pending_deployments.discard(event.deployment_id)
-                self._suspicious_deployments.discard(event.deployment_id)
-                self._running_deployments.add(event.deployment_id)
+            await self._state.promote_to_running(event.deployment_id)
 
     async def _handle_deployment_requested(
         self, event: DeploymentRequestedEvent
@@ -159,11 +154,7 @@ class DeploymentEventListenerService:
             )
             return
 
-        if (
-            deployment.deployment_id in self._pending_deployments
-            or deployment.deployment_id in self._running_deployments
-            or deployment.deployment_id in self._suspicious_deployments
-        ):
+        if await self._state.is_any(deployment.deployment_id):
             self._logger.info(
                 f"Deployment '{event.deployment_id}' already running, suspicious or pending, dropping event"
             )
@@ -172,8 +163,7 @@ class DeploymentEventListenerService:
         self._logger.info(f"Running deployment '{event.deployment_id}' via executor")
         try:
             await self._deployment_executor.run(event.deployment_id)
-            async with self._lock:
-                self._pending_deployments.add(event.deployment_id)
+            await self._state.add_pending(event.deployment_id)
         except DeploymentLimitReached:
             self._logger.warning(
                 f"Deployment limit reached, cannot run deployment '{event.deployment_id}'"
@@ -282,10 +272,9 @@ class DeploymentEventListenerService:
                 if not self._alive:
                     break
 
-                async with self._lock:
-                    pending_deployments = self._pending_deployments.copy()
-                    running_deployments = self._running_deployments.copy()
-                    suspicious_deployments = self._suspicious_deployments.copy()
+                pending_deployments, running_deployments, suspicious_deployments = (
+                    await self._state.snapshot()
+                )
 
                 self._logger.info(
                     f"Pending: {pending_deployments}, Running: {running_deployments}, "
@@ -343,17 +332,12 @@ class DeploymentEventListenerService:
                         )
                     )
 
-                async with self._lock:
-                    for item in to_suspicious:
-                        self._pending_deployments.discard(item)
-                        self._running_deployments.discard(item)
-                        self._suspicious_deployments.add(item)
-                    for item in to_stopped:
-                        self._suspicious_deployments.discard(item)
-                    for item in to_running:
-                        self._pending_deployments.discard(item)
-                        self._suspicious_deployments.discard(item)
-                        self._running_deployments.add(item)
+                for item in to_suspicious:
+                    await self._state.mark_suspicious(item)
+                for item in to_stopped:
+                    await self._state.discard(item)
+                for item in to_running:
+                    await self._state.promote_to_running(item)
 
         except asyncio.CancelledError:
             pass
@@ -361,8 +345,9 @@ class DeploymentEventListenerService:
     async def _get_user_id_for_deployment(self, deployment_id: UUID) -> UUID:
         async with get_db_session() as session:
             user_id = await session.scalar(
-                select(StrategyDeployments.user_id)
-                .where(StrategyDeployments.deployment_id == deployment_id)
+                select(StrategyDeployments.user_id).where(
+                    StrategyDeployments.deployment_id == deployment_id
+                )
             )
 
         if user_id is None:

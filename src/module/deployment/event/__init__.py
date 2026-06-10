@@ -10,6 +10,7 @@ from .event import (
     DeploymentOrderAcknowledged,
     DeploymentRequestedEvent,
     DeploymentStopRequestedEvent,
+    DeploymentCancelledEvent,
     DeploymentEventUnion,
     DeploymentEventT,
 )

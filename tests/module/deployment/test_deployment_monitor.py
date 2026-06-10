@@ -14,10 +14,10 @@ from module.deployment.event.event import (
     DeploymentRequestedEvent,
     DeploymentStatusChangedEvent,
 )
-from module.deployment.event.listener import DeploymentEventListenerService
+from module.deployment.manager import DeploymentManager
 from module.deployment.executor.exception import DeploymentLimitReached
 
-MODULE_PATH = "module.deployment.event.listener"
+MODULE_PATH = "module.deployment.manager.manager"
 
 
 @pytest.fixture
@@ -85,7 +85,7 @@ def deployment_monitoring_service(
     mock_kafka_consumer,
     deserialiser,
 ):
-    service = DeploymentEventListenerService(
+    service = DeploymentManager(
         deserialiser=deserialiser,
         redis_client=REDIS_CLIENT,
         event_publisher=mock_event_publisher,

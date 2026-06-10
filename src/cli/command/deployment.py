@@ -6,7 +6,7 @@ import click
 
 from config import DEPLOYMENT_EXECUTOR_NAME, MAX_CONCURRENT_DEPLOYMENTS
 from core.redis import REDIS_CLIENT_SYNC, REDIS_CLIENT
-from module.deployment.event.listener import DeploymentEventListenerService
+from module.deployment.manager import DeploymentManager
 from module.deployment.event.deserialiser import DeploymentEventDeserialiser
 from module.deployment.executor import DeploymentExecutorFactory
 from module.deployment.oms import OMSClient
@@ -36,7 +36,9 @@ def deployment():
 @click.option("--ohlc-feed-port", type=int, required=True)
 @click.option("--oms-base-url", type=str, required=True)
 @click.option("--verbose", is_flag=True, help="Enable verbose output")
-def deployment_run(deployment_id, ohlc_feed_host, ohlc_feed_port, oms_base_url, verbose):
+def deployment_run(
+    deployment_id, ohlc_feed_host, ohlc_feed_port, oms_base_url, verbose
+):
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
@@ -70,19 +72,19 @@ def listener_run():
     # Creating listener service
     deployment_executor = DeploymentExecutorFactory.create(DEPLOYMENT_EXECUTOR_NAME)
     deployment_executor.max_concurrent_deployments = MAX_CONCURRENT_DEPLOYMENTS
-    
-    listener_service = DeploymentEventListenerService(
+
+    manager_service = DeploymentManager(
         deserialiser=DeploymentEventDeserialiser(),
         redis_client=REDIS_CLIENT,
         event_publisher=OutboxEventPublisher(),
         notification_publisher=NotificationPublisher(),
         deployment_executor=deployment_executor,
     )
-    listener_service.setup()
 
     health_server = HealthCheckServer()
 
     async def _run():
-        await asyncio.gather(listener_service.run(), health_server.run_forever())
+        await manager_service.setup()
+        await asyncio.gather(manager_service.run(), health_server.run_forever())
 
     asyncio.run(_run())
