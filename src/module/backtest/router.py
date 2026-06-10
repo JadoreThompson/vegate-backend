@@ -26,7 +26,7 @@ router = APIRouter(prefix="/api/v1/backtests", tags=["Backtests"])
 @router.post("/", response_model=CreateBacktestResponse, status_code=201)
 async def create_backtest_endpoint(
     body: CreateBacktestRequest,
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     backtest_service: BacktestsService = Depends(depends_class(BacktestsService)),
 ):
@@ -40,7 +40,7 @@ async def create_backtest_endpoint(
 @router.get("/{backtest_id}", response_model=BacktestResponse)
 async def get_backtest_endpoint(
     backtest_id: UUID,
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     backtest_service: BacktestsService = Depends(depends_class(BacktestsService)),
 ):
@@ -51,7 +51,7 @@ async def get_backtest_endpoint(
 @router.delete("/{backtest_id}", status_code=204)
 async def delete_backtest_endpoint(
     backtest_id: UUID,
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     backtest_service: BacktestsService = Depends(depends_class(BacktestsService)),
 ):
@@ -68,7 +68,7 @@ async def get_backtest_orders_endpoint(
     backtest_id: UUID,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     backtest_service: BacktestsService = Depends(depends_class(BacktestsService)),
 ):

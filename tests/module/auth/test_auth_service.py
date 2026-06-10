@@ -19,8 +19,9 @@ from config import (
 from module.auth import AuthService
 from module.auth.exception import (
     InvalidCredentialsException,
+    InvalidVerificationCodeException,
     UserAlreadyExistsException,
-    UserDoesNotExistException,
+    UserNotFoundExcpetion,
 )
 from module.auth.schema import (
     ChangeEmailRequest,
@@ -42,14 +43,13 @@ def redis_client():
 
 
 @pytest.fixture
-def auth_service(redis_client):
-    return AuthService(email_service=MagicMock, redis_client=redis_client)
+def email_service():
+    return AsyncMock()
 
 
 @pytest.fixture
-def email_service(auth_service):
-    email_service = auth_service._email_service
-    return email_service
+def auth_service(redis_client, email_service):
+    return AuthService(email_service=email_service, redis_client=redis_client)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -262,7 +262,7 @@ class TestAuthenticateUser:
                 await new_db_sess.execute(
                     update(User)
                     .where(User.username == register_request.username)
-                    .values(authenticated_at=get_datetime())
+                    .values(email_verified_at=get_datetime())
                 )
                 await new_db_sess.commit()
 
@@ -299,7 +299,7 @@ class TestAuthenticateUser:
                 await new_db_sess.execute(
                     update(User)
                     .where(User.username == register_request.username)
-                    .values(authenticated_at=get_datetime())
+                    .values(email_verified_at=get_datetime())
                 )
                 await new_db_sess.commit()
 
@@ -324,105 +324,161 @@ class TestVerifyEmail:
     class TestUnitTest:
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_verify_email_with_invalid_code_raises(self, auth_service):
+        async def test_verify_email_with_missing_code_raises(
+            self, auth_service, redis_client
+        ):
             mock_db_sess = AsyncMock()
 
-            user_id = uuid4()
-
-            auth_service._redis_client.get.return_value = b"ABC123"
+            redis_client.getdel.return_value = None
 
             request = VerificationCode(code="WRONG1")
 
             with pytest.raises(
-                ValueError, match="Invalid or expired verification code"
+                InvalidVerificationCodeException,
+                match="Invalid or expired verification code",
             ):
-                await auth_service.verify_email(request, user_id, mock_db_sess)
-
-            auth_service._redis_client.delete.assert_not_called()
+                await auth_service.verify_email(request, mock_db_sess)
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_verify_email_with_missing_code_raises(self, auth_service):
             mock_db_sess = AsyncMock()
 
-            user_id = uuid4()
-
-            auth_service._redis_client.get.return_value = None
+            auth_service._redis_client.getdel.return_value = None
 
             request = VerificationCode(code="ABC123")
 
             with pytest.raises(
-                ValueError, match="Invalid or expired verification code"
+                InvalidVerificationCodeException, match="Invalid or expired verification code"
             ):
-                await auth_service.verify_email(request, user_id, mock_db_sess)
-
-            auth_service._redis_client.delete.assert_not_called()
+                await auth_service.verify_email(request, mock_db_sess)
 
         @pytest.mark.asyncio(loop_scope="session")
         async def test_verify_email_success(self, auth_service):
-            mock_db_sess = AsyncMock()
-
-            user_id = uuid4()
-
             mock_user = MagicMock()
-            mock_user.authenticated_at = None
+            mock_user.email_verified_at = None
 
-            auth_service._redis_client.get.return_value = b"ABC123"
+            mock_db_sess = AsyncMock()
             mock_db_sess.scalar.return_value = mock_user
 
-            request = VerificationCode(code="ABC123")
+            code = "ABC123"
+            payload = {"action": "verify_email"}
+            auth_service._redis_client.getdel.return_value = json.dumps(payload)
+            request = VerificationCode(code=code)
 
-            user = await auth_service.verify_email(request, user_id, mock_db_sess)
+            user = await auth_service.verify_email(request, mock_db_sess)
 
             assert user == mock_user
-            assert user.authenticated_at is not None
-
-            auth_service._redis_client.delete.assert_awaited_once_with(
-                f"{auth_service._email_verification_key_prefix}{user_id}"
-            )
+            assert user.email_verified_at is not None
 
     class TestIntegrationTest:
 
         @pytest.mark.asyncio(loop_scope="session")
-        async def test_verify_email_updates_authenticated_at(
-            self, auth_service, db_sess
-        ):
-            mock_send_verification_code = AsyncMock()
-            auth_service._send_verification_code = mock_send_verification_code
+        async def test_verify_email_updates_user(self, auth_service, db_sess, faker):
+            """
+            This test ensures the proper cleanup and addition of user fields on the email
+            is successfully verified
+            """
+            auth_service._redis_client = REDIS_CLIENT
 
+            # Capture verificaton code
+            def _gen_verification_code(*args, **kw):
+                nonlocal verification_code
+                verification_code = gen_verification_code(*args, **kw)
+                return verification_code
+
+            verification_code = None
+            gen_verification_code = auth_service.gen_verification_code
+            auth_service.gen_verification_code = _gen_verification_code
+
+            # Register user
+            username = faker.user_name() + faker.last_name()
             request = RegisterUserRequest(
-                username="verify-user",
-                email="verify-user@email.com",
+                username=username,
+                email=username + faker.email(),
                 password="PAssword1@@1",
             )
 
             user = await auth_service.register_user(request, db_sess)
             await db_sess.commit()
 
-            redis_key = f"{auth_service._email_verification_key_prefix}{user.user_id}"
-
-            auth_service._redis_client.get.return_value = b"ABC123"
-            auth_service._redis_client.delete.return_value = None
-
-            verification_request = VerificationCode(code="ABC123")
+            # Verify email
+            verification_request = VerificationCode(code=verification_code)
 
             async with get_db_session() as new_db_sess:
-                updated_user = await auth_service.verify_email(
-                    verification_request,
-                    user.user_id,
-                    new_db_sess,
-                )
-
+                await auth_service.verify_email(verification_request, new_db_sess)
                 await new_db_sess.commit()
 
-            assert updated_user.authenticated_at is not None
-
+            # Assertions
             async with get_db_session() as new_db_sess:
                 persisted_user = await new_db_sess.get(User, user.user_id)
 
-            assert persisted_user.authenticated_at is not None
+            assert persisted_user.email_verified_at is not None
+            assert persisted_user.email_verification_token is None
 
-            auth_service._redis_client.delete.assert_awaited_once_with(redis_key)
+        @pytest.mark.asyncio(loop_scope="session")
+        async def test_verify_email_rejects_reuse_of_same_code(
+            self, auth_service, db_sess, faker
+        ):
+            auth_service._redis_client = REDIS_CLIENT
 
+            # Capture verificaton code
+            def _gen_verification_code(*args, **kw):
+                nonlocal verification_code
+                verification_code = gen_verification_code(*args, **kw)
+                return verification_code
+
+            verification_code = None
+            gen_verification_code = auth_service.gen_verification_code
+            auth_service.gen_verification_code = _gen_verification_code
+
+            # Register user
+            username = faker.user_name() + faker.last_name()
+            request = RegisterUserRequest(
+                username=username,
+                email=username + faker.email(),
+                password="PAssword1@@1",
+            )
+
+            user = await auth_service.register_user(request, db_sess)
+            await db_sess.commit()
+
+            # Verify email
+            verification_request = VerificationCode(code=verification_code)
+
+            async with get_db_session() as new_db_sess:
+                await auth_service.verify_email(verification_request, new_db_sess)
+                await new_db_sess.commit()
+
+            # Assertions
+            async with get_db_session() as new_db_sess:
+                persisted_user = await new_db_sess.get(User, user.user_id)
+
+            # Second user using same verification code
+
+            # Register user
+            request = RegisterUserRequest(
+                username=f"2-{request.username}",
+                email=f"2-{request.email}",
+                password="PAssword1@@1",
+            )
+
+            auth_service.gen_verification_code = gen_verification_code
+
+            async with get_db_session() as new_db_sess:
+                user = await auth_service.register_user(request, new_db_sess)
+                await new_db_sess.commit()
+
+            # Verify email
+            with pytest.raises(InvalidVerificationCodeException):
+                async with get_db_session() as new_db_sess:
+                    await auth_service.verify_email(verification_request, new_db_sess)
+                    await new_db_sess.commit()
+            
+            async with get_db_session() as new_db_sess:
+                persisted_user = await new_db_sess.get(User, user.user_id)
+            
+            assert persisted_user.email_verified_at is None
+            assert persisted_user.email_verification_token is not None
 
 class TestRequestEmailChange:
 
@@ -438,7 +494,7 @@ class TestRequestEmailChange:
 
             request = ChangeEmailRequest(email="new-email@email.com")
 
-            with pytest.raises(UserDoesNotExistException):
+            with pytest.raises(UserNotFoundExcpetion):
                 await auth_service.request_email_change(
                     request,
                     uuid4(),
@@ -542,6 +598,8 @@ class TestRequestEmailChange:
             await db_sess.commit()
 
             auth_service._redis_client = REDIS_CLIENT
+            email_service = AsyncMock()
+            auth_service.email_service = email_service
 
             change_request = ChangeEmailRequest(email="updated@email.com")
             async with get_db_session() as new_db_sess:
@@ -631,7 +689,7 @@ class TestVerifyEmailChange:
         async def test_verify_email_change_updates_user_email(
             self, auth_service, db_sess
         ):
-            email_service = auth_service._email_service
+            email_service = auth_service.email_service
             email_service.send_email = AsyncMock()
 
             register_request = RegisterUserRequest(
@@ -673,7 +731,7 @@ class TestRequestUsernameChange:
 
             request = ChangeUsernameRequest(username="new-username")
 
-            with pytest.raises(UserDoesNotExistException):
+            with pytest.raises(UserNotFoundExcpetion):
                 await auth_service.request_username_change(
                     request,
                     uuid4(),
@@ -768,7 +826,7 @@ class TestVerifyUsernameChange:
 
             request = VerificationCode(code="ABC123")
 
-            with pytest.raises(ValueError, match="Invalid or expired token"):
+            with pytest.raises(InvalidVerificationCodeException):
                 await auth_service.verify_username_change(
                     request,
                     uuid4(),
@@ -787,7 +845,7 @@ class TestVerifyUsernameChange:
 
             request = VerificationCode(code="WRONG")
 
-            with pytest.raises(ValueError, match="Invalid or expired token"):
+            with pytest.raises(InvalidVerificationCodeException):
                 await auth_service.verify_username_change(
                     request,
                     uuid4(),
@@ -821,7 +879,7 @@ class TestVerifyUsernameChange:
         async def test_verify_username_change_updates_user_username(
             self, auth_service, db_sess
         ):
-            email_service = auth_service._email_service
+            email_service = auth_service.email_service
             email_service.send_email = AsyncMock()
 
             register_request = RegisterUserRequest(
@@ -861,7 +919,7 @@ class TestRequestPasswordChange:
 
             request = ChangePasswordRequest(password="NewPassword123!!")
 
-            with pytest.raises(UserDoesNotExistException):
+            with pytest.raises(UserNotFoundExcpetion):
                 await auth_service.request_password_change(
                     request,
                     uuid4(),
@@ -982,7 +1040,7 @@ class TestVerifyPasswordChange:
         async def test_verify_password_change_updates_user_password(
             self, auth_service, db_sess
         ):
-            email_service = auth_service._email_service
+            email_service = auth_service.email_service
             email_service.send_email = AsyncMock()
 
             register_request = RegisterUserRequest(

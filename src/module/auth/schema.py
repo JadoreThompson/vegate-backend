@@ -26,9 +26,12 @@ class PasswordField(BaseModel):
         return value
 
 
-class RegisterUserRequest(PasswordField):
+class EmailField(BaseModel):
+    email: EmailStr
+
+
+class RegisterUserRequest(PasswordField, EmailField):
     username: str
-    email: str
 
 
 class LoginUserRequest(BaseModel):
@@ -36,11 +39,11 @@ class LoginUserRequest(BaseModel):
     email: EmailStr | None = None
     password: str
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def verify_username_email(self):
         if (self.username is None or not self.username.strip()) and (
             self.email is None or not self.email.strip()
-        ):  
+        ):
             raise ValueError("Either username or email must be provided.")
         return self
 
@@ -62,8 +65,8 @@ class ResetPasswordResponse(BaseModel):
     message: str = "A verification email has been sent to your email"
 
 
-class ChangeEmailRequest(BaseModel):
-    email: str
+class ChangeEmailRequest(EmailField):
+    pass
 
 
 class ChangeUsernameRequest(BaseModel):
@@ -71,4 +74,8 @@ class ChangeUsernameRequest(BaseModel):
 
 
 class ChangePasswordRequest(PasswordField):
+    pass
+
+
+class EmailVerificationRequest(EmailField):
     pass

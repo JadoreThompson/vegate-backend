@@ -11,7 +11,7 @@ from module.api.middleware.exception_handler import GlobalExceptionHandlerMiddle
 from module.auth.exception import (
     InvalidCredentialsException,
     UserAlreadyExistsException,
-    UserDoesNotExistException,
+    UserNotFoundExcpetion,
     UserNotAuthenticatedException,
 )
 from module.backtest.exception import (
@@ -114,7 +114,7 @@ async def test_dispatch_unhandled_exception(middleware, mock_request):
     ("exception", "expected_status"),
     [
         (UserAlreadyExistsException(), 400),
-        (UserDoesNotExistException(), 404),
+        (UserNotFoundExcpetion(), 404),
         (UserNotAuthenticatedException(), 403),
         (InvalidCredentialsException(), 422),
         (BacktestNotFoundException("test-id"), 404),

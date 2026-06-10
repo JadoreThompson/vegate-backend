@@ -18,7 +18,7 @@ async def create_user(username: str) -> User:
                 username=username,
                 email=f"{username}@email.com",
                 password="password",
-                authenticated_at=datetime(year=2024, month=1, day=1),
+                email_verified_at=datetime(year=2024, month=1, day=1),
             )
             .returning(User)
         )

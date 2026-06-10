@@ -42,6 +42,16 @@ def clear_tables():
         db_sess.commit()
 
 
+@pytest.fixture(autouse=True)
+def inject_mock_email_service(client, email_service):
+    from module.api.app import app
+
+    auth_service = app.state.object_registry.get(AuthService)
+    auth_service.email_service = email_service
+
+    yield
+
+
 class TestRegisterEndpoint:
 
     @pytest.mark.asyncio(loop_scope="session")
@@ -119,7 +129,7 @@ class TestLoginEndpoint:
             await db_sess.execute(
                 update(User)
                 .where(User.username == register_payload["username"])
-                .values(authenticated_at=get_datetime())
+                .values(email_verified_at=get_datetime())
             )
             await db_sess.commit()
 
@@ -144,7 +154,7 @@ class TestLoginEndpoint:
             await db_sess.execute(
                 update(User)
                 .where(User.email == register_payload["email"])
-                .values(authenticated_at=get_datetime())
+                .values(email_verified_at=get_datetime())
             )
             await db_sess.commit()
 
@@ -230,7 +240,8 @@ class TestVerifyEmailRequestEndpoint:
         }
         await client.post("/api/v1/auth/register", json=register_payload)
 
-        res = await client.post("/api/v1/auth/verify-email/request")
+        payload = {"email": register_payload['email']}
+        res = await client.post("/api/v1/auth/verify-email/request", json=payload)
 
         assert res.status_code == 201
 
@@ -255,15 +266,16 @@ class TestVerifyEmailEndpoint:
 class TestLogoutEndpoint:
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_logout_returns_200(self, client):
-        register_payload = {
-            "username": "logout-user",
-            "email": "logout@email.com",
-            "password": "PAssword1@@1",
-        }
-        await client.post("/api/v1/auth/register", json=register_payload)
+    # async def test_logout_returns_200(self, client):
+    async def test_logout_returns_200(self, authenticated_client):
+        # register_payload = {
+        #     "username": "logout-user",
+        #     "email": "logout@email.com",
+        #     "password": "PAssword1@@1",
+        # }
+        # await client.post("/api/v1/auth/register", json=register_payload)
 
-        res = await client.post("/api/v1/auth/logout")
+        res = await authenticated_client.post("/api/v1/auth/logout")
 
         assert res.status_code == 200
 

@@ -20,28 +20,15 @@ async def depends_db_sess():
             raise
 
 
-def depends_jwt(is_authenticated: bool = True):
-    """Verify the JWT token from the request cookies and validate it."""
+async def depends_jwt(req: Request):
+    """Verify the JWT token from the request cookies"""
+    token = req.cookies.get(COOKIE_ALIAS)
+    print(req.cookies.keys())
 
-    async def func(req: Request) -> JWTPayload:
-        """
-        Args:
-            req (Request)
+    if not token:
+        raise JWTException("Authentication token is missing")
 
-        Raises:
-            JWTException: If the JWT token is missing, expired, or invalid.
-
-        Returns:
-            JWTPayload: The decoded JWT payload if valid.
-        """
-        token = req.cookies.get(COOKIE_ALIAS)
-
-        if not token:
-            raise JWTException("Authentication token is missing")
-
-        return await req.app.state.object_registry.get(JWTService).validate_jwt(token, is_authenticated=is_authenticated)
-
-    return func
+    return await req.app.state.object_registry.get(JWTService).validate_jwt(token)
 
 
 def CSVQuery(

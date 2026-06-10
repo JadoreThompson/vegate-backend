@@ -34,7 +34,7 @@ router = APIRouter(prefix="/api/v1/deployments", tags=["Deployments"])
     "/",
     response_model=CreateStrategyDeploymentResponse,
     status_code=201,
-    dependencies=[Depends(depends_jwt())],
+    dependencies=[Depends(depends_jwt)],
 )
 async def create_deployment(
     body: CreateDeploymentRequest,
@@ -51,7 +51,7 @@ async def create_deployment(
 @router.get("/{deployment_id}", response_model=StrategyDeploymentResponse)
 async def get_deployment_endpoint(
     deployment_id: UUID,
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     deployments_service: DeploymentsService = Depends(
         depends_class(DeploymentsService)
@@ -70,7 +70,7 @@ async def get_deployment_endpoint(
 @router.post("/{deployment_id}/start")
 async def start_deployment_endpoint(
     deployment_id: UUID,
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     deployments_service: DeploymentsService = Depends(
         depends_class(DeploymentsService)
@@ -83,7 +83,7 @@ async def start_deployment_endpoint(
 @router.post("/{deployment_id}/stop")
 async def stop_deployment_endpoint(
     deployment_id: UUID,
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     deployments_service: DeploymentsService = Depends(
         depends_class(DeploymentsService)
@@ -100,7 +100,7 @@ async def get_deployments(
     status: list[StrategyDeploymentStatus] | None = CSVQuery(
         "status", StrategyDeploymentStatus, None
     ),
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     deployments_service: DeploymentsService = Depends(
         depends_class(DeploymentsService)
@@ -119,7 +119,7 @@ async def get_deployment_orders_endpoint(
     deployment_id: UUID,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     deployments_service: DeploymentsService = Depends(
         depends_class(DeploymentsService)
@@ -141,7 +141,7 @@ async def get_events(
     deployment_id: UUID,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     deployments_service: DeploymentsService = Depends(
         depends_class(DeploymentsService)
@@ -155,7 +155,7 @@ async def get_events(
 @router.get("/{deployment_id}/events/stream", response_class=EventSourceResponse)
 async def sse_stream(
     deployment_id: UUID,
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     deployments_service: DeploymentsService = Depends(
         depends_class(DeploymentsService)

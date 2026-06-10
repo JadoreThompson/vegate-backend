@@ -27,7 +27,7 @@ alpaca_oauth_service = AlpacaOauthService()
 @router.post("", response_model=BrokerConnectionResponse)
 async def create_broker_connection(
     body: CreateBrokerConnectionRequest,
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     broker_connections_service: BrokerConnectionsService = Depends(
         depends_class(BrokerConnectionsService)
@@ -54,7 +54,7 @@ async def list_broker_connections_endpoint(
         ge=1,
         le=100,
     ),
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     broker_connections_service: BrokerConnectionsService = Depends(
         depends_class(BrokerConnectionsService)
@@ -74,7 +74,7 @@ async def list_broker_connections_endpoint(
 @router.get("/{connection_id}", response_model=BrokerConnectionResponse)
 async def get_broker_connection_endpoint(
     connection_id: UUID,
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     broker_connections_service: BrokerConnectionsService = Depends(
         depends_class(BrokerConnectionsService)
@@ -99,7 +99,7 @@ async def get_broker_connection_endpoint(
 @router.delete("/{connection_id}", status_code=204)
 async def delete_broker_connection_endpoint(
     connection_id: UUID,
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     broker_connections_service: BrokerConnectionsService = Depends(
         depends_class(BrokerConnectionsService)
@@ -120,7 +120,7 @@ async def delete_broker_connection_endpoint(
 
 
 @router.get("/alpaca/oauth", response_model=GetOauthUrlResponse)
-async def get_oauth_url(jwt: JWTPayload = Depends(depends_jwt())):
+async def get_oauth_url(jwt: JWTPayload = Depends(depends_jwt)):
     url = await alpaca_oauth_service.get_oauth_url_v2(jwt.sub, "paper")
     return GetOauthUrlResponse(url=url)
 
@@ -129,7 +129,7 @@ async def get_oauth_url(jwt: JWTPayload = Depends(depends_jwt())):
 async def oauth_callback(
     code: str | None = None,
     state: str | None = None,
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
 ):
     if code is None or state is None:

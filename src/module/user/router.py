@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/v1/users", tags=["Users"])
 
 @router.get("/me", response_model=UserResponse)
 async def get_me(
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
 ):
     user = await db_sess.get(User, jwt.sub)

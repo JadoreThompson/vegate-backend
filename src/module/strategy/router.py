@@ -26,7 +26,7 @@ router = APIRouter(prefix="/api/v1/strategy", tags=["Strategy"])
 @router.post("/", response_model=StrategyResponse, status_code=200)
 async def create_strategy(
     body: CreateStrategyRequest,
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     strategy_service: StrategyService = Depends(depends_class(StrategyService)),
 ):
@@ -45,7 +45,7 @@ async def create_strategy(
 @router.get("/{strategy_id}", response_model=StrategyResponse)
 async def get_strategy(
     strategy_id: UUID,
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     strategy_service: StrategyService = Depends(depends_class(StrategyService)),
 ):
@@ -69,7 +69,7 @@ async def get_strategy_backtests(
     strategy_id: UUID,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     strategy_service: StrategyService = Depends(depends_class(StrategyService)),
     backtests_service: BacktestsService = Depends(depends_class(BacktestsService)),
@@ -88,7 +88,7 @@ async def get_strategy_deployments(
     strategy_id: UUID,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     strategy_service: StrategyService = Depends(depends_class(StrategyService)),
     deployments_service: DeploymentsService = Depends(
@@ -106,7 +106,7 @@ async def list_strategies(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
     name: str | None = None,
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     strategy_service: StrategyService = Depends(depends_class(StrategyService)),
 ):
@@ -120,7 +120,7 @@ async def list_strategies(
 async def update_strategy(
     strategy_id: UUID,
     body: UpdateStrategyRequest,
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     strategy_service: StrategyService = Depends(depends_class(StrategyService)),
 ):
@@ -140,7 +140,7 @@ async def update_strategy(
 @router.put("/{strategy_id}/code", response_model=StrategyVersionResponse)
 async def update_strategy_code_put(
     strategy_id: UUID,
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     strategy_service: StrategyService = Depends(depends_class(StrategyService)),
     file: UploadFile = File(),
@@ -164,7 +164,7 @@ async def update_strategy_code_put(
 @router.get("/{strategy_id}/code", response_model=StrategyCodeResponse)
 async def get_strategy_code(
     strategy_id: UUID,
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     strategy_service: StrategyService = Depends(depends_class(StrategyService)),
 ):
@@ -181,7 +181,7 @@ async def get_strategy_code(
 @router.patch("/{strategy_id}/code", response_model=StrategyVersionResponse)
 async def update_strategy_code_patch(
     strategy_id: UUID,
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     strategy_service: StrategyService = Depends(depends_class(StrategyService)),
     file: UploadFile | None = File(None),
@@ -219,7 +219,7 @@ async def update_strategy_code_patch(
 @router.delete("/{strategy_id}", status_code=204)
 async def delete_strategy(
     strategy_id: UUID,
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     strategy_service: StrategyService = Depends(depends_class(StrategyService)),
 ):
@@ -239,7 +239,7 @@ async def list_versions(
     strategy_id: UUID,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     strategy_service: StrategyService = Depends(depends_class(StrategyService)),
 ):
@@ -255,7 +255,7 @@ async def list_versions(
 async def create_version(
     strategy_id: UUID,
     body: CreateVersionRequest,
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     strategy_service: StrategyService = Depends(depends_class(StrategyService)),
 ):
@@ -280,7 +280,7 @@ async def create_version(
 async def get_version(
     strategy_id: UUID,
     version_id: UUID,
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     strategy_service: StrategyService = Depends(depends_class(StrategyService)),
 ):
@@ -307,7 +307,7 @@ async def get_version_backtests(
     version_id: UUID,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     strategy_service: StrategyService = Depends(depends_class(StrategyService)),
     backtest_service: BacktestsService = Depends(depends_class(BacktestsService)),
@@ -330,7 +330,7 @@ async def get_version_deployments(
     version_id: UUID,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
-    jwt: JWTPayload = Depends(depends_jwt()),
+    jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     strategy_service: StrategyService = Depends(depends_class(StrategyService)),
     deployment_service: DeploymentsService = Depends(depends_class(DeploymentsService)),

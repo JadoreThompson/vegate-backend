@@ -47,7 +47,7 @@ async def create_user(username: str):
                 username=username,
                 email=f"{username}@email.com",
                 password="password",
-                authenticated_at=datetime(year=2024, month=1, day=1),
+                email_verified_at=datetime(year=2024, month=1, day=1),
             )
             .returning(User)
         )
@@ -66,6 +66,7 @@ class TestCreateBrokerConnection:
         ):
             mock_db_sess = AsyncMock()
             mock_db_sess.scalar.return_value = uuid4()
+            mock_db_sess.add = MagicMock()
 
             with patch.object(
                 broker_connections_service, "_fetch_alpaca_account_id"

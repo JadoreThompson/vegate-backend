@@ -73,11 +73,7 @@ class JWTService:
     async def set_cookie(
         self, user: User, db_sess: AsyncSession, rsp: Response | None = None
     ) -> Response:
-        token = self.generate_jwt(
-            sub=user.user_id,
-            em=user.email,
-            authenticated=user.authenticated_at is not None,
-        )
+        token = self.generate_jwt(sub=user.user_id, em=user.email)
 
         if rsp is None:
             rsp = Response()
@@ -108,15 +104,11 @@ class JWTService:
 
         return rsp
 
-    async def validate_jwt(
-        self, token: str, is_authenticated: bool = True
-    ) -> JWTPayload:
+    async def validate_jwt(self, token: str) -> JWTPayload:
         """Validate a JWT token and ensure the User exists
 
         Args:
             token (str): JWT token to validate.
-            is_authenticated (bool, optional): Whether or not to check if the user
-                is authenticated. Defaults to True.
 
         Raises:
             JWTException: No user found adhering to the constraints.
@@ -125,9 +117,6 @@ class JWTService:
             JWTPayload: Original payload
         """
         payload = self.decode_jwt(token)
-
-        if is_authenticated and not payload.authenticated:
-            raise JWTException("User not authenticated")
 
         if payload.exp < int(get_datetime().timestamp()):
             raise JWTException("Expired token")

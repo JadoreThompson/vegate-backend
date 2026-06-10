@@ -1,7 +1,6 @@
 import json
 import random
 import string
-from typing import Type
 from uuid import UUID
 
 from argon2 import PasswordHasher
@@ -29,15 +28,18 @@ from module.email import EmailService
 from module.user.model import User
 from util import get_datetime
 from .exception import (
+    EmailAlreadyVerifiedException,
     InvalidCredentialsException,
+    InvalidVerificationCodeException,
     UserAlreadyExistsException,
-    UserDoesNotExistException,
+    UserNotFoundExcpetion,
     UserNotAuthenticatedException,
 )
 from .schema import (
     ChangeEmailRequest,
     ChangePasswordRequest,
     ChangeUsernameRequest,
+    EmailVerificationRequest,
     RegisterUserRequest,
     LoginUserRequest,
     ResetPasswordRequest,
@@ -65,11 +67,11 @@ class AuthService:
             email_verification_key_prefix: Prefix for Redis keys storing verification codes.
             email_verification_expiry: Expiry time (seconds) for verification codes.
         """
-        self._email_service = email_service
+        self.email_service = email_service
         self._redis_client = redis_client
         self._email_verification_key_prefix = email_verification_key_prefix
         self._email_verification_expiry = email_verification_expiry
-        self._pw_hasher = PasswordHasher()
+        self.pw_hasher = PasswordHasher()
 
     async def register_user(
         self, request: RegisterUserRequest, db_sess: AsyncSession
@@ -108,7 +110,8 @@ class AuthService:
             .returning(User)
         )
 
-        await self._send_verification_code(request.email, user.user_id)
+        # await self._send_verification_code(request.email, user.user_id)
+        await self._send_email_verification(user)
         return user
 
     async def _send_verification_code(self, email: str, user_id: UUID):
@@ -126,30 +129,48 @@ class AuthService:
 
         await self._redis_client.set(key, code, ex=self._email_verification_expiry)
 
-        await self._email_service.send_email(
+        await self.email_service.send_email(
             email, "Verify your email", f"Your verification code is: {code}"
         )
 
-    async def request_email_verification(self, user_id: UUID, db_sess: AsyncSession):
-        user = await db_sess.scalar(select(User).where(User.user_id == user_id))
+    async def request_email_verification(
+        self, request: EmailVerificationRequest, db_sess: AsyncSession
+    ):
+        user = await db_sess.scalar(select(User).where(User.email == request.email))
 
-        if user is None:
-            raise UserDoesNotExistException()
+        if user is None or user.email_verified_at is not None:
+            return
 
-        if user.authenticated_at is not None:
-            raise ValueError("User already authenticated.")
+        if user.email_verification_token is not None:
+            await self._redis_client.delete(
+                f"{self._email_verification_key_prefix}{user.email_verification_token}"
+            )
 
-        await self._send_verification_code(email=user.email, user_id=user_id)
+        await self._send_email_verification(user)
+
+    async def _send_email_verification(self, user: User):
+        code = self.gen_verification_code()
+        
+        payload = {"action": "verify_email"}
+        await self._redis_client.set(
+            f"{self._email_verification_key_prefix}{code}",
+            json.dumps(payload),
+            ex=self._email_verification_expiry,
+        )
+
+        await self.email_service.send_email(user.email, "Verify your email", f"Your verification code is: {code}")
+
+        user.email_verification_token = code
+
 
     async def verify_email(
-        self, request: VerificationCode, user_id: UUID, db_sess: AsyncSession
+        self, request: VerificationCode, db_sess: AsyncSession
     ) -> User:
         """
         Verifies a user's email using a code stored in Redis.
 
         Args:
             request: Verification code submitted by the user.
-            user_id: Id of the user being verified.
             db_sess: Active SQLAlchemy async database session.
 
         Returns:
@@ -158,16 +179,31 @@ class AuthService:
         Raises:
             ValueError: If the verification code is invalid or expired.
         """
-        key = f"{self._email_verification_key_prefix}{user_id}"
-        code: bytes | None = await self._redis_client.get(key)
+        key = f"{self._email_verification_key_prefix}{request.code}"
+        payload: bytes | None = await self._redis_client.getdel(key)
+        
+        if payload is None:
+            raise InvalidVerificationCodeException(
+                "Invalid or expired verification code."
+            )
 
-        if code is None or code.decode() != request.code:
-            raise ValueError("Invalid or expired verification code.")
+        deserialised_paylaod = json.loads(payload)
+        if deserialised_paylaod["action"] != "verify_email":
+            raise InvalidVerificationCodeException(
+                "Invalid or expired verification code."
+            )
 
-        await self._redis_client.delete(key)
+        user = await db_sess.scalar(
+            select(User).where(User.email_verification_token == request.code)
+        )
+        if user is None:
+            raise UserNotFoundExcpetion()
+        
+        if user.email_verified_at is not None:
+            raise EmailAlreadyVerifiedException()
 
-        user = await db_sess.scalar(select(User).where(User.user_id == user_id))
-        user.authenticated_at = get_datetime()
+        user.email_verified_at = get_datetime()
+        user.email_verification_token = None
         return user
 
     async def authenticate_user(
@@ -199,7 +235,7 @@ class AuthService:
         if not self.verify_password(request.password, user.password):
             raise InvalidCredentialsException()
 
-        if not user.authenticated_at:
+        if not user.email_verified_at:
             await self._send_verification_code(user.email, user.user_id)
             raise UserNotAuthenticatedException()
 
@@ -213,7 +249,7 @@ class AuthService:
         """
         user = await db_sess.scalar(select(User).where(User.user_id == user_id))
         if user is None:
-            raise UserDoesNotExistException()
+            raise UserNotFoundExcpetion()
 
         existing_user = await db_sess.scalar(
             select(User).where(User.username == request.email)
@@ -227,7 +263,7 @@ class AuthService:
 
         await self._redis_client.set(key, payload, ex=VERIFICATION_CODE_EXPIRY_SECS)
 
-        await self._email_service.send_email(
+        await self.email_service.send_email(
             user.email,
             "Confirm Your Email Change",
             f"Your verification code is: {code}",
@@ -258,7 +294,7 @@ class AuthService:
         """
         user = await db_sess.scalar(select(User).where(User.user_id == user_id))
         if user is None:
-            raise UserDoesNotExistException()
+            raise UserNotFoundExcpetion()
 
         existing_user = await db_sess.scalar(
             select(User).where(User.username == request.username)
@@ -274,7 +310,7 @@ class AuthService:
 
         await self._redis_client.set(key, payload, ex=VERIFICATION_CODE_EXPIRY_SECS)
 
-        await self._email_service.send_email(
+        await self.email_service.send_email(
             user.email,
             "Confirm Your Username Change",
             f"Your verification code is: {code}",
@@ -287,11 +323,11 @@ class AuthService:
         data = await self._redis_client.get(key)
 
         if data is None:
-            raise ValueError("Invalid or expired token")
+            raise InvalidVerificationCodeException(request.code)
 
         payload = json.loads(data)
         if payload["code"] != request.code:
-            raise ValueError("Invalid or expired token")
+            raise InvalidVerificationCodeException(request.code)
 
         user = await db_sess.get(User, user_id)
         user.username = payload["username"]
@@ -305,7 +341,7 @@ class AuthService:
         """
         user = await db_sess.get(User, user_id)
         if user is None:
-            raise UserDoesNotExistException()
+            raise UserNotFoundExcpetion()
 
         key = f"{REDIS_CHANGE_PASSWORD_KEY_PREFIX}{user_id}"
         code = self.gen_verification_code()
@@ -313,7 +349,7 @@ class AuthService:
 
         await self._redis_client.set(key, payload, ex=VERIFICATION_CODE_EXPIRY_SECS)
 
-        await self._email_service.send_email(
+        await self.email_service.send_email(
             user.email,
             "Confirm Your Password Change",
             f"Your verification code is: {code}",
@@ -351,7 +387,7 @@ class AuthService:
             ex=REDIS_PASSWORD_RESET_EXPIRY_SECS,
         )
 
-        await self._email_service.send_email(
+        await self.email_service.send_email(
             user.email,
             "Reset Your Password",
             f"Follow this link: {SCHEME}://{FRONTEND_SUB_DOMAIN}{FRONTEND_DOMAIN}/reset-password/?code={code}",
@@ -390,7 +426,7 @@ class AuthService:
         return "".join(random.choices(string.ascii_uppercase + string.digits, k=k))
 
     def hash_password(self, password: str) -> str:
-        return self._pw_hasher.hash(password, salt=PW_HASH_SALT.encode())
+        return self.pw_hasher.hash(password, salt=PW_HASH_SALT.encode())
 
     def verify_password(self, password: str, hashed_password: str) -> bool:
         """
@@ -400,7 +436,7 @@ class AuthService:
             True if password matches, otherwise False.
         """
         try:
-            self._pw_hasher.verify(hashed_password, password)
+            self.pw_hasher.verify(hashed_password, password)
             return True
         except Argon2Error:
             return False
