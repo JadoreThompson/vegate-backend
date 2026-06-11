@@ -6,20 +6,24 @@ from uuid import UUID
 
 from redis import Redis
 from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 
 from config import HISTORICAL_BASE_URL, REDIS_STRATEGY_DEPLOYMENT_HEARTBEAT_KEY_PREFIX
 from core.db import get_db_sess_sync
 from module.deployment.enums import StrategyDeploymentStatus
 
 from module.event_bus import SyncEventPublisher
-from vegate.markets.feed.client import OHLCFeedClient
+from module.exception.retry import Retry
 from module.strategy.loader import StrategyLoader
 from module.strategy.model import StrategyVersion
 from vegate.markets.historical.client import HistoricalDataClient
+from vegate.markets.feed.client import OHLCFeedClient
 from vegate.strategy.base import BaseStrategy
 from .event import DeploymentStatusChangedEvent
 from .model import StrategyDeployments
 from .oms import OMSClient
+
+db_retry = Retry(exceptions=[OperationalError])
 
 
 class StrategyDeploymentRunner:
@@ -90,7 +94,8 @@ class StrategyDeploymentRunner:
             self._register_signal_handlers()
             self.setup()
             self._alive = True
-            self._event_publisher.publish(
+            # self._event_publisher.publish(
+            self._publish_event(
                 DeploymentStatusChangedEvent(
                     deployment_id=self._deployment_id,
                     status=StrategyDeploymentStatus.RUNNING,
@@ -119,7 +124,8 @@ class StrategyDeploymentRunner:
 
     def _cleanup(self):
         self._alive = False
-        self._event_publisher.publish(
+        # self._event_publisher.publish(
+        self._publish_event(
             DeploymentStatusChangedEvent(
                 deployment_id=self._deployment_id,
                 status=StrategyDeploymentStatus.STOPPED,
@@ -149,3 +155,7 @@ class StrategyDeploymentRunner:
                 )
         finally:
             self._alive = False
+
+    @db_retry
+    def _publish_event(self, event):
+        self._event_publisher.publish(event)

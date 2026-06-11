@@ -200,7 +200,6 @@ class TestEmitNotification:
             await poller._emit_notification(record)
 
             sent_notification: Notification = spy.await_args.args[0]
-            print("Sent notification:", sent_notification)
             assert sent_notification.user_id == user.id
             assert (
                 sent_notification.type

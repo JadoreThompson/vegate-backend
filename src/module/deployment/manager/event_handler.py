@@ -13,8 +13,6 @@ from module.event_bus import EventPublisher
 from module.notification.publisher import NotificationPublisher
 from module.notification.schema import DeploymentCapacityConstrainedNotificationContext
 from module.notification.enums import NotificationType
-from module.strategy.model import Strategy, StrategyVersion
-from module.user.model import User
 from .state import State
 from ..enums import StrategyDeploymentStatus
 from ..event import (
@@ -116,6 +114,8 @@ class DeploymentEventHandler:
             await self._handle_deployment_stop_requested(event, deployment)
         elif event.type == DeploymentEventType.DEPLOYMENT_CANCELLED:
             await self._handle_deployment_cancelled(event, deployment, db_sess)
+        else:
+            self._logger.warning(f"Unknown event id={event.id}, type={event.type}")
 
     async def _handle_status_changed(
         self,

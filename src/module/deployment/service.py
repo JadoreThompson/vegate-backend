@@ -10,7 +10,6 @@ from module.broker_connections import BrokerConnectionsService
 from module.event_bus import EventPublisher
 from module.markets import MarketsService
 
-# from module.strategy import StrategyService
 from .enums import StrategyDeploymentStatus
 from .event import (
     DeploymentEventUnion,
@@ -53,7 +52,6 @@ class DeploymentsService:
     async def create(
         self, request: CreateDeploymentRequest, user_id: UUID, db_sess: AsyncSession
     ) -> StrategyDeployments:
-        # version = await db_sess.get(StrategyVersion, request.version_id)
         version = await self._strategy_service.get_version_by_id(
             request.version_id, db_sess
         )

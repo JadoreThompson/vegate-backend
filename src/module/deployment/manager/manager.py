@@ -21,7 +21,6 @@ class DeploymentManager:
         results = await asyncio.gather(
             self._event_handler.run(),
             self._monitor.run(),
-            return_exceptions=True,
         )
         
         exceptions = [r for r in results if isinstance(r, BaseException)]
