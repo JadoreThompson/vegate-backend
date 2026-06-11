@@ -94,9 +94,6 @@ class DeploymentMonitor:
                 for deployment_id in heartbeat_ids:
                     to_running.append(deployment_id)
                 
-                print("to running:", to_running)
-                print("to suspicious:", to_suspicious)
-
                 for deployment_id in to_suspicious:
                     await self._event_publisher.publish(
                         DeploymentStatusChangedEvent(

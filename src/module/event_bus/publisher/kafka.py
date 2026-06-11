@@ -14,7 +14,7 @@ class KakfaEventPublisher(EventPublisher):
 
     async def _get_kafka_producer(self):
         if self._kafka_producer is None or not self._client_healthy:
-            self._kafka_producer = AsyncKafkaProducer()
+            self._kafka_producer = AsyncKafkaProducer.create()
             await self._kafka_producer.start()
         return self._kafka_producer
 

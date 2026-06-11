@@ -33,25 +33,30 @@ class BacktestMonitor:
         self._logger = logging.getLogger(self.__class__.__name__)
 
     def setup(self) -> None:
-        with get_db_sess_sync() as db_sess:
-            res = db_sess.execute(
-                select(Backtest.id, Backtest.status).where(
-                    or_(
-                        Backtest.status == BacktestStatus.IN_PROGRESS,
-                        Backtest.status == BacktestStatus.SUSPICIOUS,
-                        Backtest.status == BacktestStatus.PENDING,
-                    )
-                )
-            )
-            data = res.all()
+        backtests = self._fetch_backtests()
 
-        for backtest_id, status in data:
+        for backtest_id, status in backtests:
             if status == BacktestStatus.IN_PROGRESS:
                 self._state._running.add(backtest_id)
             elif status == BacktestStatus.SUSPICIOUS:
                 self._state._suspicious.add(backtest_id)
             else:
                 self._state._pending.add(backtest_id)
+
+    def _fetch_backtests(self) -> list[tuple[UUID, BacktestStatus]]:
+        with get_db_sess_sync() as db_sess:
+            res = db_sess.execute(
+                select(Backtest.id, Backtest.status).where(
+                    Backtest.status.in_(
+                        (
+                            Backtest.status == BacktestStatus.IN_PROGRESS,
+                            Backtest.status == BacktestStatus.SUSPICIOUS,
+                            Backtest.status == BacktestStatus.PENDING,
+                        )
+                    )
+                )
+            )
+            return res.all()
 
     async def run(self) -> None:
         try:

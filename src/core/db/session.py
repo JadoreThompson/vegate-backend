@@ -1,5 +1,5 @@
-from contextlib import asynccontextmanager, contextmanager
 import logging
+from contextlib import asynccontextmanager, contextmanager
 from typing import AsyncGenerator, Generator
 
 from sqlalchemy.orm import sessionmaker, Session
@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql.asyncpg import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.db.ext.retry import RetrySession
 from .client import DB_ENGINE, DB_ENGINE_SYNC
 
 logger = logging.getLogger(__name__)
@@ -22,7 +23,8 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 
     async with smaker.begin() as session:
         try:
-            yield session
+            # yield session
+            yield RetrySession(session=session)
         except Exception as e:
             await session.rollback()
             if isinstance(e, InterfaceError):
@@ -39,7 +41,8 @@ def get_db_sess_sync() -> Generator[Session, None, None]:
 
     with smaker_sync.begin() as sess:
         try:
-            yield sess
+            # yield sess
+            yield RetrySession(session=sess)
         except Exception as e:
             sess.rollback()
             if isinstance(e, InterfaceError):

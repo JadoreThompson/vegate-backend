@@ -26,6 +26,7 @@ dependencies = [
     "psycopg2-binary>=2.9.11",
     "pydantic-ai-slim[mistral]>=1.27.0",
     "pydantic[email,email-validator]>=2.12.0",
+    "pyinstrument>=5.1.2",
     "pyjwt>=2.10.1",
     "pytest>=9.0.1",
     "pytest-asyncio>=1.3.0",

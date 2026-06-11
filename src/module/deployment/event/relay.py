@@ -40,7 +40,7 @@ class DeploymentEventRelay:
             self._registry.pop(deployment_id)
 
     async def run(self):
-        consumer = AsyncKafkaConsumer(
+        consumer = AsyncKafkaConsumer.create(
             self._topic, group_id="event_consumer_group", enable_auto_commit=False
         )
 

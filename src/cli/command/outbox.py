@@ -24,7 +24,7 @@ def outbox():
 @click.option("--health-port", type=int, default=5555, help="Health check server port")
 def run(interval, batch_size, timeout, health_port):
     async def _run():
-        kafka_producer = AsyncKafkaProducer()
+        kafka_producer = AsyncKafkaProducer.create()
 
         try:
             await kafka_producer.start()

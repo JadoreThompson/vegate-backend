@@ -132,9 +132,9 @@ class TestHandleStatusChanged:
         )
         kafka_record = make_kafka_record(event)
 
-        with patch(f"{MODULE_PATH}.AsyncKafkaConsumer") as MockConsumer:
+        with patch(f"{MODULE_PATH}.AsyncKafkaConsumer.create") as mock_kafka_consumer_create:
             mock_consumer = make_kafka_consumer([kafka_record])
-            MockConsumer.return_value = mock_consumer
+            mock_kafka_consumer_create.return_value = mock_consumer
 
             with patch(f"{MODULE_PATH}.get_db_session") as mock_get_session:
                 mock_ctx, mock_db_sess = make_get_db_session()
@@ -266,9 +266,9 @@ class TestHandleBacktestRequested:
         event = BacktestRequestedEvent(backtest_id=backtest_id)
         kafka_record = make_kafka_record(event)
 
-        with patch(f"{MODULE_PATH}.AsyncKafkaConsumer") as MockConsumer:
+        with patch(f"{MODULE_PATH}.AsyncKafkaConsumer.create") as mock_kafka_consumer_create:
             mock_consumer = make_kafka_consumer([kafka_record])
-            MockConsumer.return_value = mock_consumer
+            mock_kafka_consumer_create.return_value = mock_consumer
 
             with patch(f"{MODULE_PATH}.get_db_session") as mock_get_session:
                 mock_ctx, mock_db_sess = make_get_db_session()
@@ -338,9 +338,9 @@ class TestHandleBacktestStopRequested:
 
         await state.promote_to_running(backtest_id)
 
-        with patch(f"{MODULE_PATH}.AsyncKafkaConsumer") as MockConsumer:
+        with patch(f"{MODULE_PATH}.AsyncKafkaConsumer.create") as mock_kafka_consumer_create:
             mock_consumer = make_kafka_consumer([kafka_record])
-            MockConsumer.return_value = mock_consumer
+            mock_kafka_consumer_create.return_value = mock_consumer
 
             with patch(f"{MODULE_PATH}.get_db_session") as mock_get_session:
                 mock_ctx, mock_db_sess = make_get_db_session()
@@ -429,9 +429,9 @@ class TestHandleBacktestCancelled:
         )
         kafka_record = make_kafka_record(event)
 
-        with patch(f"{MODULE_PATH}.AsyncKafkaConsumer") as MockConsumer:
+        with patch(f"{MODULE_PATH}.AsyncKafkaConsumer.create") as mock_kafka_consumer_create:
             mock_consumer = make_kafka_consumer([kafka_record])
-            MockConsumer.return_value = mock_consumer
+            mock_kafka_consumer_create.return_value = mock_consumer
 
             with patch(f"{MODULE_PATH}.get_db_session") as mock_get_session:
                 mock_ctx, mock_db_sess = make_get_db_session()

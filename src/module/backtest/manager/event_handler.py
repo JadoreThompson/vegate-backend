@@ -53,7 +53,7 @@ class BacktestEventHandler:
             await self._kafka_consumer.stop()
 
     async def run(self) -> None:
-        self._kafka_consumer = AsyncKafkaConsumer(
+        self._kafka_consumer = AsyncKafkaConsumer.create(
             BACKTEST_EVENTS_KEY,
             group_id="backtest_event_monitor_group",
             enable_auto_commit=False,

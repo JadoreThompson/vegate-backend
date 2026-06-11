@@ -14,7 +14,7 @@ class KafkaSyncEventPublisher(SyncEventPublisher):
 
     def _get_kafka_producer(self):
         if self._kafka_producer is None or not self._client_healthy:
-            self._kafka_producer = KafkaProducer()
+            self._kafka_producer = KafkaProducer.create()
         return self._kafka_producer
 
     def publish(self, event: BaseEvent, db_sess: Session | None = None) -> None:

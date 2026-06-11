@@ -51,7 +51,7 @@ class DeploymentEventBroadcast:
             await observer.on_event(deployment_id, event)
 
     async def run(self) -> None:
-        consumer = AsyncKafkaConsumer(
+        consumer = AsyncKafkaConsumer.create(
             self._topic, group_id="event_consumer_group", enable_auto_commit=False
         )
 
