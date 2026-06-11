@@ -131,18 +131,18 @@ class TestCreateBrokerConnection:
                 )
 
                 result = await broker_connections_service.create_broker_connection(
-                    request, user.user_id, db_sess
+                    request, user.id, db_sess
                 )
 
                 await db_sess.commit()
 
                 async with get_db_session() as new_db_sess:
                     conn = await new_db_sess.get(
-                        BrokerConnections, result.connection_id
+                        BrokerConnections, result.id
                     )
 
                 assert conn is not None
-                assert conn.user_id == user.user_id
+                assert conn.user_id == user.id
                 assert conn.broker == BrokerType.ALPACA
                 assert conn.api_key == "test-api-key"
                 assert conn.broker_account_id == "acc-integration-123"
@@ -159,7 +159,7 @@ class TestGetBrokerConnections:
             mock_db_sess = AsyncMock()
 
             mock_conn = MagicMock()
-            mock_conn.connection_id = uuid4()
+            mock_conn.id = uuid4()
             mock_conn.broker = BrokerType.ALPACA
             mock_conn.broker_account_id = "acc-123"
             mock_conn.broker_account_number = "ACC-001"
@@ -190,7 +190,7 @@ class TestGetBrokerConnections:
             user_a_bconns = [
                 BrokerConnections(
                     broker=BrokerType.ALPACA,
-                    user_id=user_a.user_id,
+                    user_id=user_a.id,
                     api_key="<api-key>",
                     secret_key="<secret-key>",
                     broker_account_id=f"account-{i}",
@@ -203,7 +203,7 @@ class TestGetBrokerConnections:
             user_b_bconns = [
                 BrokerConnections(
                     broker=BrokerType.ALPACA,
-                    user_id=user_b.user_id,
+                    user_id=user_b.id,
                     api_key="<api-key>",
                     secret_key="<secret-key>",
                     broker_account_id=f"account-{i}",
@@ -217,24 +217,20 @@ class TestGetBrokerConnections:
 
             async with get_db_session() as db_sess:
                 result = await broker_connections_service.get_broker_connections(
-                    user_a.user_id, db_sess, page=1, limit=10
+                    user_a.id, db_sess, page=1, limit=10
                 )
 
             assert len(result.data) == 10
-            assert all(
-                bc.id == user_a_bconns[i].connection_id
-                for i, bc in enumerate(result.data)
-            )
+            assert all(bc.id == user_a_bconns[i].id for i, bc in enumerate(result.data))
 
             async with get_db_session() as db_sess:
                 result = await broker_connections_service.get_broker_connections(
-                    user_a.user_id, db_sess, page=2, limit=10
+                    user_a.id, db_sess, page=2, limit=10
                 )
 
             assert len(result.data) == 10
             assert all(
-                bc.id == user_a_bconns[i + 10].connection_id
-                for i, bc in enumerate(result.data)
+                bc.id == user_a_bconns[i + 10].id for i, bc in enumerate(result.data)
             )
 
 
@@ -315,33 +311,31 @@ class TestDeleteBrokerConnection:
             user = await create_user(username="delete-user")
             broker_conn = BrokerConnections(
                 broker=BrokerType.ALPACA,
-                user_id=user.user_id,
+                user_id=user.id,
                 api_key="<api-key>",
                 secret_key="<secret-key>",
-                broker_account_id=f"account-{user.user_id}",
-                broker_account_number=f"account-number-{user.user_id}",
+                broker_account_id=f"account-{user.id}",
+                broker_account_number=f"account-number-{user.id}",
             )
             db_sess.add(broker_conn)
             await db_sess.commit()
 
             async with get_db_session() as new_db_sess:
                 conn = await broker_connections_service.get_broker_connection(
-                    broker_conn.connection_id, user.user_id, new_db_sess
+                    broker_conn.id, user.id, new_db_sess
                 )
 
-            assert conn.connection_id == broker_conn.connection_id
+            assert conn.id == broker_conn.id
 
             async with get_db_session() as new_db_sess:
                 success = await broker_connections_service.delete_broker_connection(
-                    broker_conn.connection_id, user.user_id, new_db_sess
+                    broker_conn.id, user.id, new_db_sess
                 )
                 await new_db_sess.commit()
 
             assert success
 
             async with get_db_session() as new_db_sess:
-                broker_conn = await new_db_sess.get(
-                    BrokerConnections, broker_conn.connection_id
-                )
+                broker_conn = await new_db_sess.get(BrokerConnections, broker_conn.id)
 
             assert broker_conn is None

@@ -66,7 +66,7 @@ class TestGetUserById:
         async def test_get_user_by_id_returns_persisted_user(self, db_sess):
             user_id = get_uuid()
             user = User(
-                user_id=user_id,
+                id=user_id,
                 username="persist-user",
                 email="persist-user@email.com",
                 password="hashed-password",
@@ -78,7 +78,7 @@ class TestGetUserById:
                 fetched = await new_db_sess.get(User, user_id)
 
             assert fetched is not None
-            assert fetched.user_id == user_id
+            assert fetched.id == user_id
             assert fetched.username == "persist-user"
             assert fetched.email == "persist-user@email.com"
 

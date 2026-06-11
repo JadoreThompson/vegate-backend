@@ -11,10 +11,10 @@ from util import get_datetime
 class Strategy(Base):
     __tablename__ = "strategy"
 
-    strategy_id: Mapped[uuid.UUID] = uuid_pk()
+    id: Mapped[uuid.UUID] = uuid_pk()
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.user_id", name="strategy_user_id_fkey", ondelete="CASCADE"),
+        ForeignKey("users.id", name="strategy_user_id_fkey", ondelete="CASCADE"),
         nullable=False,
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
@@ -39,7 +39,7 @@ class StrategyVersion(Base):
     strategy_id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey(
-            "strategy.strategy_id",
+            "strategy.id",
             name="strategy_versions_strategy_id_fkey",
             ondelete="CASCADE",
         ),

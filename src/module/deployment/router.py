@@ -46,7 +46,7 @@ async def create_deployment(
 ):
     deployment = await deployments_service.create(body, jwt.sub, db_sess)
     await db_sess.commit()
-    return {"id": deployment.deployment_id}
+    return {"id": deployment.id}
 
 
 @router.get("/{deployment_id}", response_model=StrategyDeploymentResponse)

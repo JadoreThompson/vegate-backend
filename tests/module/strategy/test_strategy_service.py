@@ -82,7 +82,7 @@ class TestCreateStrategy:
         @pytest.mark.asyncio(loop_scope="session")
         async def test_create_strategy_stores_in_db(self, strategy_service, db_sess):
             user = await create_user("create-strategy-user-1")
-            user_id = user.user_id
+            user_id = user.id
 
             request = CreateStrategyRequest(name="Integration Strategy")
 
@@ -90,7 +90,7 @@ class TestCreateStrategy:
             await db_sess.commit()
 
             async with get_db_session() as new_db_sess:
-                strategy = await new_db_sess.get(Strategy, result.strategy_id)
+                strategy = await new_db_sess.get(Strategy, result.id)
 
             assert strategy is not None
             assert strategy.user_id == user_id
@@ -211,14 +211,14 @@ class TestDeleteStrategy:
             self, strategy_service, db_sess, mock_deployment_service
         ):
             user = await create_user("delete-strategy-1")
-            user_id = user.user_id
+            user_id = user.id
 
             request = CreateStrategyRequest(name="delete test")
 
             strategy = await strategy_service.create(request, user_id, db_sess)
             await db_sess.commit()
 
-            strategy_id = strategy.strategy_id
+            strategy_id = strategy.id
 
             mock_page = MagicMock()
             mock_page.size = 0
@@ -282,31 +282,31 @@ class TestCreateVersion:
     async def test_create_version_success(self, strategy_service):
         async with get_db_session() as db_sess:
             user = await create_user("create-version-1")
-            user_id = user.user_id
+            user_id = user.id
             strat = await strategy_service.create(
                 CreateStrategyRequest(name="Test"), user_id, db_sess
             )
 
             prev_id = strat.cur_version_id
             version = await strategy_service.create_version(
-                strat.strategy_id, user_id, prev_id, "code = 1", db_sess
+                strat.id, user_id, prev_id, "code = 1", db_sess
             )
             assert version.code == "code = 1"
             assert version.prev_version == prev_id
-            assert version.strategy_id == strat.strategy_id
+            assert version.strategy_id == strat.id
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_create_version_sets_cur_version_id(self, strategy_service):
         async with get_db_session() as db_sess:
             user = await create_user("create-version-2")
-            user_id = user.user_id
+            user_id = user.id
             strat = await strategy_service.create(
                 CreateStrategyRequest(name="Test"), user_id, db_sess
             )
             first_version_id = strat.cur_version_id
 
             version = await strategy_service.create_version(
-                strat.strategy_id, user_id, strat.cur_version_id, "v2", db_sess
+                strat.id, user_id, strat.cur_version_id, "v2", db_sess
             )
             assert strat.cur_version_id == version.id
             assert strat.cur_version_id != first_version_id
@@ -315,7 +315,7 @@ class TestCreateVersion:
     async def test_create_version_wrong_prev_version_raises(self, strategy_service):
         async with get_db_session() as db_sess:
             user = await create_user("create-version-3")
-            user_id = user.user_id
+            user_id = user.id
             strat = await strategy_service.create(
                 CreateStrategyRequest(name="Test"), user_id, db_sess
             )
@@ -324,7 +324,7 @@ class TestCreateVersion:
 
             with pytest.raises(StrategyVersionNotFoundException):
                 await strategy_service.create_version(
-                    strat.strategy_id, user_id, uuid4(), "non-existent", db_sess
+                    strat.id, user_id, uuid4(), "non-existent", db_sess
                 )
 
 
@@ -334,13 +334,13 @@ class TestListVersions:
     async def test_list_versions_returns_paginated(self, strategy_service):
         async with get_db_session() as db_sess:
             user = await create_user("list-versions-1")
-            user_id = user.user_id
+            user_id = user.id
             strat = await strategy_service.create(
                 CreateStrategyRequest(name="Test"), user_id, db_sess
             )
 
             result = await strategy_service.get_versions(
-                strat.strategy_id, user_id, db_sess, page=1, limit=10
+                strat.id, user_id, db_sess, page=1, limit=10
             )
             assert result.page == 1
             assert result.size == 1
@@ -353,13 +353,13 @@ class TestGetVersion:
     async def test_get_version_success(self, strategy_service):
         async with get_db_session() as db_sess:
             user = await create_user("get-version-1")
-            user_id = user.user_id
+            user_id = user.id
             strat = await strategy_service.create(
                 CreateStrategyRequest(name="Test"), user_id, db_sess
             )
 
             version = await strategy_service.get_version(
-                strat.cur_version_id, strat.strategy_id, user_id, db_sess
+                strat.cur_version_id, strat.id, user_id, db_sess
             )
             assert version.id == strat.cur_version_id
 
@@ -367,7 +367,7 @@ class TestGetVersion:
     async def test_get_version_not_found_raises(self, strategy_service):
         async with get_db_session() as db_sess:
             user = await create_user("get-version-2")
-            user_id = user.user_id
+            user_id = user.id
             strat = await strategy_service.create(
                 CreateStrategyRequest(name="Test"), user_id, db_sess
             )
@@ -376,72 +376,5 @@ class TestGetVersion:
 
             with pytest.raises(StrategyVersionNotFoundException):
                 await strategy_service.get_version(
-                    uuid4(), strat.strategy_id, user_id, db_sess
+                    uuid4(), strat.id, user_id, db_sess
                 )
-
-
-# class TestUpdateVersion:
-
-#     @pytest.mark.asyncio(loop_scope="session")
-#     async def test_update_version_updates_code(self, strategy_service):
-#         async with get_db_session() as db_sess:
-#             user = await create_user("update-version-1")
-#             user_id = user.user_id
-#             strat = await strategy_service.create(
-#                 CreateStrategyRequest(name="Test"), user_id, db_sess
-#             )
-#             version = await strategy_service.create_version(
-#                 strat.strategy_id, user_id, strat.cur_version_id, "v1", db_sess
-#             )
-
-#             updated = await strategy_service.update_version(
-#                 version.id, strat.strategy_id, user_id, "v2", db_sess
-#             )
-#             assert updated.code == "v2"
-
-
-# class TestDeleteVersion:
-
-#     @pytest.mark.asyncio(loop_scope="session")
-#     async def test_delete_version_removes_from_db(self, strategy_service):
-#         async with get_db_session() as db_sess:
-#             user = await create_user("delete-version-1")
-#             user_id = user.user_id
-#             strat = await strategy_service.create(
-#                 CreateStrategyRequest(name="Test"), user_id, db_sess
-#             )
-#             version = await strategy_service.create_version(
-#                 strat.strategy_id, user_id, strat.cur_version_id, "to-delete", db_sess
-#             )
-#             await strategy_service.delete_version(
-#                 version.id, strat.strategy_id, user_id, db_sess
-#             )
-
-#             from module.strategy.exception import StrategyVersionNotFoundException
-
-#             with pytest.raises(StrategyVersionNotFoundException):
-#                 await strategy_service.get_version(
-#                     version.id, strat.strategy_id, user_id, db_sess
-#                 )
-
-
-# class TestActivateVersion:
-
-#     @pytest.mark.asyncio(loop_scope="session")
-#     async def test_activate_version_updates_cur_version(self, strategy_service):
-#         async with get_db_session() as db_sess:
-#             user = await create_user("activate-version-1")
-#             user_id = user.user_id
-#             strat = await strategy_service.create(
-#                 CreateStrategyRequest(name="Test"), user_id, db_sess
-#             )
-
-#             v1_id = strat.cur_version_id
-#             v2 = await strategy_service.create_version(
-#                 strat.strategy_id, user_id, strat.cur_version_id, "v2", db_sess
-#             )
-
-#             await strategy_service.activate_version(
-#                 v1_id, strat.strategy_id, user_id, db_sess
-#             )
-#             assert strat.cur_version_id == v1_id

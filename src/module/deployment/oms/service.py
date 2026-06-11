@@ -64,10 +64,9 @@ class OMSService:
                 .select_from(StrategyDeployments)
                 .join(
                     BrokerConnections,
-                    BrokerConnections.connection_id
-                    == StrategyDeployments.broker_connection_id,
+                    BrokerConnections.id == StrategyDeployments.broker_connection_id,
                 )
-                .where(StrategyDeployments.deployment_id == deployment_id)
+                .where(StrategyDeployments.id == deployment_id)
             )
             row = res.first()
             if not row:
@@ -139,7 +138,7 @@ class OMSService:
                 deployment_id=session.deployment_id, order=request.order
             ),
         )
-        
+
         try:
             order = session.broker_client.place_order(request.order)
             broker_order_id = order.id
@@ -377,18 +376,6 @@ class OMSService:
         )
         count = res.scalar()
         return f"{candle_ts}-{count}"
-
-    async def _ensure_unique_key(
-        self, key: str, deployment_id: UUID, db_sess: AsyncSession
-    ) -> None:
-        res = await db_sess.execute(
-            select(StrategyDeploymentOrders).where(
-                StrategyDeploymentOrders.deployment_id == deployment_id,
-                StrategyDeploymentOrders.key == key,
-            )
-        )
-        if res.first():
-            raise DuplicateOrderException()
 
     async def _get_broker_order_id(self, order_id: UUID) -> str:
         """

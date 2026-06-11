@@ -66,6 +66,7 @@ class DeploymentEventHandler:
 
             async for record in self._kafka_consumer:
                 event = self._deserialiser.deserialise_json(record.value)
+                self._logger.info(f"Handling event id={event.id}, type={event.type}")
 
                 async with get_db_session() as db_sess:
                     deployment = await self._persist(event, db_sess)
@@ -143,7 +144,7 @@ class DeploymentEventHandler:
             )
             return
 
-        if await self._state.is_any(deployment.deployment_id):
+        if await self._state.is_any(deployment.id):
             self._logger.info(
                 f"Deployment '{event.deployment_id}' already tracked, dropping event"
             )
@@ -221,7 +222,7 @@ class DeploymentEventHandler:
         async with get_db_session() as session:
             user_id = await session.scalar(
                 select(StrategyDeployments.user_id).where(
-                    StrategyDeployments.deployment_id == deployment_id
+                    StrategyDeployments.id == deployment_id
                 )
             )
 

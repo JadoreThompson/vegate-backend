@@ -9,6 +9,7 @@ from module.api.schema import PaginatedResponse
 from module.broker_connections import BrokerConnectionsService
 from module.event_bus import EventPublisher
 from module.markets import MarketsService
+
 # from module.strategy import StrategyService
 from .enums import StrategyDeploymentStatus
 from .event import (
@@ -35,7 +36,6 @@ if TYPE_CHECKING:
     from module.strategy import StrategyService
 
 
-
 class DeploymentsService:
 
     def __init__(
@@ -54,7 +54,9 @@ class DeploymentsService:
         self, request: CreateDeploymentRequest, user_id: UUID, db_sess: AsyncSession
     ) -> StrategyDeployments:
         # version = await db_sess.get(StrategyVersion, request.version_id)
-        version = await self._strategy_service.get_version_by_id(request.version_id, db_sess)
+        version = await self._strategy_service.get_version_by_id(
+            request.version_id, db_sess
+        )
         deployment = StrategyDeployments(
             user_id=user_id,
             strategy_id=version.strategy_id,
@@ -67,7 +69,7 @@ class DeploymentsService:
         await db_sess.refresh(deployment)
 
         await self._event_publisher.publish(
-            DeploymentRequestedEvent(deployment_id=deployment.deployment_id), db_sess
+            DeploymentRequestedEvent(deployment_id=deployment.id), db_sess
         )
 
         return deployment
@@ -81,7 +83,7 @@ class DeploymentsService:
             raise DeploymentAlreadyRunningException(deployment_id)
 
         await self._event_publisher.publish(
-            DeploymentRequestedEvent(deployment_id=deployment.deployment_id), db_sess
+            DeploymentRequestedEvent(deployment_id=deployment.id), db_sess
         )
 
     async def stop(self, deployment_id: UUID, user_id: UUID, db_sess: AsyncSession):
@@ -157,8 +159,7 @@ class DeploymentsService:
             select(StrategyDeployments, StrategyDeploymentMetrics)
             .outerjoin(
                 StrategyDeploymentMetrics,
-                StrategyDeploymentMetrics.deployment_id
-                == StrategyDeployments.deployment_id,
+                StrategyDeploymentMetrics.deployment_id == StrategyDeployments.id,
             )
             .where(StrategyDeployments.strategy_id == strategy_id)
             .order_by(StrategyDeployments.created_at.desc())
@@ -190,8 +191,7 @@ class DeploymentsService:
             select(StrategyDeployments, StrategyDeploymentMetrics)
             .outerjoin(
                 StrategyDeploymentMetrics,
-                StrategyDeploymentMetrics.deployment_id
-                == StrategyDeployments.deployment_id,
+                StrategyDeploymentMetrics.deployment_id == StrategyDeployments.id,
             )
             .where(StrategyDeployments.version_id == version_id)
             .order_by(StrategyDeployments.created_at.desc())
@@ -290,7 +290,7 @@ class DeploymentsService:
     ) -> StrategyDeployments:
         deployment = await db_sess.scalar(
             select(StrategyDeployments)
-            .where(StrategyDeployments.deployment_id == deployment_id)
+            .where(StrategyDeployments.id == deployment_id)
             .where(StrategyDeployments.user_id == user_id)
             .options(selectinload(StrategyDeployments.metrics))
         )
@@ -306,7 +306,7 @@ class DeploymentsService:
         metrics: StrategyDeploymentMetrics | None = None,
     ):
         return StrategyDeploymentResponse(
-            id=deployment.deployment_id,
+            id=deployment.id,
             version_id=deployment.version_id,
             broker_connection_id=deployment.broker_connection_id,
             status=StrategyDeploymentStatus(deployment.status),

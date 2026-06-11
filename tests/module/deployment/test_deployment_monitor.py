@@ -46,16 +46,16 @@ class TestSetup:
         deployment_id = uuid4()
 
         with patch(
-            "module.deployment.manager.monitor.get_db_sess_sync"
+            "module.deployment.manager.monitor.get_db_session"
         ) as mock_get_sync:
-            mock_sess = MagicMock()
+            mock_sess = AsyncMock()
             mock_result = MagicMock()
             mock_result.all.return_value = [
                 (deployment_id, StrategyDeploymentStatus.RUNNING),
             ]
             mock_sess.execute.return_value = mock_result
             mock_ctx = MagicMock()
-            mock_ctx.__enter__.return_value = mock_sess
+            mock_ctx.__aenter__.return_value = mock_sess
             mock_get_sync.return_value = mock_ctx
 
             monitor = DeploymentMonitor(
@@ -64,7 +64,7 @@ class TestSetup:
                 event_publisher=MagicMock(),
                 monitor_interval=0.01,
             )
-            monitor.setup()
+            await monitor.setup()
 
         pending, running, suspicious = await state.snapshot()
         assert deployment_id in running
@@ -74,17 +74,17 @@ class TestSetup:
         deployment_id = uuid4()
 
         with patch(
-            "module.deployment.manager.monitor.get_db_sess_sync"
-        ) as mock_get_sync:
-            mock_sess = MagicMock()
+            "module.deployment.manager.monitor.get_db_session"
+        ) as mock_get_session:
+            mock_sess = AsyncMock()
             mock_result = MagicMock()
             mock_result.all.return_value = [
                 (deployment_id, StrategyDeploymentStatus.SUSPICIOUS),
             ]
             mock_sess.execute.return_value = mock_result
             mock_ctx = MagicMock()
-            mock_ctx.__enter__.return_value = mock_sess
-            mock_get_sync.return_value = mock_ctx
+            mock_ctx.__aenter__.return_value = mock_sess
+            mock_get_session.return_value = mock_ctx
 
             monitor = DeploymentMonitor(
                 state=state,
@@ -92,7 +92,7 @@ class TestSetup:
                 event_publisher=MagicMock(),
                 monitor_interval=0.01,
             )
-            monitor.setup()
+            await monitor.setup()
 
         pending, running, suspicious = await state.snapshot()
         assert deployment_id in suspicious
@@ -100,14 +100,14 @@ class TestSetup:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_ignores_other_statuses(self, state):
         with patch(
-            "module.deployment.manager.monitor.get_db_sess_sync"
+            "module.deployment.manager.monitor.get_db_session"
         ) as mock_get_sync:
-            mock_sess = MagicMock()
+            mock_sess = AsyncMock()
             mock_result = MagicMock()
             mock_result.all.return_value = []
             mock_sess.execute.return_value = mock_result
             mock_ctx = MagicMock()
-            mock_ctx.__enter__.return_value = mock_sess
+            mock_ctx.__aenter__.return_value = mock_sess
             mock_get_sync.return_value = mock_ctx
 
             monitor = DeploymentMonitor(
@@ -116,7 +116,7 @@ class TestSetup:
                 event_publisher=MagicMock(),
                 monitor_interval=0.01,
             )
-            monitor.setup()
+            await monitor.setup()
 
         pending, running, suspicious = await state.snapshot()
         assert len(pending) == 0
@@ -128,16 +128,16 @@ class TestSetup:
         """setup() accesses state internals directly for synchronous bulk loading."""
         deployment_id = uuid4()
         with patch(
-            "module.deployment.manager.monitor.get_db_sess_sync"
+            "module.deployment.manager.monitor.get_db_session"
         ) as mock_get_sync:
-            mock_sess = MagicMock()
+            mock_sess = AsyncMock()
             mock_result = MagicMock()
             mock_result.all.return_value = [
                 (deployment_id, StrategyDeploymentStatus.RUNNING),
             ]
             mock_sess.execute.return_value = mock_result
             mock_ctx = MagicMock()
-            mock_ctx.__enter__.return_value = mock_sess
+            mock_ctx.__aenter__.return_value = mock_sess
             mock_get_sync.return_value = mock_ctx
 
             monitor = DeploymentMonitor(
@@ -146,7 +146,7 @@ class TestSetup:
                 event_publisher=MagicMock(),
                 monitor_interval=0.01,
             )
-            monitor.setup()
+            await monitor.setup()
 
         async with state._lock:
             assert deployment_id in state._running

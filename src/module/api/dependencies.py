@@ -23,7 +23,6 @@ async def depends_db_sess():
 async def depends_jwt(req: Request):
     """Verify the JWT token from the request cookies"""
     token = req.cookies.get(COOKIE_ALIAS)
-    print(req.cookies.keys())
 
     if not token:
         raise JWTException("Authentication token is missing")

@@ -56,7 +56,10 @@ def mock_markets_service():
 
 @pytest.fixture
 def backtest_service(
-    mock_strategy_service, mock_backtest_executor, mock_markets_service, mock_event_publisher
+    mock_strategy_service,
+    mock_backtest_executor,
+    mock_markets_service,
+    mock_event_publisher,
 ):
     return BacktestsService(
         strategy_service=mock_strategy_service,
@@ -113,7 +116,7 @@ class TestCreateBacktest:
             backtest_service,
             mock_strategy_service,
             # mock_backtest_executor,
-            mock_event_publisher
+            mock_event_publisher,
         ):
             mock_db_sess = AsyncMock()
 
@@ -293,7 +296,7 @@ class TestGetOrders:
 
 
 class TestGetByVersionId:
-    
+
     class TestUnitTest:
 
         @pytest.mark.asyncio(loop_scope="session")
@@ -416,7 +419,7 @@ class TestIntegrationTests:
         instrument_id,
     ):
         user = await create_user("test-delete-backtest-user-2")
-        user_id = user.user_id
+        user_id = user.id
         strategy_id = uuid4()
 
         strategy = Strategy(
@@ -427,13 +430,13 @@ class TestIntegrationTests:
         db_sess.add(strategy)
         await db_sess.flush()
 
-        version = StrategyVersion(strategy_id=strategy.strategy_id)
+        version = StrategyVersion(strategy_id=strategy.id)
         db_sess.add(version)
         await db_sess.flush()
 
         backtest = Backtest(
             user_id=user_id,
-            strategy_id=strategy.strategy_id,
+            strategy_id=strategy.id,
             version_id=version.id,
             starting_balance=10000,
             start_date=date(2024, 1, 1),
@@ -464,10 +467,10 @@ class TestIntegrationTests:
         instrument_id,
     ):
         user = await create_user("test-get-orders-user-2")
-        user_id = user.user_id
+        user_id = user.id
 
         other_user = await create_user("test-get-orders-other-user-3")
-        other_user_id = other_user.user_id
+        other_user_id = other_user.id
 
         strategy = Strategy(
             user_id=user_id,
@@ -485,15 +488,15 @@ class TestIntegrationTests:
 
         await db_sess.flush()
 
-        version = StrategyVersion(strategy_id=strategy.strategy_id)
+        version = StrategyVersion(strategy_id=strategy.id)
         db_sess.add(version)
-        other_version = StrategyVersion(strategy_id=other_strategy.strategy_id)
+        other_version = StrategyVersion(strategy_id=other_strategy.id)
         db_sess.add(other_version)
         await db_sess.flush()
 
         backtest = Backtest(
             user_id=user_id,
-            strategy_id=strategy.strategy_id,
+            strategy_id=strategy.id,
             version_id=version.id,
             starting_balance=10000,
             start_date=date(2024, 1, 1),
@@ -504,7 +507,7 @@ class TestIntegrationTests:
 
         other_backtest = Backtest(
             user_id=other_user_id,
-            strategy_id=other_strategy.strategy_id,
+            strategy_id=other_strategy.id,
             version_id=other_version.id,
             starting_balance=5000,
             start_date=date(2024, 1, 1),

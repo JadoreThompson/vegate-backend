@@ -33,7 +33,7 @@ async def create_strategy(
     strategy = await strategy_service.create(body, jwt.sub, db_sess)
     await db_sess.commit()
     return StrategyResponse(
-        id=strategy.strategy_id,
+        id=strategy.id,
         name=strategy.name,
         description=strategy.description,
         created_at=strategy.created_at,
@@ -52,7 +52,7 @@ async def get_strategy(
     """Get a strategy by ID with full details including code."""
     strategy = await strategy_service.get_strategy(strategy_id, jwt.sub, db_sess)
     return StrategyResponse(
-        id=strategy.strategy_id,
+        id=strategy.id,
         name=strategy.name,
         description=strategy.description,
         created_at=strategy.created_at,
@@ -128,7 +128,7 @@ async def update_strategy(
     strategy = await strategy_service.update(body, strategy_id, jwt.sub, db_sess)
     await db_sess.commit()
     return StrategyResponse(
-        id=strategy.strategy_id,
+        id=strategy.id,
         name=strategy.name,
         description=strategy.description,
         created_at=strategy.created_at,

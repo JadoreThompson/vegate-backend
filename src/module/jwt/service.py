@@ -73,14 +73,12 @@ class JWTService:
     async def set_cookie(
         self, user: User, db_sess: AsyncSession, rsp: Response | None = None
     ) -> Response:
-        token = self.generate_jwt(sub=user.user_id, em=user.email)
+        token = self.generate_jwt(sub=user.id, em=user.email)
 
         if rsp is None:
             rsp = Response()
 
-        await db_sess.execute(
-            update(User).values(jwt=token).where(User.user_id == user.user_id)
-        )
+        await db_sess.execute(update(User).values(jwt=token).where(User.id == user.id))
 
         rsp.set_cookie(
             self._cookie_alias,
@@ -122,7 +120,7 @@ class JWTService:
             raise JWTException("Expired token")
 
         async with get_db_session() as db_sess:
-            user = await db_sess.scalar(select(User).where(User.user_id == payload.sub))
+            user = await db_sess.scalar(select(User).where(User.id == payload.sub))
 
             if user is None:
                 raise JWTException("User not found.")

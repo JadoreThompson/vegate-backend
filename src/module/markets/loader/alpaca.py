@@ -54,8 +54,8 @@ class AlpacaOHLCLoader(OHLCLoader):
                 instrument_id, symbol, timeframe, records
             )
 
-            batch_start_date = datetime.fromtimestamp(records[0]['timestamp'])
-            batch_end_date = datetime.fromtimestamp(records[-1]['timestamp'])
+            batch_start_date = datetime.fromtimestamp(records[0]["timestamp"])
+            batch_end_date = datetime.fromtimestamp(records[-1]["timestamp"])
 
             self._logger.info(
                 f"Persisted {count} candles for {symbol} between {batch_start_date} and {batch_end_date}"
@@ -201,7 +201,7 @@ class AlpacaOHLCLoader(OHLCLoader):
 
         async with get_db_session() as db_sess:
             res = await db_sess.execute(
-                select(func.count(OHLC.ohlc_id)).where(
+                select(func.count(OHLC.id)).where(
                     OHLC.instrument_id == instrument_id,
                     OHLC.timestamp.between(sdate, edate),
                 )

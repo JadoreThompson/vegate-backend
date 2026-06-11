@@ -39,7 +39,7 @@ async def create_broker_connection(
     await db_sess.commit()
 
     return BrokerConnectionResponse(
-        id=broker_connection.connection_id,
+        id=broker_connection.id,
         broker=broker_connection.broker,
         account_id=broker_connection.broker_account_id,
         account_number=broker_connection.broker_account_number,

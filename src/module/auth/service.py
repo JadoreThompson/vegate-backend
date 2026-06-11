@@ -90,7 +90,7 @@ class AuthService:
             UserAlreadyExistsException: If a user with the same username or email already exists.
         """
         res = await db_sess.execute(
-            select(User.user_id).where(
+            select(User.id).where(
                 or_(User.username == request.username, User.email == request.email)
             )
         )
@@ -110,7 +110,6 @@ class AuthService:
             .returning(User)
         )
 
-        # await self._send_verification_code(request.email, user.user_id)
         await self._send_email_verification(user)
         return user
 
@@ -150,7 +149,7 @@ class AuthService:
 
     async def _send_email_verification(self, user: User):
         code = self.gen_verification_code()
-        
+
         payload = {"action": "verify_email"}
         await self._redis_client.set(
             f"{self._email_verification_key_prefix}{code}",
@@ -158,10 +157,11 @@ class AuthService:
             ex=self._email_verification_expiry,
         )
 
-        await self.email_service.send_email(user.email, "Verify your email", f"Your verification code is: {code}")
+        await self.email_service.send_email(
+            user.email, "Verify your email", f"Your verification code is: {code}"
+        )
 
         user.email_verification_token = code
-
 
     async def verify_email(
         self, request: VerificationCode, db_sess: AsyncSession
@@ -181,7 +181,7 @@ class AuthService:
         """
         key = f"{self._email_verification_key_prefix}{request.code}"
         payload: bytes | None = await self._redis_client.getdel(key)
-        
+
         if payload is None:
             raise InvalidVerificationCodeException(
                 "Invalid or expired verification code."
@@ -198,7 +198,7 @@ class AuthService:
         )
         if user is None:
             raise UserNotFoundExcpetion()
-        
+
         if user.email_verified_at is not None:
             raise EmailAlreadyVerifiedException()
 
@@ -236,7 +236,7 @@ class AuthService:
             raise InvalidCredentialsException()
 
         if not user.email_verified_at:
-            await self._send_verification_code(user.email, user.user_id)
+            await self._send_verification_code(user.email, user.id)
             raise UserNotAuthenticatedException()
 
         return user
@@ -247,7 +247,7 @@ class AuthService:
         """
         Initiates an email change request for a user.
         """
-        user = await db_sess.scalar(select(User).where(User.user_id == user_id))
+        user = await db_sess.scalar(select(User).where(User.id == user_id))
         if user is None:
             raise UserNotFoundExcpetion()
 
@@ -292,7 +292,7 @@ class AuthService:
         """
         Initiates an username change request for a user.
         """
-        user = await db_sess.scalar(select(User).where(User.user_id == user_id))
+        user = await db_sess.scalar(select(User).where(User.id == user_id))
         if user is None:
             raise UserNotFoundExcpetion()
 
@@ -383,7 +383,7 @@ class AuthService:
         key = f"{REDIS_PASSWORD_RESET_TOKEN_KEY_PREFIX}{code}"
         await self._redis_client.set(
             key,
-            json.dumps({"user_id": str(user.user_id)}),
+            json.dumps({"user_id": str(user.id)}),
             ex=REDIS_PASSWORD_RESET_EXPIRY_SECS,
         )
 

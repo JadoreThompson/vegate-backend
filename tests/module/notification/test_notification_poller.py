@@ -75,15 +75,9 @@ class TestFetchEvents:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_fetches_only_pending_and_failed(self, poller):
         user = await create_user("test_fetch_1")
-        pending = await insert_notification(
-            user.user_id, status=NotificationStatus.PENDING
-        )
-        failed = await insert_notification(
-            user.user_id, status=NotificationStatus.FAILED
-        )
-        await insert_notification(
-            user.user_id, status=NotificationStatus.COMPLETED
-        )
+        pending = await insert_notification(user.id, status=NotificationStatus.PENDING)
+        failed = await insert_notification(user.id, status=NotificationStatus.FAILED)
+        await insert_notification(user.id, status=NotificationStatus.COMPLETED)
 
         records = await poller._fetch_events()
 
@@ -95,14 +89,16 @@ class TestFetchEvents:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_fetches_ordered_by_created_at_asc(self, poller):
         user = await create_user("test_fetch_2")
-        n1 = await insert_notification(user.user_id)
-        n2 = await insert_notification(user.user_id)
-        n3 = await insert_notification(user.user_id)
+        n1 = await insert_notification(user.id)
+        n2 = await insert_notification(user.id)
+        n3 = await insert_notification(user.id)
 
         records = await poller._fetch_events()
 
         assert len(records) >= 3
-        indices = {n1.id: i for i, r in enumerate(records) for id_ in (r.id,) if id_ == n1.id}
+        indices = {
+            n1.id: i for i, r in enumerate(records) for id_ in (r.id,) if id_ == n1.id
+        }
         idx1 = next(i for i, r in enumerate(records) if r.id == n1.id)
         idx2 = next(i for i, r in enumerate(records) if r.id == n2.id)
         idx3 = next(i for i, r in enumerate(records) if r.id == n3.id)
@@ -112,7 +108,7 @@ class TestFetchEvents:
     async def test_respects_batch_size(self):
         user = await create_user("test_fetch_3")
         for _ in range(5):
-            await insert_notification(user.user_id)
+            await insert_notification(user.id)
 
         small_poller = NotificationPoller(
             notification_channels={},
@@ -133,7 +129,7 @@ class TestEmitNotification:
         user = await create_user("test_emit_1")
         deployment_id = uuid4()
         record = await insert_notification(
-            user.user_id,
+            user.id,
             type_str=NotificationType.DEPLOYMENT_CAPACITY_CONSTRAINED.value,
             context={"deployment_id": str(deployment_id)},
         )
@@ -148,13 +144,11 @@ class TestEmitNotification:
         assert "Deployment Capacity Constrained" in call_kwargs["subject"]
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_sends_backtest_email_via_channel(
-        self, poller, mock_email_service
-    ):
+    async def test_sends_backtest_email_via_channel(self, poller, mock_email_service):
         user = await create_user("test_emit_2")
         backtest_id = uuid4()
         record = await insert_notification(
-            user.user_id,
+            user.id,
             type_str=NotificationType.BACKTEST_CAPACITY_CONSTRAINED.value,
             context={"backtest_id": str(backtest_id)},
         )
@@ -172,9 +166,7 @@ class TestEmitNotification:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_returns_false_on_channel_missing(self, poller):
         user = await create_user("test_emit_3")
-        record = await insert_notification(
-            user.user_id, channel_type="slack"
-        )
+        record = await insert_notification(user.id, channel_type="slack")
 
         event_id, success = await poller._emit_notification(record)
 
@@ -182,11 +174,9 @@ class TestEmitNotification:
         assert event_id == record.id
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_returns_false_on_channel_error(
-        self, poller, mock_email_service
-    ):
+    async def test_returns_false_on_channel_error(self, poller, mock_email_service):
         user = await create_user("test_emit_4")
-        record = await insert_notification(user.user_id)
+        record = await insert_notification(user.id)
         mock_email_service.send_email.side_effect = Exception("API error")
 
         event_id, success = await poller._emit_notification(record)
@@ -201,7 +191,7 @@ class TestEmitNotification:
         user = await create_user("test_emit_5")
         deployment_id = uuid4()
         record = await insert_notification(
-            user.user_id,
+            user.id,
             type_str=NotificationType.DEPLOYMENT_CAPACITY_CONSTRAINED.value,
             context={"deployment_id": str(deployment_id)},
         )
@@ -210,8 +200,12 @@ class TestEmitNotification:
             await poller._emit_notification(record)
 
             sent_notification: Notification = spy.await_args.args[0]
-            assert sent_notification.user_id == user.user_id
-            assert sent_notification.type == NotificationType.DEPLOYMENT_CAPACITY_CONSTRAINED
+            print("Sent notification:", sent_notification)
+            assert sent_notification.user_id == user.id
+            assert (
+                sent_notification.type
+                == NotificationType.DEPLOYMENT_CAPACITY_CONSTRAINED
+            )
             assert isinstance(
                 sent_notification.context,
                 DeploymentCapacityConstrainedNotificationContext,
@@ -224,9 +218,9 @@ class TestUpdateEvents:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_updates_statuses(self, poller):
         user = await create_user("test_upd_1")
-        n1 = await insert_notification(user.user_id)
-        n2 = await insert_notification(user.user_id)
-        n3 = await insert_notification(user.user_id)
+        n1 = await insert_notification(user.id)
+        n2 = await insert_notification(user.id)
+        n3 = await insert_notification(user.id)
 
         await poller._update_events(
             [
@@ -251,11 +245,9 @@ class TestUpdateEvents:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_sets_last_attempted_at(self, poller):
         user = await create_user("test_upd_2")
-        n1 = await insert_notification(user.user_id)
+        n1 = await insert_notification(user.id)
 
-        await poller._update_events(
-            [(n1.id, NotificationStatus.COMPLETED)]
-        )
+        await poller._update_events([(n1.id, NotificationStatus.COMPLETED)])
 
         async with get_db_session() as db_sess:
             updated = await db_sess.get(NotificationModel, n1.id)
@@ -274,9 +266,9 @@ class TestRunLifecycle:
         self, email_channel, mock_email_service
     ):
         user = await create_user("test_lc_1")
-        n1 = await insert_notification(user.user_id)
-        n2 = await insert_notification(user.user_id)
-        n3 = await insert_notification(user.user_id)
+        n1 = await insert_notification(user.id)
+        n2 = await insert_notification(user.id)
+        n3 = await insert_notification(user.id)
 
         poller = NotificationPoller(
             notification_channels={NotificationChannelType.EMAIL: email_channel},
@@ -311,9 +303,9 @@ class TestRunLifecycle:
         self, email_channel, mock_email_service
     ):
         user = await create_user("test_lc_2")
-        n1 = await insert_notification(user.user_id)
-        n2 = await insert_notification(user.user_id)
-        n3 = await insert_notification(user.user_id)
+        n1 = await insert_notification(user.id)
+        n2 = await insert_notification(user.id)
+        n3 = await insert_notification(user.id)
 
         sent = []
 
@@ -352,12 +344,10 @@ class TestRunLifecycle:
         assert str(sent[2].context.deployment_id) == n3.context["deployment_id"]
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_run_handles_channel_failure(
-        self, email_channel, mock_email_service
-    ):
+    async def test_run_handles_channel_failure(self, email_channel, mock_email_service):
         user = await create_user("test_lc_3")
-        n1 = await insert_notification(user.user_id)
-        n2 = await insert_notification(user.user_id)
+        n1 = await insert_notification(user.id)
+        n2 = await insert_notification(user.id)
 
         n1_deployment_id = UUID(n1.context["deployment_id"])
 

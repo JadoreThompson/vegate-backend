@@ -86,7 +86,7 @@ class BrokerConnectionsService:
 
         conns = [
             BrokerConnectionResponse(
-                id=conn.connection_id,
+                id=conn.id,
                 broker=conn.broker,
                 account_id=conn.broker_account_id,
                 account_number=conn.broker_account_number,
@@ -107,7 +107,7 @@ class BrokerConnectionsService:
         conn = await db_sess.scalar(
             select(BrokerConnections).where(
                 and_(
-                    BrokerConnections.connection_id == id,
+                    BrokerConnections.id == id,
                     BrokerConnections.user_id == user_id,
                 )
             )
@@ -123,7 +123,7 @@ class BrokerConnectionsService:
     ) -> bool:
         result = await db_sess.execute(
             delete(BrokerConnections).where(
-                BrokerConnections.connection_id == id,
+                BrokerConnections.id == id,
                 BrokerConnections.user_id == user_id,
             )
         )

@@ -25,20 +25,18 @@ async def test_publish_creates_notification_with_correct_values():
     )
 
     await publisher.publish(
-        user_id=user.user_id,
+        user_id=user.id,
         type=NotificationType.DEPLOYMENT_CAPACITY_CONSTRAINED,
         context=context,
     )
 
     async with get_db_session() as db_sess:
         result = await db_sess.execute(
-            select(NotificationModel).where(
-                NotificationModel.user_id == user.user_id
-            )
+            select(NotificationModel).where(NotificationModel.user_id == user.id)
         )
         notification = result.scalar_one()
 
-    assert notification.user_id == user.user_id
+    assert notification.user_id == user.id
     assert notification.type == NotificationType.DEPLOYMENT_CAPACITY_CONSTRAINED.value
     assert notification.context == {"deployment_id": str(deployment_id)}
     assert notification.channel_type == "email"
@@ -57,20 +55,18 @@ async def test_publish_creates_backtest_notification():
     context = BacktestCapacityConstrainedNotificationContext(backtest_id=backtest_id)
 
     await publisher.publish(
-        user_id=user.user_id,
+        user_id=user.id,
         type=NotificationType.BACKTEST_CAPACITY_CONSTRAINED,
         context=context,
     )
 
     async with get_db_session() as db_sess:
         result = await db_sess.execute(
-            select(NotificationModel).where(
-                NotificationModel.user_id == user.user_id
-            )
+            select(NotificationModel).where(NotificationModel.user_id == user.id)
         )
         notification = result.scalar_one()
 
-    assert notification.user_id == user.user_id
+    assert notification.user_id == user.id
     assert notification.type == NotificationType.BACKTEST_CAPACITY_CONSTRAINED.value
     assert notification.context == {"backtest_id": str(backtest_id)}
     assert notification.channel_type == "email"

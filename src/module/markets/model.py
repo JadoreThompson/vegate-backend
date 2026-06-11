@@ -36,7 +36,7 @@ class Instrument(Base):
 class OHLC(Base):
     __tablename__ = "ohlcs"
 
-    ohlc_id: Mapped[uuid.UUID] = uuid_pk()
+    id: Mapped[uuid.UUID] = uuid_pk()
     instrument_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("instruments.id", ondelete="CASCADE"),

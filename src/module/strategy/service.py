@@ -44,7 +44,7 @@ class StrategyService:
         db_sess.add(new_strategy)
         await db_sess.flush()
 
-        new_version = StrategyVersion(strategy_id=new_strategy.strategy_id)
+        new_version = StrategyVersion(strategy_id=new_strategy.id)
         db_sess.add(new_version)
         await db_sess.flush()
 
@@ -101,7 +101,7 @@ class StrategyService:
 
         strategies = [
             StrategyResponse(
-                id=strategy.strategy_id,
+                id=strategy.id,
                 name=strategy.name,
                 description=strategy.description,
                 created_at=strategy.created_at,
@@ -174,7 +174,7 @@ class StrategyService:
     ) -> Strategy:
         strategy = await db_sess.scalar(
             select(Strategy).where(
-                Strategy.strategy_id == strategy_id, Strategy.user_id == user_id
+                Strategy.id == strategy_id, Strategy.user_id == user_id
             )
         )
         if strategy is None:
@@ -186,7 +186,7 @@ class StrategyService:
     ) -> StrategyVersion:
         version = await db_sess.scalar(
             select(StrategyVersion)
-            .join(Strategy, Strategy.strategy_id == StrategyVersion.strategy_id)
+            .join(Strategy, Strategy.id == StrategyVersion.strategy_id)
             .where(StrategyVersion.id == version_id, Strategy.user_id == user_id)
         )
         if version is None:
@@ -231,9 +231,10 @@ class StrategyService:
             has_next=len(versions) > limit,
             data=versions[:limit],
         )
-    
 
-    async def get_version_by_id(self, version_id: UUID, db_sess: AsyncSession) -> StrategyVersion:
+    async def get_version_by_id(
+        self, version_id: UUID, db_sess: AsyncSession
+    ) -> StrategyVersion:
         version = await db_sess.get(StrategyVersion, version_id)
 
         if version is None:

@@ -144,7 +144,7 @@ class TestRegisterUser:
             await db_sess.commit()
 
             async with get_db_session() as new_db_sess:
-                user = await new_db_sess.get(User, user.user_id)
+                user = await new_db_sess.get(User, user.id)
 
             assert user.password != request.password
             assert auth_service.verify_password(request.password, user.password)
@@ -272,7 +272,7 @@ class TestAuthenticateUser:
                     new_db_sess,
                 )
 
-            assert authenticated_user.user_id == created_user.user_id
+            assert authenticated_user.id == created_user.id
             assert authenticated_user.username == "login-user"
 
         @pytest.mark.asyncio(loop_scope="session")
@@ -315,7 +315,7 @@ class TestAuthenticateUser:
                     new_db_sess,
                 )
 
-            assert authenticated_user.user_id == created_user.user_id
+            assert authenticated_user.id == created_user.id
             assert authenticated_user.email == "email-login-user@email.com"
 
 
@@ -410,7 +410,7 @@ class TestVerifyEmail:
 
             # Assertions
             async with get_db_session() as new_db_sess:
-                persisted_user = await new_db_sess.get(User, user.user_id)
+                persisted_user = await new_db_sess.get(User, user.id)
 
             assert persisted_user.email_verified_at is not None
             assert persisted_user.email_verification_token is None
@@ -451,7 +451,7 @@ class TestVerifyEmail:
 
             # Assertions
             async with get_db_session() as new_db_sess:
-                persisted_user = await new_db_sess.get(User, user.user_id)
+                persisted_user = await new_db_sess.get(User, user.id)
 
             # Second user using same verification code
 
@@ -475,7 +475,7 @@ class TestVerifyEmail:
                     await new_db_sess.commit()
             
             async with get_db_session() as new_db_sess:
-                persisted_user = await new_db_sess.get(User, user.user_id)
+                persisted_user = await new_db_sess.get(User, user.id)
             
             assert persisted_user.email_verified_at is None
             assert persisted_user.email_verification_token is not None
@@ -604,12 +604,12 @@ class TestRequestEmailChange:
             change_request = ChangeEmailRequest(email="updated@email.com")
             async with get_db_session() as new_db_sess:
                 await auth_service.request_email_change(
-                    change_request, user.user_id, new_db_sess
+                    change_request, user.id, new_db_sess
                 )
 
             payload = json.loads(
                 await auth_service._redis_client.get(
-                    f"{REDIS_CHANGE_EMAIL_KEY_PREFIX}{user.user_id}"
+                    f"{REDIS_CHANGE_EMAIL_KEY_PREFIX}{user.id}"
                 )
             )
 
@@ -709,7 +709,7 @@ class TestVerifyEmailChange:
             async with get_db_session() as new_db_sess:
                 updated = await auth_service.verify_email_change(
                     VerificationCode(code="ABC123"),
-                    user.user_id,
+                    user.id,
                     new_db_sess,
                 )
 
@@ -898,7 +898,7 @@ class TestVerifyUsernameChange:
             async with get_db_session() as new_db_sess:
                 updated = await auth_service.verify_username_change(
                     VerificationCode(code="ABC123"),
-                    user.user_id,
+                    user.id,
                     new_db_sess,
                 )
                 await new_db_sess.commit()
@@ -1059,7 +1059,7 @@ class TestVerifyPasswordChange:
             async with get_db_session() as new_db_sess:
                 updated = await auth_service.verify_password_change(
                     VerificationCode(code="ABC123"),
-                    user.user_id,
+                    user.id,
                     new_db_sess,
                 )
                 await new_db_sess.commit()
@@ -1094,7 +1094,7 @@ class TestRequestResetPassword:
             mock_db_sess = AsyncMock()
 
             user = MagicMock()
-            user.user_id = uuid4()
+            user.id = uuid4()
 
             mock_db_sess.scalar.return_value = user
 
@@ -1116,7 +1116,7 @@ class TestRequestResetPassword:
             assert redis_args.args[0].startswith(REDIS_PASSWORD_RESET_TOKEN_KEY_PREFIX)
 
             payload = json.loads(redis_args.args[1])
-            assert payload["user_id"] == str(user.user_id)
+            assert payload["user_id"] == str(user.id)
 
             assert redis_args.kwargs["ex"] == REDIS_PASSWORD_RESET_EXPIRY_SECS
 

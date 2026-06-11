@@ -4,7 +4,6 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    BigInteger,
     DateTime,
     Float,
     ForeignKey,
@@ -20,7 +19,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from core.db import Base, datetime_tz, uuid_pk
 from vegate.oms.enums import OrderSide, OrderStatus
 from module.deployment.enums import StrategyDeploymentStatus
-from vegate.markets.enums import Timeframe
 from util import get_datetime
 
 from .event import DeploymentEventType
@@ -29,17 +27,19 @@ from .event import DeploymentEventType
 class StrategyDeployments(Base):
     __tablename__ = "strategy_deployments"
 
-    deployment_id: Mapped[uuid.UUID] = uuid_pk()
+    id: Mapped[uuid.UUID] = uuid_pk()
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.user_id", name="strategy_deployments_user_id_fkey", ondelete="CASCADE"),
+        ForeignKey(
+            "users.id", name="strategy_deployments_user_id_fkey", ondelete="CASCADE"
+        ),
         nullable=False,
     )
     strategy_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey(
-            "strategy.strategy_id",
+            "strategy.id",
             name="strategy_deployments_strategy_id_fkey",
             ondelete="CASCADE",
         ),
@@ -47,12 +47,14 @@ class StrategyDeployments(Base):
     )
     version_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("strategy_versions.id", name="fk_strategy_versions_id", ondelete="CASCADE"),
+        ForeignKey(
+            "strategy_versions.id", name="fk_strategy_versions_id", ondelete="CASCADE"
+        ),
         nullable=False,
     )
     broker_connection_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("broker_connections.connection_id", ondelete="CASCADE"),
+        ForeignKey("broker_connections.id", ondelete="CASCADE"),
         nullable=False,
     )
     status: Mapped[StrategyDeploymentStatus] = mapped_column(
@@ -75,6 +77,19 @@ class StrategyDeployments(Base):
         cascade="all, delete-orphan",
     )
 
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}("
+            f"id={self.id!r}, "
+            f"user_id={self.user_id!r}, "
+            f"strategy_id={self.strategy_id!r}, "
+            f"version_id={self.version_id!r}, "
+            f"broker_connection_id={self.broker_connection_id!r}, "
+            f"status={self.status!r}, "
+            f"service_id={self.service_id!r}"
+            f")"
+        )
+
 
 class StrategyDeploymentMetrics(Base):
     __tablename__ = "strategy_deployment_metrics"
@@ -82,7 +97,7 @@ class StrategyDeploymentMetrics(Base):
     id: Mapped[uuid.UUID] = uuid_pk()
     deployment_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("strategy_deployments.deployment_id", ondelete="CASCADE"),
+        ForeignKey("strategy_deployments.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
     )
@@ -104,7 +119,7 @@ class StrategyDeploymentOrders(Base):
 
     deployment_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("strategy_deployments.deployment_id", ondelete="CASCADE"),
+        ForeignKey("strategy_deployments.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -140,7 +155,7 @@ class DeploymentEvent(Base):
     )
     deployment_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("strategy_deployments.deployment_id", ondelete="CASCADE"),
+        ForeignKey("strategy_deployments.id", ondelete="CASCADE"),
         nullable=False,
     )
     event_type: Mapped[DeploymentEventType] = mapped_column(

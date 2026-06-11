@@ -409,9 +409,7 @@ class TestPersistRecords:
         # Verify only 2 records exist
         async with get_db_session() as new_sess:
             res = await new_sess.execute(
-                select(func.count(OHLC.ohlc_id)).where(
-                    OHLC.instrument_id == instrument.id
-                )
+                select(func.count(OHLC.id)).where(OHLC.instrument_id == instrument.id)
             )
             assert res.scalar() == 2
 

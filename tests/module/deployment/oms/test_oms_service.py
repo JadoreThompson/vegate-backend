@@ -86,7 +86,7 @@ def make_broker_conn(**kwargs) -> BrokerConnections:
     conn.api_key = "test-key"
     conn.secret_key = "test-secret"
     conn.oauth_payload = None
-    conn.connection_id = uuid4()
+    conn.id = uuid4()
     for k, v in kwargs.items():
         setattr(conn, k, v)
     return conn
@@ -396,21 +396,20 @@ class TestPlaceOrder:
         with patch.object(
             oms_service, "_generate_order_key", AsyncMock(return_value="key-1")
         ):
-            with patch.object(oms_service, "_ensure_unique_key", AsyncMock()):
+            
+            with patch(
+                "module.deployment.oms.service.get_db_session"
+            ) as mock_get_db:
                 mock_db_sess = AsyncMock()
                 mock_db_sess.scalar = AsyncMock(return_value=uuid4())
                 mock_db_sess.execute = AsyncMock()
                 mock_db_sess.commit = AsyncMock()
+                mock_get_db.return_value.__aenter__ = AsyncMock(
+                    return_value=mock_db_sess
+                )
+                mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
 
-                with patch(
-                    "module.deployment.oms.service.get_db_session"
-                ) as mock_get_db:
-                    mock_get_db.return_value.__aenter__ = AsyncMock(
-                        return_value=mock_db_sess
-                    )
-                    mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
-
-                    result = await oms_service.place_order(token, request)
+                result = await oms_service.place_order(token, request)
 
         assert result is not None
         assert result.symbol == "AAPL"
@@ -435,24 +434,22 @@ class TestPlaceOrder:
         with patch.object(
             oms_service, "_generate_order_key", AsyncMock(return_value="key-1")
         ):
-            with patch.object(oms_service, "_ensure_unique_key", AsyncMock()):
+            with patch(
+                "module.deployment.oms.service.get_db_session"
+            ) as mock_get_db:
                 mock_db_sess = AsyncMock()
                 mock_db_sess.scalar = AsyncMock(return_value=uuid4())
                 mock_db_sess.execute = AsyncMock()
                 mock_db_sess.commit = AsyncMock()
+                mock_get_db.return_value.__aenter__ = AsyncMock(
+                    return_value=mock_db_sess
+                )
+                mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
 
-                with patch(
-                    "module.deployment.oms.service.get_db_session"
-                ) as mock_get_db:
-                    mock_get_db.return_value.__aenter__ = AsyncMock(
-                        return_value=mock_db_sess
-                    )
-                    mock_get_db.return_value.__aexit__ = AsyncMock(return_value=None)
-
-                    with pytest.raises(
-                        BrokerClientException, match="insufficient funds"
-                    ):
-                        await oms_service.place_order(token, request)
+                with pytest.raises(
+                    BrokerClientException, match="insufficient funds"
+                ):
+                    await oms_service.place_order(token, request)
 
         # Rejection event should be published
         mock_event_publisher.publish.assert_called()

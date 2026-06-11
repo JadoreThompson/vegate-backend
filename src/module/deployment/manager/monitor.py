@@ -3,16 +3,15 @@ import logging
 from uuid import UUID
 
 from redis.asyncio import Redis as AsyncRedis
-from sqlalchemy import or_, select
+from sqlalchemy import select
 
 from config import REDIS_STRATEGY_DEPLOYMENT_HEARTBEAT_KEY_PREFIX
-from core.db import get_db_sess_sync
+from core.db import get_db_session
 from module.event_bus import EventPublisher
 from .state import State
 from ..enums import StrategyDeploymentStatus
 from ..event import DeploymentStatusChangedEvent
 from ..model import StrategyDeployments
-
 
 
 class DeploymentMonitor:
@@ -33,15 +32,16 @@ class DeploymentMonitor:
         self.monitor_interval = monitor_interval
         self._logger = logging.getLogger(self.__class__.__name__)
 
-    def setup(self) -> None:
-        with get_db_sess_sync() as db_sess:
-            res = db_sess.execute(
-                select(
-                    StrategyDeployments.deployment_id, StrategyDeployments.status
-                ).where(
-                    or_(
-                        StrategyDeployments.status == StrategyDeploymentStatus.RUNNING,
-                        StrategyDeployments.status == StrategyDeploymentStatus.SUSPICIOUS,
+    async def setup(self) -> None:
+        async with get_db_session() as db_sess:
+            res = await db_sess.execute(
+                select(StrategyDeployments.id, StrategyDeployments.status).where(
+                    StrategyDeployments.status.in_(
+                        (
+                            StrategyDeploymentStatus.RUNNING,
+                            StrategyDeploymentStatus.SUSPICIOUS,
+                            StrategyDeploymentStatus.PENDING,
+                        )
                     )
                 )
             )
@@ -49,9 +49,11 @@ class DeploymentMonitor:
 
         for deployment_id, status in data:
             if status == StrategyDeploymentStatus.RUNNING:
-                self._state._running.add(deployment_id)
+                await self._state.add_running(deployment_id)
+            elif status == StrategyDeploymentStatus.SUSPICIOUS:
+                await self._state.add_suspicious(deployment_id)
             else:
-                self._state._suspicious.add(deployment_id)
+                await self._state.add_pending(deployment_id)
 
     async def run(self) -> None:
         try:
@@ -93,7 +95,7 @@ class DeploymentMonitor:
                 # anything left in heartbeat_ids is an untracked but live deployment
                 for deployment_id in heartbeat_ids:
                     to_running.append(deployment_id)
-                
+
                 for deployment_id in to_suspicious:
                     await self._event_publisher.publish(
                         DeploymentStatusChangedEvent(

@@ -76,7 +76,7 @@ async def logout(
     db_sess: AsyncSession = Depends(depends_db_sess),
     jwt_service: JWTService = Depends(depends_class(JWTService)),
 ):
-    await db_sess.execute(update(User).values(jwt=None).where(User.user_id == jwt.sub))
+    await db_sess.execute(update(User).values(jwt=None).where(User.id == jwt.sub))
     rsp = jwt_service.remove_cookie()
     await db_sess.commit()
     return rsp

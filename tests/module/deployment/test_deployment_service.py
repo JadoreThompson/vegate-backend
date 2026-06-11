@@ -59,7 +59,10 @@ def mock_strategy_service():
 
 @pytest.fixture
 def deployment_service(
-    mock_strategy_service, mock_markets_service, mock_broker_connections_service, mock_event_publisher
+    mock_strategy_service,
+    mock_markets_service,
+    mock_broker_connections_service,
+    mock_event_publisher,
 ):
     return DeploymentsService(
         strategy_service=mock_strategy_service,
@@ -110,11 +113,13 @@ class TestCreateDeployment:
 
             mock_version = MagicMock()
             mock_version.strategy_id = uuid4()
-            mock_strategy_service.get_version_by_id = AsyncMock(return_value=mock_version)
+            mock_strategy_service.get_version_by_id = AsyncMock(
+                return_value=mock_version
+            )
 
             mock_db_sess.flush = AsyncMock()
             mock_db_sess.refresh = AsyncMock(
-                side_effect=lambda obj: setattr(obj, "deployment_id", uuid4())
+                side_effect=lambda obj: setattr(obj, "id", uuid4())
             )
 
             request = CreateDeploymentRequest(
@@ -143,7 +148,7 @@ class TestStartDeployment:
 
             deployment_id = uuid4()
             mock_deployment = MagicMock()
-            mock_deployment.deployment_id = deployment_id
+            mock_deployment.id = deployment_id
             mock_deployment.status = StrategyDeploymentStatus.PENDING
             mock_db_sess.scalar.return_value = mock_deployment
 
@@ -174,7 +179,7 @@ class TestGetDeployment:
             mock_db_sess = AsyncMock()
 
             mock_deployment = MagicMock()
-            mock_deployment.deployment_id = uuid4()
+            mock_deployment.id = uuid4()
             mock_db_sess.scalar.return_value = mock_deployment
 
             result = await deployment_service.get(uuid4(), uuid4(), mock_db_sess)
@@ -199,19 +204,19 @@ class TestGetDeployment:
             user_b = await create_user("get-deploy-user-b")
 
             strategy = Strategy(
-                user_id=user_a.user_id,
+                user_id=user_a.id,
                 name="User A Strategy",
                 description="Test",
             )
             db_sess.add(strategy)
             await db_sess.flush()
 
-            version = StrategyVersion(strategy_id=strategy.strategy_id)
+            version = StrategyVersion(strategy_id=strategy.id)
             db_sess.add(version)
             await db_sess.flush()
 
             broker_connection = BrokerConnections(
-                user_id=user_b.user_id,
+                user_id=user_b.id,
                 broker=BrokerType.ALPACA,
                 api_key="<api-key>",
                 secret_key="<secret-key>",
@@ -223,19 +228,17 @@ class TestGetDeployment:
             await db_sess.refresh(broker_connection)
 
             deployment = StrategyDeployments(
-                user_id=user_a.user_id,
-                strategy_id=strategy.strategy_id,
+                user_id=user_a.id,
+                strategy_id=strategy.id,
                 version_id=version.id,
-                broker_connection_id=broker_connection.connection_id,
+                broker_connection_id=broker_connection.id,
             )
             db_sess.add(deployment)
             await db_sess.commit()
 
             async with get_db_session() as new_db_sess:
                 with pytest.raises(DeploymentNotFoundException):
-                    await deployment_service.get(
-                        deployment.deployment_id, user_b.user_id, new_db_sess
-                    )
+                    await deployment_service.get(deployment.id, user_b.id, new_db_sess)
 
 
 class TestGetAllDeployments:
@@ -247,7 +250,7 @@ class TestGetAllDeployments:
             mock_db_sess = AsyncMock()
 
             mock_deployment = MagicMock()
-            mock_deployment.deployment_id = uuid4()
+            mock_deployment.id = uuid4()
             mock_deployment.version_id = uuid4()
             mock_deployment.broker_connection_id = uuid4()
             mock_deployment.status = StrategyDeploymentStatus.PENDING
@@ -294,7 +297,7 @@ class TestGetAllDeployments:
             mock_deployments = []
             for _ in range(11):
                 d = MagicMock()
-                d.deployment_id = uuid4()
+                d.id = uuid4()
                 d.version_id = uuid4()
                 d.broker_connection_id = uuid4()
                 d.status = StrategyDeploymentStatus.PENDING
@@ -364,7 +367,7 @@ class TestStopDeployment:
 
             deployment_id = uuid4()
             mock_deployment = MagicMock()
-            mock_deployment.deployment_id = deployment_id
+            mock_deployment.id = deployment_id
             mock_deployment.status = StrategyDeploymentStatus.RUNNING
             mock_db_sess.scalar.return_value = mock_deployment
 
@@ -384,7 +387,7 @@ class TestStopDeployment:
 
             deployment_id = uuid4()
             mock_deployment = MagicMock()
-            mock_deployment.deployment_id = deployment_id
+            mock_deployment.id = deployment_id
             mock_deployment.status = StrategyDeploymentStatus.PENDING
             mock_db_sess.scalar.return_value = mock_deployment
 
@@ -416,13 +419,13 @@ class TestGetOrders:
             mock_db_sess = AsyncMock()
 
             mock_deployment = MagicMock()
-            mock_deployment.deployment_id = uuid4()
+            mock_deployment.id = uuid4()
             mock_db_sess.scalar.return_value = mock_deployment
 
             mock_order = MagicMock()
             mock_order.id = uuid4()
             mock_order.broker_order_id = uuid4()
-            mock_order.deployment_id = mock_deployment.deployment_id
+            mock_order.deployment_id = mock_deployment.id
             mock_order.symbol = "AAPL"
             mock_order.side = "buy"
             mock_order.order_type = "market"

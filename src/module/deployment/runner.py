@@ -56,7 +56,7 @@ class StrategyDeploymentRunner:
                     StrategyVersion,
                     StrategyVersion.id == StrategyDeployments.version_id,
                 )
-                .where(StrategyDeployments.deployment_id == self._deployment_id)
+                .where(StrategyDeployments.id == self._deployment_id)
             )
 
             data: tuple[StrategyDeployments, StrategyVersion] = res.first()

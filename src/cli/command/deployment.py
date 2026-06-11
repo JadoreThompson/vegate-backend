@@ -97,7 +97,6 @@ def listener_run():
     health_server = HealthCheckServer()
 
     async def _run():
-        manager.setup()
         await asyncio.gather(manager.run(), health_server.run_forever())
 
     asyncio.run(_run())

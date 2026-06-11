@@ -12,10 +12,10 @@ from util import get_datetime
 class BrokerConnections(Base):
     __tablename__ = "broker_connections"
 
-    connection_id: Mapped[UUID] = uuid_pk()
+    id: Mapped[UUID] = uuid_pk()
     broker: Mapped[BrokerType] = mapped_column(String, nullable=False)
     user_id: Mapped[UUID] = mapped_column(
-        SaUUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False
+        SaUUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )
     api_key: Mapped[str | None] = mapped_column(String, nullable=True)
     secret_key: Mapped[str | None] = mapped_column(String, nullable=True)

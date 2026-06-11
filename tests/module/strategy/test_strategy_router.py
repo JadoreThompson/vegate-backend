@@ -64,7 +64,7 @@ class TestGetStrategy:
 
         strategy_service.get_strategy = AsyncMock(
             return_value=Strategy(
-                strategy_id=strategy_id,
+                id=strategy_id,
                 name="Test Strategy",
                 description="Test description",
                 created_at=datetime.now(),

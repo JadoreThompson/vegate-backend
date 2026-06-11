@@ -30,9 +30,7 @@ class EmailNotificationChannel(NotificationChannel):
 
     async def _resolve_recipient(self, user_id: UUID) -> str:
         async with get_db_session() as db_sess:
-            email = await db_sess.scalar(
-                select(User.email).where(User.user_id == user_id)
-            )
+            email = await db_sess.scalar(select(User.email).where(User.id == user_id))
 
         if email is None:
             raise NotificationException(f"No user found for user_id '{user_id}'")
