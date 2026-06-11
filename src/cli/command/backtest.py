@@ -8,7 +8,12 @@ from config import BACKTEST_EXECUTOR_NAME, MAX_CONCURRENT_BACKTESTS
 from core.redis import REDIS_CLIENT, REDIS_CLIENT_SYNC
 from module.backtest.event.deserialiser import BacktestEventDeserialiser
 from module.backtest.executor import BacktestExecutorFactory
-from module.backtest.monitor import BacktestMonitor
+from module.backtest.manager import (
+    BacktestManager,
+    BacktestEventHandler,
+    BacktestMonitor,
+    BacktestState,
+)
 from module.backtest.runner import BacktestRunner
 from module.event_bus import OutboxEventPublisher, SyncOutboxEventPublisher
 from module.health.server import HealthCheckServer
@@ -68,18 +73,27 @@ def monitor_run():
     backtest_executor = BacktestExecutorFactory.create(BACKTEST_EXECUTOR_NAME)
     backtest_executor.max_concurrent_backtests = MAX_CONCURRENT_BACKTESTS
 
-    monitor_service = BacktestMonitor(
+    state = BacktestState()
+    event_publisher = OutboxEventPublisher()
+
+    event_handler = BacktestEventHandler(
+        state=state,
         deserialiser=BacktestEventDeserialiser(),
-        redis_client=REDIS_CLIENT,
-        event_publisher=OutboxEventPublisher(),
+        event_publisher=event_publisher,
         backtest_executor=backtest_executor,
         notification_publisher=NotificationPublisher(),
     )
-    monitor_service.setup()
+    monitor = BacktestMonitor(
+        state=state,
+        redis_client=REDIS_CLIENT,
+        event_publisher=event_publisher,
+    )
+    manager = BacktestManager(event_handler=event_handler, monitor=monitor)
 
     health_server = HealthCheckServer()
 
     async def _run():
-        await asyncio.gather(monitor_service.run(), health_server.run_forever())
+        manager.setup()
+        await asyncio.gather(manager.run(), health_server.run_forever())
 
     asyncio.run(_run())

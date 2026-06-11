@@ -6,10 +6,12 @@ import click
 
 from config import DEPLOYMENT_EXECUTOR_NAME, MAX_CONCURRENT_DEPLOYMENTS
 from core.redis import REDIS_CLIENT_SYNC, REDIS_CLIENT
-from module.deployment.manager import DeploymentManager
-from module.deployment.manager.event_handler import DeploymentEventHandler
-from module.deployment.manager.monitor import DeploymentMonitor
-from module.deployment.manager.state import State
+from module.deployment.manager import (
+    DeploymentManager,
+    DeploymentEventHandler,
+    DeploymentMonitor,
+    State,
+)
 from module.deployment.event.deserialiser import DeploymentEventDeserialiser
 from module.deployment.executor import DeploymentExecutorFactory
 from module.deployment.oms import OMSClient
