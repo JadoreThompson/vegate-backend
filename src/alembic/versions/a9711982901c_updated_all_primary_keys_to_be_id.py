@@ -32,13 +32,13 @@ def upgrade() -> None:
     )
     op.drop_constraint(op.f("strategy_user_id_fkey"), "strategy", type_="foreignkey")
     op.drop_constraint(
-        op.f("strategy_versions_user_id_fkey"),
-        "strategy_versions",
+        op.f("strategy_deployments_user_id_fkey"),
+        "strategy_deployments",
         type_="foreignkey",
     )
     op.drop_constraint(
-        op.f("strategy_deployments_user_id_fkey"),
-        "strategy_deployments",
+        op.f("strategy_versions_user_id_fkey"),
+        "strategy_versions",
         type_="foreignkey",
     )
 
@@ -76,6 +76,7 @@ def upgrade() -> None:
         ["id"],
         ondelete="CASCADE",
     )
+    op.drop_column("strategy_versions", "user_id")
 
     # ----- strategy: strategy_id -> id -----
     op.add_column("strategy", sa.Column("id", sa.UUID(), nullable=True))
@@ -204,20 +205,16 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # ----- strategy_versions: restore user_id -----
-    op.add_column("strategy_versions", sa.Column("user_id", sa.UUID(), nullable=True))
-    op.execute("""
-        UPDATE strategy_versions
-        SET user_id = strategy.user_id
-        FROM strategy
-        WHERE strategy_versions.strategy_id = strategy.id
-        """)
-    op.alter_column("strategy_versions", "user_id", nullable=False)
-
     # ----- strategy_deployments: id -> deployment_id -----
+    op.add_column(
+        "strategy_deployments", sa.Column("deployment_id", sa.UUID(), nullable=True)
+    )
+    op.execute("UPDATE strategy_deployments SET deployment_id = id")
+    op.alter_column("strategy_deployments", "deployment_id", nullable=False)
+
     op.drop_constraint(
-        "deployment_events_deployment_id_fkey",
-        "deployment_events",
+        "strategy_deployment_metrics_deployment_id_fkey",
+        "strategy_deployment_metrics",
         type_="foreignkey",
     )
     op.drop_constraint(
@@ -226,23 +223,14 @@ def downgrade() -> None:
         type_="foreignkey",
     )
     op.drop_constraint(
-        "strategy_deployment_metrics_deployment_id_fkey",
-        "strategy_deployment_metrics",
-        type_="foreignkey",
+        "deployment_events_deployment_id_fkey", "deployment_events", type_="foreignkey"
     )
-    op.add_column(
-        "strategy_deployments",
-        sa.Column("deployment_id", sa.UUID(), nullable=True),
-    )
-    op.execute("UPDATE strategy_deployments SET deployment_id = id")
-    op.alter_column("strategy_deployments", "deployment_id", nullable=False)
-    op.drop_constraint(
-        "strategy_deployments_pkey", "strategy_deployments", type_="primary"
-    )
+
     op.drop_column("strategy_deployments", "id")
     op.create_primary_key(
         "strategy_deployments_pkey", "strategy_deployments", ["deployment_id"]
     )
+
     op.create_foreign_key(
         "strategy_deployment_metrics_deployment_id_fkey",
         "strategy_deployment_metrics",
@@ -269,22 +257,23 @@ def downgrade() -> None:
     )
 
     # ----- broker_connections: id -> connection_id -----
+    op.add_column(
+        "broker_connections", sa.Column("connection_id", sa.UUID(), nullable=True)
+    )
+    op.execute("UPDATE broker_connections SET connection_id = id")
+    op.alter_column("broker_connections", "connection_id", nullable=False)
+
     op.drop_constraint(
         "strategy_deployments_broker_connection_id_fkey",
         "strategy_deployments",
         type_="foreignkey",
     )
-    op.add_column(
-        "broker_connections",
-        sa.Column("connection_id", sa.UUID(), nullable=True),
-    )
-    op.execute("UPDATE broker_connections SET connection_id = id")
-    op.alter_column("broker_connections", "connection_id", nullable=False)
-    op.drop_constraint("broker_connections_pkey", "broker_connections", type_="primary")
+
     op.drop_column("broker_connections", "id")
     op.create_primary_key(
         "broker_connections_pkey", "broker_connections", ["connection_id"]
     )
+
     op.create_foreign_key(
         "strategy_deployments_broker_connection_id_fkey",
         "strategy_deployments",
@@ -303,10 +292,12 @@ def downgrade() -> None:
     op.create_primary_key("ohlcs_pkey", "ohlcs", ["ohlc_id"])
 
     # ----- strategy: id -> strategy_id -----
+    op.add_column("strategy", sa.Column("strategy_id", sa.UUID(), nullable=True))
+    op.execute("UPDATE strategy SET strategy_id = id")
+    op.alter_column("strategy", "strategy_id", nullable=False)
+
     op.drop_constraint(
-        op.f("strategy_versions_strategy_id_fkey"),
-        "strategy_versions",
-        type_="foreignkey",
+        op.f("backtests_strategy_id_fkey"), "backtests", type_="foreignkey"
     )
     op.drop_constraint(
         op.f("strategy_deployments_strategy_id_fkey"),
@@ -314,16 +305,14 @@ def downgrade() -> None:
         type_="foreignkey",
     )
     op.drop_constraint(
-        op.f("backtests_strategy_id_fkey"),
-        "backtests",
+        op.f("strategy_versions_strategy_id_fkey"),
+        "strategy_versions",
         type_="foreignkey",
     )
-    op.add_column("strategy", sa.Column("strategy_id", sa.UUID(), nullable=True))
-    op.execute("UPDATE strategy SET strategy_id = id")
-    op.alter_column("strategy", "strategy_id", nullable=False)
-    op.drop_constraint("strategy_pkey", "strategy", type_="primary")
+
     op.drop_column("strategy", "id")
     op.create_primary_key("strategy_pkey", "strategy", ["strategy_id"])
+
     op.create_foreign_key(
         op.f("backtests_strategy_id_fkey"),
         "backtests",
@@ -350,32 +339,28 @@ def downgrade() -> None:
     )
 
     # ----- users: id -> user_id -----
-    op.drop_constraint(
-        op.f("strategy_deployments_user_id_fkey"),
-        "strategy_deployments",
-        type_="foreignkey",
-    )
-    op.drop_constraint(
-        op.f("strategy_user_id_fkey"),
-        "strategy",
-        type_="foreignkey",
-    )
-    op.drop_constraint(
-        op.f("broker_connections_user_id_fkey"),
-        "broker_connections",
-        type_="foreignkey",
-    )
-    op.drop_constraint(
-        op.f("backtests_user_id_fkey"),
-        "backtests",
-        type_="foreignkey",
-    )
     op.add_column("users", sa.Column("user_id", sa.UUID(), nullable=True))
     op.execute("UPDATE users SET user_id = id")
     op.alter_column("users", "user_id", nullable=False)
-    op.drop_constraint("users_pkey", "users", type_="primary")
+
+    op.drop_constraint(op.f("backtests_user_id_fkey"), "backtests", type_="foreignkey")
+    op.drop_constraint(
+        op.f("broker_connections_user_id_fkey"),
+        "broker_connections",
+        type_="foreignkey",
+    )
+    op.drop_constraint(op.f("strategy_user_id_fkey"), "strategy", type_="foreignkey")
+    op.drop_constraint(
+        op.f("strategy_deployments_user_id_fkey"),
+        "strategy_deployments",
+        type_="foreignkey",
+    )
+
     op.drop_column("users", "id")
     op.create_primary_key("users_pkey", "users", ["user_id"])
+
+    op.add_column("strategy_versions", sa.Column("user_id", sa.UUID(), nullable=True))
+
     op.create_foreign_key(
         op.f("backtests_user_id_fkey"),
         "backtests",
@@ -402,14 +387,6 @@ def downgrade() -> None:
     op.create_foreign_key(
         op.f("strategy_deployments_user_id_fkey"),
         "strategy_deployments",
-        "users",
-        ["user_id"],
-        ["user_id"],
-        ondelete="CASCADE",
-    )
-    op.create_foreign_key(
-        op.f("strategy_versions_user_id_fkey"),
-        "strategy_versions",
         "users",
         ["user_id"],
         ["user_id"],

@@ -16,7 +16,6 @@ class CreateSessionResponse(BaseModel):
 
 class PlaceOrderRequest(CustomBaseModel):
     order: OrderRequest
-    candle_ts: int
 
 
 class ModifyOrderRequest(BaseModel):
