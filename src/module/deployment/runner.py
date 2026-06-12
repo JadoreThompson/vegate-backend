@@ -21,7 +21,8 @@ from vegate.markets.feed.client import OHLCFeedClient
 from vegate.strategy.base import BaseStrategy
 from .event import DeploymentStatusChangedEvent
 from .model import StrategyDeployments
-from .oms import OMSClient
+# from .oms import OMSClient
+from vegate.oms.client import OMSClient
 
 db_retry = Retry(exceptions=[OperationalError])
 

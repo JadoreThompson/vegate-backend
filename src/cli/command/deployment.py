@@ -14,12 +14,12 @@ from module.deployment.manager import (
 )
 from module.deployment.event.deserialiser import DeploymentEventDeserialiser
 from module.deployment.executor import DeploymentExecutorFactory
-from module.deployment.oms import OMSClient
 from module.deployment.runner import StrategyDeploymentRunner
 from module.event_bus import OutboxEventPublisher, SyncOutboxEventPublisher
 from module.health.server import HealthCheckServer
 from module.notification.publisher import NotificationPublisher
 from vegate.markets.feed.client import OHLCFeedClient
+from vegate.oms.client import OMSClient
 
 logger = logging.getLogger("commands.deployment")
 

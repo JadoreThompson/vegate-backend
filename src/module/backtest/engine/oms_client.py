@@ -3,7 +3,8 @@ import uuid
 from collections import defaultdict
 
 from module.broker.client import BrokerClientException
-from module.deployment.oms import OMSClient
+# from module.deployment.oms import OMSClient
+from vegate.oms.client import OMSClient
 from vegate.markets.schema import OHLC as OHLCSchema
 from vegate.oms.enums import OrderSide, OrderStatus, OrderType
 from vegate.oms.schema import Order, OrderRequest

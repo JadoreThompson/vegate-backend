@@ -13,7 +13,8 @@ from vegate.markets.feed.client import OHLCFeedClient
 from .base import DeploymentExecutor
 from ..exception import DeploymentNotFoundException, DeploymentAlreadyRunningException
 from ..runner import StrategyDeploymentRunner
-from ..oms import OMSClient
+# from ..oms import OMSClient
+from vegate.oms.client import OMSClient
 
 
 def _run_strategy_deployment(deployment_id: UUID):
