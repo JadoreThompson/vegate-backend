@@ -25,6 +25,7 @@ class OHLCFeedClient:
         reconnect: bool = True,
         reconnect_delay: float = 2.0,
         reconnect_attempts: int = 0,
+        heartbeat_interval: int = 5,
     ) -> None:
         self._host = host
         self._port = port
@@ -33,7 +34,7 @@ class OHLCFeedClient:
         self._reconnect_delay = reconnect_delay
         self._reconnect_attempts = reconnect_attempts
 
-        self._heartbeat_interval = 15.0
+        self._heartbeat_interval = heartbeat_interval
 
         self._socket: socket.socket | None = None
         self._reader = None
@@ -104,8 +105,6 @@ class OHLCFeedClient:
         while True:
             try:
                 yield from self._read_loop()
-                break
-
             except (
                 ConnectionResetError,
                 BrokenPipeError,
@@ -123,7 +122,7 @@ class OHLCFeedClient:
             if not self._reconnect:
                 break
 
-            if self._reconnect_attempts and attempts >= self._reconnect_attempts:
+            if attempts >= self._reconnect_attempts:
                 self._logger.error("Exhausted reconnection attempts")
                 break
 

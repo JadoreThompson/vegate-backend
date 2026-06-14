@@ -71,7 +71,7 @@ def client_limited_reconnect():
         host="127.0.0.1",
         port=9000,
         reconnect=True,
-        reconnect_attempts=3,
+        reconnect_attempts=1,
         reconnect_delay=0.1,
     )
 
