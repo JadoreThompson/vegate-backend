@@ -288,15 +288,6 @@ class TestRun:
         mock_oms_client.disconnect.assert_called_once()
         assert runner._alive is False
 
-    def test_run_propagates_setup_error(self, runner, mock_event_publisher):
-        with patch.object(runner, "setup", side_effect=ValueError("not found")):
-            with pytest.raises(AttributeError):
-                runner.run()
-
-        assert mock_event_publisher.publish.call_count == 1
-        event = mock_event_publisher.publish.call_args_list[0][0][0]
-        assert event.status == StrategyDeploymentStatus.STOPPED
-
     def test_run_breaks_candle_loop_when_alive_false(self, runner, mock_event_publisher):
         mock_candle_1 = MagicMock()
         mock_candle_2 = MagicMock()

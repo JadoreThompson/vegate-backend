@@ -2,7 +2,6 @@ import aiokafka
 import kafka
 
 from config import KAFKA_BOOTSTRAP_SERVERS
-from .ext.retry import KafkaRetryClient
 
 
 class KafkaProducer(kafka.KafkaProducer):
@@ -12,9 +11,9 @@ class KafkaProducer(kafka.KafkaProducer):
         super().__init__(**configs)
 
     @classmethod
-    def create(cls, retry: bool = True, **configs):
+    def create(cls, **configs):
         client = cls(**configs)
-        return KafkaRetryClient(client) if retry else client
+        return client
 
 
 class KafkaConsumer(kafka.KafkaConsumer):
@@ -24,9 +23,9 @@ class KafkaConsumer(kafka.KafkaConsumer):
         super().__init__(*topics, **configs)
 
     @classmethod
-    def create(cls, *topics, retry: bool = True, **configs):
+    def create(cls, *topics, **configs):
         client = cls(*topics, **configs)
-        return KafkaRetryClient(client) if retry else client
+        return client
 
 
 class AsyncKafkaProducer(aiokafka.AIOKafkaProducer):
@@ -36,9 +35,9 @@ class AsyncKafkaProducer(aiokafka.AIOKafkaProducer):
         super().__init__(*args, **kw)
 
     @classmethod
-    def create(cls, *args, retry: bool = True, **kw):
+    def create(cls, *args, **kw):
         client = cls(*args, **kw)
-        return KafkaRetryClient(client) if retry else client
+        return client
 
 
 class AsyncKafkaConsumer(aiokafka.AIOKafkaConsumer):
@@ -48,6 +47,6 @@ class AsyncKafkaConsumer(aiokafka.AIOKafkaConsumer):
         super().__init__(*args, **kw)
 
     @classmethod
-    def create(cls, *args, retry: bool = True, **kw):
+    def create(cls, *args, **kw):
         client = cls(*args, **kw)
-        return KafkaRetryClient(client) if retry else client
+        return client
