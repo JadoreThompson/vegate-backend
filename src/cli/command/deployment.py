@@ -50,7 +50,7 @@ def deployment_run(
     ohlc_feed_client = OHLCFeedClient(
         host=ohlc_feed_host,
         port=ohlc_feed_port,
-        reconnect_attempts=5,
+        reconnect_attempts=10,
         reconnect_delay=10,
     )
     oms_client = OMSClient(base_url=oms_base_url)
@@ -73,7 +73,8 @@ def listener():
 
 
 @listener.command(name="run")
-def listener_run():
+@click.option("--health-port", type=int, default=5555, help="Health check server port")
+def listener_run(health_port):
     deployment_executor = DeploymentExecutorFactory.create(DEPLOYMENT_EXECUTOR_NAME)
     deployment_executor.max_concurrent_deployments = MAX_CONCURRENT_DEPLOYMENTS
 
@@ -94,7 +95,7 @@ def listener_run():
     )
     manager = DeploymentManager(event_handler=event_handler, monitor=monitor)
 
-    health_server = HealthCheckServer()
+    health_server = HealthCheckServer(port=health_port)
 
     async def _run():
         await asyncio.gather(manager.run(), health_server.run_forever())

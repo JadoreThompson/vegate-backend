@@ -1,0 +1,18 @@
+services:
+  postgres:
+    networks:
+      - vegate_network
+
+  redis:
+    networks:
+      - vegate_network
+
+  kafka:
+    networks:
+      - vegate_network
+
+networks:
+  vegate_network:
+    driver: overlay
+    attachable: true
+    external: true

@@ -79,7 +79,7 @@ def loader():
     help="Alpaca secret key (or set ALPACA_SECRET_KEY env var)",
 )
 @click.option("--verbose", is_flag=True, help="Enable verbose output")
-def run(
+def loader_run(
     broker,
     symbol,
     market_type,
@@ -155,7 +155,8 @@ async def _wrapper(coro):
 @feed.command(name="run")
 @click.option("--host", type=str, required=True, help="Server host")
 @click.option("--port", type=int, required=True, help="Server port")
-def run(host, port):
+@click.option("--health-port", type=int, default=5555, help="Health check server port")
+def feed_run(host, port, health_port):
     async def _run():
         feeds: list[OHLCFeed] = []
         for item in CONFIG_YAML["ohlc_feed"]:
@@ -191,7 +192,7 @@ def run(host, port):
 
         feed_manager = FeedManager()
         server = OHLCFeedServer(feed_manager, host, port)
-        health_server = HealthCheckServer(host=host)
+        health_server = HealthCheckServer(host=host, port=health_port)
 
         try:
             await server.init(feeds)

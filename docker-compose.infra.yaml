@@ -1,46 +1,25 @@
 services:
   postgres:
     image: postgres:18
-    container_name: vegate_postgres
+    container_name: vegate_postgres_${MODE}
     restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
-    ports:
-      - ${DB_PORT}:5432
-    volumes:
-      - vegate_postgres:/var/lib/postgresql
-
-  postgres_test:
-    image: postgres:18
-    container_name: vegate_postgres_test
-    restart: unless-stopped
-    environment:
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
-    ports:
-      - ${DB_PORT}:5432
 
   redis:
     image: redis:7
-    container_name: vegate_redis
+    container_name: vegate_redis_${MODE}
     restart: unless-stopped
-    ports:
-      - ${REDIS_PORT}:6379
-    volumes:
-      - vegate_redis:/data
     command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
 
   kafka:
     image: apache/kafka:4.0.1
-    hostname: broker
-    container_name: vegate_kafka
-    ports:
-      - 9092:9092
+    container_name: vegate_kafka_${MODE}
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:${KAFKA_PORT}
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
@@ -51,9 +30,6 @@ services:
       KAFKA_LISTENERS: PLAINTEXT://broker:29092,CONTROLLER://broker:29093,PLAINTEXT_HOST://0.0.0.0:9092
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
-
-volumes:
-  vegate_postgres:
-  vegate_redis:
+    hostname: broker

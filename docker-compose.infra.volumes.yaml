@@ -1,0 +1,15 @@
+services:
+  postgres:
+    volumes:
+      - vegate_postgres:/var/lib/postgresql
+  redis:
+    volumes:
+      - vegate_redis:/data
+  kafka:
+    volumes:
+      - vegate_kafka:/tmp/kraft-combined-logs
+
+volumes:
+  vegate_postgres:
+  vegate_redis:
+  vegate_kafka:

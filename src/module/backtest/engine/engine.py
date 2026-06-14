@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 
+from module.broker.client.exception import BrokerClientException
 from vegate.markets.schema import OHLC
 from vegate.oms.enums import OrderSide, OrderStatus, OrderType
 from vegate.oms.schema import Order
@@ -8,8 +9,6 @@ from vegate.strategy.base import BaseStrategy
 from .schema import EquityCurvePoint, BacktestMetrics
 from .oms_client import BacktestOMSClient
 from .ohlc_feed_client import BacktestOHLCFeedClient
-
-logger = logging.getLogger(__name__)
 
 
 class BacktestEngine:
@@ -31,20 +30,22 @@ class BacktestEngine:
         self._equity_curve: list[EquityCurvePoint] = []
         self._balance_curve: list[EquityCurvePoint] = []
 
+        self._logger = logging.getLogger(__name__)
+
     def run(self) -> BacktestMetrics:
         """Run the backtest by streaming candles from database.
 
         Returns:
             BacktestMetrics object with results
         """
-        logger.info(f"Starting backtest from {self._start_date} to {self._end_date}")
-        logger.info(f"Starting balance: ${self._broker_client.get_balance():,.2f}")
+        self._logger.info(f"Starting backtest from {self._start_date} to {self._end_date}")
+        self._logger.info(f"Starting balance: ${self._broker_client.get_balance():,.2f}")
         self._strategy.oms_client.ohlc_feed_client = self._strategy.ohlc_feed_client
 
         self._strategy.startup()
         self._process_candles()
 
-        logger.info("Backtest completed")
+        self._logger.info("Backtest completed")
         metrics = self._calculate_metrics()
         self._strategy.shutdown()
         return metrics
@@ -65,7 +66,10 @@ class BacktestEngine:
                 )
 
             candle_count += 1
-            self._strategy.on_candle(candle)
+            try:
+                self._strategy.on_candle(candle)
+            except BrokerClientException as e:
+                self._logger.error(e)
 
             self._equity_curve.append(
                 EquityCurvePoint(
@@ -77,7 +81,7 @@ class BacktestEngine:
 
             if candle_count - last_log_count >= log_interval:
                 orders_placed = len(self._broker_client.get_orders())
-                logger.info(
+                self._logger.info(
                     f"Progress: {candle_count} candles processed | "
                     f"Timestamp: {candle.timestamp} | "
                     f"Balance: ${self._broker_client.get_balance():,.2f} | "
@@ -86,7 +90,7 @@ class BacktestEngine:
                 )
                 last_log_count = candle_count
 
-        logger.info(
+        self._logger.info(
             f"Candle processing complete: {candle_count} total candles processed"
         )
 
@@ -235,7 +239,7 @@ class BacktestEngine:
                 price = order.stop_price
 
             if price is None:
-                logger.warning(f"Order {order.id} has no resolvable price, skipping")
+                self._logger.warning(f"Order {order.id} has no resolvable price, skipping")
                 continue
 
             qty = order.filled_quantity

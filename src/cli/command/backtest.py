@@ -69,7 +69,8 @@ def monitor():
 
 
 @monitor.command(name="run")
-def monitor_run():
+@click.option("--health-port", type=int, default=5555, help="Health check server port")
+def monitor_run(health_port):
     backtest_executor = BacktestExecutorFactory.create(BACKTEST_EXECUTOR_NAME)
     backtest_executor.max_concurrent_backtests = MAX_CONCURRENT_BACKTESTS
 
@@ -90,7 +91,7 @@ def monitor_run():
     )
     manager = BacktestManager(event_handler=event_handler, monitor=monitor)
 
-    health_server = HealthCheckServer()
+    health_server = HealthCheckServer(port=health_port)
 
     async def _run():
         manager.setup()
