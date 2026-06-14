@@ -64,6 +64,7 @@ class BacktestEventHandler:
 
             async for record in self._kafka_consumer:
                 event = self._deserialiser.deserialise_json(record.value)
+                self._logger.info(f"Handling event: {event}")
 
                 async with get_db_session() as db_sess:
                     backtest = await self._persist(event, db_sess)
@@ -121,15 +122,21 @@ class BacktestEventHandler:
         event: BacktestStatusChangedEvent,
         backtest: Backtest,
     ) -> None:
-        backtest.status = event.status
-
         if event.status == BacktestStatus.IN_PROGRESS:
+            if backtest.status == BacktestStatus.COMPLETED:
+                self._logger.info(f"Backtest is already completed. Aborting...")
+                return
+            
+            backtest.status = event.status
             await self._state.promote_to_running(event.backtest_id)
             self._logger.info(f"Backtest '{event.backtest_id}' is now running")
 
         elif event.status in {BacktestStatus.FAILED, BacktestStatus.COMPLETED}:
+            backtest.status = event.status
             await self._state.discard(event.backtest_id)
             self._logger.info(f"Removing backtest '{event.backtest_id}' from monitor")
+        else:
+            backtest.status = event.status
 
     async def _handle_backtest_requested(
         self,
