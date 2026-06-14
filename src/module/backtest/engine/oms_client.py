@@ -3,9 +3,8 @@ import uuid
 from collections import defaultdict
 
 from module.broker.client import BrokerClientException
-# from module.deployment.oms import OMSClient
-from vegate.oms.client import OMSClient
 from vegate.markets.schema import OHLC as OHLCSchema
+from vegate.oms.client import OMSClient
 from vegate.oms.enums import OrderSide, OrderStatus, OrderType
 from vegate.oms.schema import Order, OrderRequest
 from .ohlc_feed_client import BacktestOHLCFeedClient
@@ -39,7 +38,7 @@ class BacktestOMSClient(OMSClient):
     def get_position(self, symbol: str):
         return self._asset_holdings.get(symbol, 0.0)
 
-    def place_order(self, request: OrderRequest, candle_ts: int) -> Order:
+    def place_order(self, request: OrderRequest) -> Order:
         """Place an order.
 
         Args:

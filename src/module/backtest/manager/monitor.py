@@ -47,12 +47,10 @@ class BacktestMonitor:
         with get_db_sess_sync() as db_sess:
             res = db_sess.execute(
                 select(Backtest.id, Backtest.status).where(
-                    Backtest.status.in_(
-                        (
-                            Backtest.status == BacktestStatus.IN_PROGRESS,
-                            Backtest.status == BacktestStatus.SUSPICIOUS,
-                            Backtest.status == BacktestStatus.PENDING,
-                        )
+                    or_(
+                        Backtest.status == BacktestStatus.IN_PROGRESS,
+                        Backtest.status == BacktestStatus.SUSPICIOUS,
+                        Backtest.status == BacktestStatus.PENDING,
                     )
                 )
             )

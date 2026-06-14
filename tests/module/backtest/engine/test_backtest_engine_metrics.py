@@ -87,8 +87,7 @@ class SimpleStrategy(BaseStrategy):
                     order_type=OrderType.MARKET,
                     side=OrderSide.BUY,
                     quantity=self._quantity,
-                ),
-                candle.timestamp,
+                )
             )
         else:
             self.oms_client.place_order(
@@ -97,8 +96,7 @@ class SimpleStrategy(BaseStrategy):
                     order_type=OrderType.MARKET,
                     side=OrderSide.SELL,
                     quantity=self._quantity,
-                ),
-                candle.timestamp,
+                )
             )
             self._order = None
 
