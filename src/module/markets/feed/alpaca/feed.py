@@ -116,8 +116,6 @@ class AlpacaOHLCFeed(OHLCFeed):
                 bar = data[0]
                 candle = self._parse_candle(bar)
 
-                await self._persist_candle(candle)
-
                 if self._on_candle is not None:
                     res = self._on_candle(candle)
                     if asyncio.iscoroutine(res):
