@@ -48,9 +48,11 @@ def mock_writer():
     return writer
 
 
-@pytest.fixture
-def socket_conn(mock_writer):
-    return SocketConnection(writer=mock_writer)
+@pytest_asyncio.fixture(loop_scope="session")
+async def socket_conn(mock_writer):
+    conn = SocketConnection(writer=mock_writer)
+    conn.start_sender()
+    return conn
 
 
 @pytest.fixture
@@ -141,14 +143,13 @@ class TestHeartbeatAck:
 class TestSocketConnectionSendNowait:
     """Unit tests for SocketConnection.send_nowait."""
 
-    def test_send_nowait_writes_data(self, socket_conn, mock_writer):
-        data = b"hello\\n"
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_send_nowait_writes_data(self, socket_conn, mock_writer):
+        data = b"hello\n"
         socket_conn.send_nowait(data)
+        await asyncio.sleep(0)
         mock_writer.write.assert_called_once_with(data)
-
-    def test_send_nowait_does_not_drain(self, socket_conn, mock_writer):
-        socket_conn.send_nowait(b"test")
-        mock_writer.drain.assert_not_called()
+        mock_writer.drain.assert_awaited_once()
 
 
 class TestSocketConnectionSend:
@@ -156,8 +157,10 @@ class TestSocketConnectionSend:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_send_writes_and_drains(self, socket_conn, mock_writer):
-        data = b"hello\\n"
+        data = b"hello\n"
         await socket_conn.send(data)
+        await asyncio.sleep(0)
+
         mock_writer.write.assert_called_once_with(data)
         mock_writer.drain.assert_awaited_once()
 
@@ -195,7 +198,6 @@ class TestOHLCFeedServerStop:
         mock_server.close.assert_called_once()
         mock_server.wait_closed.assert_awaited_once()
 
-
 class TestOHLCFeedServerHandleCandle:
     """Unit tests for OHLCFeedServer.handle_candle (broadcast)."""
 
@@ -206,12 +208,13 @@ class TestOHLCFeedServerHandleCandle:
             Timeframe.m1
         ].add(socket_conn)
 
-        with patch.object(socket_conn, "send", AsyncMock()) as mock_send:
+        with patch.object(socket_conn, "send_nowait", return_value=True) as mock_send:
             await server.handle_candle(candle)
-            mock_send.assert_awaited_once()
+
+            mock_send.assert_called_once()
 
             # Verify payload is OHLCModel payload
-            args = mock_send.await_args
+            args = mock_send.call_args
             assert isinstance(args.args[0], bytes)
 
             data = json.loads(args.args[0].decode().strip())
@@ -222,23 +225,17 @@ class TestOHLCFeedServerHandleCandle:
     async def test_handle_candle_multiple_connections(
         self, server, socket_conn, mock_writer
     ):
-        conn2 = SocketConnection(
-            writer=mock_writer,
-            # symbol="AAPL",
-            # market_type=MarketType.STOCKS,
-            # broker_type=BrokerType.ALPACA,
-            # timeframe=Timeframe.m1,
-        )
+        conn2 = SocketConnection(writer=mock_writer)
         candle = make_ohlc_model()
         server._live_conns["AAPL"][MarketType.STOCKS][BrokerType.ALPACA][
             Timeframe.m1
         ].update([socket_conn, conn2])
 
-        with patch.object(socket_conn, "send", AsyncMock()) as mock_send1:
-            with patch.object(conn2, "send", AsyncMock()) as mock_send2:
+        with patch.object(socket_conn, "send_nowait", return_value=True) as mock_send1:
+            with patch.object(conn2, "send_nowait", return_value=True) as mock_send2:
                 await server.handle_candle(candle)
-                mock_send1.assert_awaited_once()
-                mock_send2.assert_awaited_once()
+                mock_send1.assert_called_once()
+                mock_send2.assert_called_once()
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_handle_candle_drops_dead_connections(self, server, socket_conn):
@@ -247,27 +244,7 @@ class TestOHLCFeedServerHandleCandle:
             Timeframe.m1
         ].add(socket_conn)
 
-        with patch.object(
-            socket_conn, "send", AsyncMock(side_effect=ConnectionResetError())
-        ):
-            await server.handle_candle(candle)
-
-        # Dead connection should be removed
-        conns = server._live_conns["AAPL"][MarketType.STOCKS][BrokerType.ALPACA][
-            Timeframe.m1
-        ]
-        assert socket_conn not in conns
-
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_handle_candle_drops_broken_pipe(self, server, socket_conn):
-        candle = make_ohlc_model()
-        server._live_conns["AAPL"][MarketType.STOCKS][BrokerType.ALPACA][
-            Timeframe.m1
-        ].add(socket_conn)
-
-        with patch.object(
-            socket_conn, "send", AsyncMock(side_effect=BrokenPipeError())
-        ):
+        with patch.object(socket_conn, "send_nowait", return_value=False):
             await server.handle_candle(candle)
 
         conns = server._live_conns["AAPL"][MarketType.STOCKS][BrokerType.ALPACA][
@@ -276,21 +253,19 @@ class TestOHLCFeedServerHandleCandle:
         assert socket_conn not in conns
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_handle_candle_drops_cancelled(self, server, socket_conn):
+    async def test_handle_candle_preserves_alive_connections(self, server, socket_conn):
         candle = make_ohlc_model()
         server._live_conns["AAPL"][MarketType.STOCKS][BrokerType.ALPACA][
             Timeframe.m1
         ].add(socket_conn)
 
-        with patch.object(
-            socket_conn, "send", AsyncMock(side_effect=asyncio.CancelledError())
-        ):
+        with patch.object(socket_conn, "send_nowait", return_value=True):
             await server.handle_candle(candle)
 
         conns = server._live_conns["AAPL"][MarketType.STOCKS][BrokerType.ALPACA][
             Timeframe.m1
         ]
-        assert socket_conn not in conns
+        assert socket_conn in conns
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_handle_candle_logs_broadcast(self, server, socket_conn, caplog):
@@ -302,7 +277,7 @@ class TestOHLCFeedServerHandleCandle:
         ].add(socket_conn)
 
         with caplog.at_level(logging.INFO):
-            with patch.object(socket_conn, "send", AsyncMock()):
+            with patch.object(socket_conn, "send_nowait", return_value=True):
                 await server.handle_candle(candle)
 
         assert "Broadcasting candle" in caplog.text
@@ -343,6 +318,8 @@ class TestOHLCFeedServerHandleClient:
         writer.wait_closed = AsyncMock()
 
         await server._handle_client(reader, writer)
+
+        await asyncio.sleep(1)
 
         # Should have written heartbeat_ack
         calls = writer.write.call_args_list
@@ -889,16 +866,20 @@ class TestIntegration:
         writer1.get_extra_info = MagicMock(return_value=("10.0.0.1", 11111))
         writer1.write = MagicMock()
         writer1.drain = AsyncMock()
+        writer1.close = MagicMock()
+        writer1.wait_closed = AsyncMock()
 
         writer2 = MagicMock(spec=asyncio.StreamWriter)
         writer2.get_extra_info = MagicMock(return_value=("10.0.0.2", 22222))
         writer2.write = MagicMock()
         writer2.drain = AsyncMock()
+        writer2.close = MagicMock()
+        writer2.wait_closed = AsyncMock()
 
         conn1 = SocketConnection(writer=writer1)
-        conn1.send = AsyncMock()
+        conn1.start_sender()
         conn2 = SocketConnection(writer=writer2)
-        conn2.send = AsyncMock()
+        conn2.start_sender()
 
         server._register_live(
             "AAPL", MarketType.STOCKS, BrokerType.ALPACA, Timeframe.m1, conn1
@@ -910,11 +891,16 @@ class TestIntegration:
         candle = make_ohlc_model(open=300.0, close=305.0)
         await server.handle_candle(candle)
 
+        await asyncio.sleep(0)
+
         # Both writers should have received data
-        conn1.send.assert_awaited_once()
-        conn2.send.assert_awaited_once()
+        writer1.write.assert_called_once()
+        writer2.write.assert_called_once()
 
         # Verify payload
-        data1 = json.loads(conn1.send.call_args.args[0].decode().strip())
+        data1 = json.loads(writer1.write.call_args.args[0].decode().strip())
         assert data1["candle"]["open"] == 300.0
         assert data1["is_live"] is True
+
+        await conn1.close()
+        await conn2.close()

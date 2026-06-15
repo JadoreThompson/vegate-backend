@@ -17,9 +17,19 @@ logger = logging.getLogger(__name__)
 
 
 class SocketConnection:
+    """A socket connection with an internal async queue so that producers
+    can push candle data without blocking, while a background task drains
+    the queue and writes to the transport concurrently."""
+
+    _SEND_QUEUE_MAXSIZE = 1024
 
     def __init__(self, writer: asyncio.StreamWriter):
         self._writer = writer
+        self._queue: asyncio.Queue[bytes | None] = asyncio.Queue(
+            maxsize=self._SEND_QUEUE_MAXSIZE
+        )
+        self._send_task: asyncio.Task | None = None
+        self._dead = False
 
     @property
     def writer(self) -> asyncio.StreamWriter:
@@ -32,21 +42,78 @@ class SocketConnection:
         except Exception:
             return "<unknown>"
 
-    def send_nowait(self, data: bytes) -> None:
+    @property
+    def alive(self) -> bool:
+        return not self._dead
+
+    def start_sender(self) -> None:
+        """Launch the background send-loop task."""
+        if self._send_task is None or self._send_task.done():
+            self._send_task = asyncio.create_task(self._send_loop())
+
+    async def _send_loop(self) -> None:
+        """Continuously pull items from the queue and write to the transport."""
+        try:
+            while True:
+                data = await self._queue.get()
+                if data is None:
+                    self._queue.task_done()
+                    return
+                try:
+                    self._writer.write(data)
+                    await self._writer.drain()
+                except (ConnectionResetError, BrokenPipeError, OSError):
+                    self._dead = True
+                    return
+                finally:
+                    self._queue.task_done()
+        except asyncio.CancelledError:
+            while not self._queue.empty():
+                try:
+                    self._queue.get_nowait()
+                    self._queue.task_done()
+                except asyncio.QueueEmpty:
+                    break
+            raise
+
+    def send_nowait(self, data: bytes) -> bool:
         """
-        Write to the transport without awaiting
-        (safe from sync contexts).
+        Push data to the send queue without awaiting.
+        Returns True on success, False if the queue was full or the
+        connection is no longer alive.
         """
-        self.writer.write(data)
+        if not self.alive:
+            return False
+        try:
+            self._queue.put_nowait(data)
+            return True
+        except asyncio.QueueFull:
+            return False
 
     async def send(self, data: bytes) -> None:
-        self.writer.write(data)
-        await self.writer.drain()
+        """Push data to the send queue, awaiting if the queue is full."""
+        if not self.alive:
+            raise ConnectionResetError("Connection is no longer alive")
+        await self._queue.put(data)
 
     async def close(self) -> None:
+        self._dead = True
+        if self._send_task is not None and not self._send_task.done():
+            try:
+                self._queue.put_nowait(None)
+            except asyncio.QueueFull:
+                self._send_task.cancel()
+            try:
+                await asyncio.wait_for(self._send_task, timeout=5.0)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                self._send_task.cancel()
+                try:
+                    await self._send_task
+                except (asyncio.CancelledError, Exception):
+                    pass
         try:
-            self.writer.close()
-            await self.writer.wait_closed()
+            self._writer.close()
+            await self._writer.wait_closed()
         except Exception:
             pass
 
@@ -111,7 +178,9 @@ class OHLCFeedServer:
     async def handle_candle(self, candle: OHLCSchema) -> None:
         """
         Called by a Feed whenever a new live candle is ready.
-        Fans the candle out to every subscribed connection.
+        Pushes the candle into each subscribed connection's queue so that
+        every connection receives it concurrently via its own background
+        send-loop task.
         """
         self._logger.info("Broadcasting candle: %s", candle)
         payload = self._ohlcmodel_payload(candle)
@@ -122,9 +191,7 @@ class OHLCFeedServer:
 
         dead: list[SocketConnection] = []
         for conn in list(conns):
-            try:
-                await conn.send(payload)
-            except (ConnectionResetError, BrokenPipeError, asyncio.CancelledError):
+            if not conn.send_nowait(payload):
                 dead.append(conn)
 
         for conn in dead:
@@ -140,6 +207,7 @@ class OHLCFeedServer:
         self._logger.info("New connection from %s", addr)
 
         conn = SocketConnection(writer)
+        conn.start_sender()
         instruments: set[tuple[str, MarketType, BrokerType, Timeframe]] = set()
 
         try:
@@ -158,7 +226,6 @@ class OHLCFeedServer:
                 except json.JSONDecodeError as exc:
                     await conn.send(self._err(f"Invalid JSON"))
                     continue
-
                 msg_type = payload.get("type")
 
                 if msg_type == "subscribe":
