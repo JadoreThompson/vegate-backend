@@ -110,11 +110,6 @@ jobs:
             -f docker-compose.infra.volumes.yaml \
             up -d
 
-          # Wait for Postgres to be ready
-          # until docker exec vegate_postgres_prod pg_isready -U postgres; do
-          #   sleep 1
-          # done
-
           for i in $(seq 1 60); do
             if docker exec vegate_postgres_prod pg_isready -U postgres; then
               break
