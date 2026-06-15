@@ -225,7 +225,7 @@ class DeploymentsService:
             .where(StrategyDeploymentOrders.deployment_id == deployment_id)
             .offset((page - 1) * limit)
             .limit(limit)
-            .order_by(StrategyDeploymentOrders.created_at.asc())
+            .order_by(StrategyDeploymentOrders.created_at.desc())
         )
 
         rows = res.all()
