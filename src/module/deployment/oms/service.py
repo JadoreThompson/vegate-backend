@@ -21,7 +21,6 @@ from vegate.oms.enums import BrokerType, OrderStatus
 from vegate.oms.schema import Order
 from .exception import (
     BrokerConnectionDoesNotExistException,
-    DuplicateOrderException,
     InvalidSessionException,
     OrderNotFoundException,
 )
@@ -145,14 +144,6 @@ class OMSService:
             order_id = uuid4()
             order.id = str(order_id)
 
-            await self._event_publisher.publish(
-                DeploymentOrderAcknowledged(
-                    deployment_id=session.deployment_id,
-                    order=order,
-                    broker_order_id=broker_order_id,
-                ),
-            )
-
             async with get_db_session() as db_sess:
                 order_id = await db_sess.scalar(
                     insert(StrategyDeploymentOrders)
@@ -173,6 +164,16 @@ class OMSService:
                     )
                     .returning(StrategyDeploymentOrders.id)
                 )
+                
+                await self._event_publisher.publish(
+                    DeploymentOrderAcknowledged(
+                        deployment_id=session.deployment_id,
+                        order=order,
+                        broker_order_id=broker_order_id,
+                    ),
+                    db_sess
+                )
+
                 await db_sess.commit()
             return order
 
