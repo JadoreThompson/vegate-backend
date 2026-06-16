@@ -38,10 +38,10 @@ class TestFormatSymbol:
         assert alpaca_loader._format_symbol("") == ""
 
 
-class TestParseCandle:
-    """Unit tests for parsing individual candles."""
+class TestRawToRecord:
+    """Unit tests for _raw_to_record."""
 
-    def test_parse_candle_success(self, alpaca_loader):
+    def test_raw_to_record_success(self, alpaca_loader):
         instrument_id = uuid4()
         candle = {
             "t": "2024-01-01T10:00:00Z",
@@ -52,7 +52,7 @@ class TestParseCandle:
             "v": 1000,
         }
 
-        result = alpaca_loader._parse_candle(candle, Timeframe.H1, instrument_id)
+        result = alpaca_loader._raw_to_record(candle, Timeframe.H1, instrument_id)
 
         assert result["open"] == 100.0
         assert result["high"] == 105.0
@@ -63,7 +63,7 @@ class TestParseCandle:
         assert result["instrument_id"] == str(instrument_id)
         assert isinstance(result["timestamp"], int)
 
-    def test_parse_candle_with_different_timeframe(self, alpaca_loader):
+    def test_raw_to_record_with_different_timeframe(self, alpaca_loader):
         instrument_id = uuid4()
         candle = {
             "t": "2024-06-15T14:30:00+00:00",
@@ -74,7 +74,7 @@ class TestParseCandle:
             "v": 5000,
         }
 
-        result = alpaca_loader._parse_candle(candle, Timeframe.m5, instrument_id)
+        result = alpaca_loader._raw_to_record(candle, Timeframe.m5, instrument_id)
 
         assert result["timeframe"] == Timeframe.m5
         assert result["timestamp"] == int(
@@ -490,7 +490,7 @@ class TestLoadCandles:
         await alpaca_loader.load_candles(
             symbol="AAPL",
             market_type=MarketType.STOCKS,
-            timeframe=Timeframe.H1,
+            timeframes=[Timeframe.H1],
             start_date=datetime(2024, 1, 1),
             end_date=datetime(2024, 1, 2),
         )
@@ -538,7 +538,7 @@ class TestLoadCandles:
         await alpaca_loader.load_candles(
             symbol="AAPL",
             market_type=MarketType.STOCKS,
-            timeframe=Timeframe.H1,
+            timeframes=[Timeframe.H1],
             start_date=datetime(2024, 1, 1),
             end_date=datetime(2024, 1, 2),
         )

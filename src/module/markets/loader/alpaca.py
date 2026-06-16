@@ -9,8 +9,11 @@ from sqlalchemy import delete, func, insert, select
 
 from core.db import get_db_session
 from vegate.markets.enums import MarketType, Timeframe
+from vegate.markets.schema import OHLC as OHLCSchema
 from vegate.oms.enums import BrokerType
 from .base import OHLCLoader
+from .schema import OHLCLoadResult
+from ..aggregator import CandleAggregator
 from ..model import Instrument, OHLC
 
 
@@ -38,34 +41,96 @@ class AlpacaOHLCLoader(OHLCLoader):
         self,
         symbol: str,
         market_type: MarketType,
+        timeframes: list[Timeframe],
+        start_date: datetime,
+        end_date: datetime,
+    ) -> OHLCLoadResult:
+        instrument_id = await self._get_or_create_instrument_id(symbol, market_type)
+
+        if len(timeframes) == 1:
+            return await self._load_single(
+                symbol, market_type, timeframes[0],
+                start_date, end_date, instrument_id,
+            )
+
+        return await self._load_multi(
+            symbol, market_type, timeframes,
+            start_date, end_date, instrument_id,
+        )
+
+    async def _load_single(
+        self,
+        symbol: str,
+        market_type: MarketType,
         timeframe: Timeframe,
         start_date: datetime,
         end_date: datetime,
-    ):
-        instrument_id = await self._get_or_create_instrument_id(symbol, market_type)
+        instrument_id: UUID,
+    ) -> OHLCLoadResult:
         total_count = 0
-
-        async for bars, params in self._fetch_bars(
+        async for bars, _ in self._fetch_bars(
             market_type, symbol, timeframe, start_date, end_date
         ):
             records = self._build_records(bars, timeframe, instrument_id)
-
-            count = await self._persist_records(
-                instrument_id, symbol, timeframe, records
-            )
-
-            batch_start_date = datetime.fromtimestamp(records[0]["timestamp"])
-            batch_end_date = datetime.fromtimestamp(records[-1]["timestamp"])
-
-            self._logger.info(
-                f"Persisted {count} candles for {symbol} between {batch_start_date} and {batch_end_date}"
-            )
-
+            count = await self._persist_records(instrument_id, symbol, timeframe, records)
             total_count += count
 
-        self._logger.info(
-            f"Persisted {total_count} candles for {symbol} between {start_date} and {end_date}"
-        )
+        return OHLCLoadResult(count=total_count, start_date=start_date, end_date=end_date)
+
+    async def _load_multi(
+        self,
+        symbol: str,
+        market_type: MarketType,
+        timeframes: list[Timeframe],
+        start_date: datetime,
+        end_date: datetime,
+        instrument_id: UUID,
+    ) -> OHLCLoadResult:
+        sorted_tfs = sorted(timeframes, key=lambda tf: tf.get_seconds())
+        lowest_tf = sorted_tfs[0]
+        higher_tfs = sorted_tfs[1:]
+
+        aggregators = {tf: CandleAggregator(tf) for tf in higher_tfs}
+        counts: dict[Timeframe, int] = {tf: 0 for tf in timeframes}
+        per_tf_pending: dict[Timeframe, list[dict]] = {tf: [] for tf in timeframes}
+
+        _BATCH = 200
+
+        async for bars, _ in self._fetch_bars(
+            market_type, symbol, lowest_tf, start_date, end_date
+        ):
+            for raw in bars:
+                record = self._raw_to_record(raw, lowest_tf, instrument_id)
+                per_tf_pending[lowest_tf].append(record)
+
+                schema = self._raw_to_schema(raw, lowest_tf, symbol, market_type)
+                for tf, agg in aggregators.items():
+                    completed = agg.add_bar(schema)
+                    if completed is not None:
+                        per_tf_pending[tf].append(
+                            self._schema_to_record(completed, instrument_id)
+                        )
+
+            for tf in timeframes:
+                batch = per_tf_pending[tf]
+                # if len(batch) >= _BATCH:
+                #     counts[tf] += await self._persist_records(
+                #         instrument_id, symbol, tf, batch
+                #     )
+                #     per_tf_pending[tf] = []
+                counts[tf] += await self._persist_records(
+                    instrument_id, symbol, tf, batch
+                )
+                per_tf_pending[tf] = []
+
+        for tf in timeframes:
+            if per_tf_pending[tf]:
+                counts[tf] += await self._persist_records(
+                    instrument_id, symbol, tf, per_tf_pending[tf]
+                )
+
+        total = sum(counts.values())
+        return OHLCLoadResult(count=total, start_date=start_date, end_date=end_date)
 
     async def _get_or_create_instrument_id(
         self, symbol: str, market_type: MarketType
@@ -135,9 +200,8 @@ class AlpacaOHLCLoader(OHLCLoader):
         while True:
             if next_page_token is not None:
                 params["page_token"] = next_page_token
-
+            
             rsp = await session.get(url, params=params)
-
             data: dict = await rsp.json()
 
             if (
@@ -204,17 +268,20 @@ class AlpacaOHLCLoader(OHLCLoader):
                 select(func.count(OHLC.id)).where(
                     OHLC.instrument_id == instrument_id,
                     OHLC.timestamp.between(sdate, edate),
+                    OHLC.timeframe == timeframe
                 )
             )
             row = res.first()
             existing_count = row[0] if row is not None else 0
 
             self._logger.info(
-                "Found %s existing OHLCs for %s from %s to %s",
+                "Found %s existing OHLCs for %s from %s to %s timeframe %s. Fetched %s",
                 existing_count,
                 symbol,
                 fsdate,
                 fedate,
+                timeframe,
+                len(records)
             )
 
             if existing_count == len(records):
@@ -240,7 +307,7 @@ class AlpacaOHLCLoader(OHLCLoader):
             await db_sess.commit()
             return len(records)
 
-    def _parse_candle(
+    def _raw_to_record(
         self, candle: dict[str, Any], timeframe: Timeframe, instrument_id: UUID
     ) -> dict:
         dt = datetime.fromisoformat(candle["t"])
@@ -260,8 +327,43 @@ class AlpacaOHLCLoader(OHLCLoader):
         self, candles: list[dict[str, Any]], timeframe: Timeframe, instrument_id: UUID
     ) -> list[dict]:
         return [
-            self._parse_candle(candle, timeframe, instrument_id) for candle in candles
+            self._raw_to_record(candle, timeframe, instrument_id) for candle in candles
         ]
+
+    def _raw_to_schema(
+        self,
+        raw: dict[str, Any],
+        timeframe: Timeframe,
+        symbol: str,
+        market_type: MarketType,
+    ) -> OHLCSchema:
+        dt = datetime.fromisoformat(raw["t"])
+        return OHLCSchema(
+            open=raw["o"],
+            high=raw["h"],
+            low=raw["l"],
+            close=raw["c"],
+            volume=raw["v"],
+            timestamp=int(dt.timestamp()),
+            timeframe=timeframe,
+            symbol=symbol,
+            broker=BrokerType.ALPACA,
+            market_type=market_type,
+        )
+
+    def _schema_to_record(
+        self, schema: OHLCSchema, instrument_id: UUID
+    ) -> dict:
+        return {
+            "open": schema.open,
+            "high": schema.high,
+            "low": schema.low,
+            "close": schema.close,
+            "volume": schema.volume,
+            "timestamp": schema.timestamp,
+            "timeframe": schema.timeframe,
+            "instrument_id": str(instrument_id),
+        }
 
     def _format_symbol(self, symbol: str) -> str:
         return symbol.replace("/", "")

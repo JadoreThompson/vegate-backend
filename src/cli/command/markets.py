@@ -1,19 +1,21 @@
 import asyncio
 import logging
 import sys
-from datetime import datetime, timedelta
+from datetime import date, timedelta
 
 import click
+import yaml
 
 from cli.param.enum import EnumParam
-from config import ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_API_KEY, CONFIG_YAML
 from vegate.oms.enums import BrokerType
 from module.health.server import HealthCheckServer
 from module.markets.feed.alpaca import AlpacaOHLCFeed
 from module.markets.feed.base import OHLCFeed
 from module.markets.feed.manager import FeedManager
 from module.markets.feed.server import OHLCFeedServer
-from module.markets.loader.alpaca import AlpacaOHLCLoader
+from module.markets.loader import OHLCLoader, AlpacaOHLCLoader, OHLCLoadResult
+from module.markets.loader.poll import OHLCPoller, PollSubscription
+from module.yaml import YamlLoader
 from util import get_datetime
 from vegate.markets.enums import MarketType, Timeframe
 
@@ -32,34 +34,168 @@ def loader():
     pass
 
 
+def handle_poll_loaders(fpath: str, poll_interval: int, health_port: int):
+    if fpath is None:
+        click.echo(
+            "Error: --file must be provided if --poll-interval is specified",
+            err=True,
+        )
+        sys.exit(1)
+
+    with open(fpath, "r") as f:
+        load_config = yaml.load(f, Loader=yaml.SafeLoader)
+
+    yamloader = YamlLoader(fpath)
+    load_config = yamloader.load()
+
+    if not isinstance(load_config, list):
+        click.echo("File must contain a list of load configurations", err=True)
+        sys.exit(1)
+
+    loaders: dict[BrokerType, OHLCLoader] = {}
+    subscriptions: list[PollSubscription] = []
+
+    for item in load_config:
+        broker = BrokerType(item["broker"])
+        api_key = item["api_key"]
+        secret_key = item["secret_key"]
+
+        if broker not in loaders:
+            if broker == BrokerType.ALPACA:
+                loaders[broker] = AlpacaOHLCLoader(
+                    api_key=api_key, secret_key=secret_key
+                )
+            else:
+                click.echo(
+                    f"Error: Unsupported broker: {broker}",
+                    err=True,
+                )
+                sys.exit(1)
+
+        market_type = MarketType(item["market_type"])
+
+        start_date = item["start_date"]
+
+        end_date = (
+            item["end_date"]
+            if item.get("end_date") is not None
+            else None
+        )
+
+        symbol = item["symbol"]
+
+        subscriptions.append(
+            PollSubscription(
+                broker=broker,
+                symbol=symbol,
+                market_type=market_type,
+                timeframes=[Timeframe(tf) for tf in item["timeframes"]],
+                start_date=start_date,
+                end_date=end_date,
+            )
+        )
+
+    poller = OHLCPoller(
+        loaders=loaders,
+        subscriptions=subscriptions,
+        poll_interval=poll_interval,
+    )
+
+    health_server = HealthCheckServer(port=health_port)
+
+    async def run():
+        try:
+            await asyncio.gather(
+                poller.run(),
+                health_server.run_forever(),
+            )
+        finally:
+            await asyncio.gather(
+                health_server.stop(),
+                *[loader.close() for loader in loaders.values()],
+                return_exceptions=True,
+            )
+
+    try:
+        asyncio.run(run())
+    except KeyboardInterrupt:
+        click.echo("Poller stopped")
+        sys.exit(0)
+
+
+def handle_single_load(
+    broker: BrokerType,
+    symbol: str,
+    market_type: MarketType,
+    timeframe: Timeframe,
+    api_key: str,
+    secret_key: str,
+    start_date: date,
+    end_date: date | None = None,
+):
+    if broker == BrokerType.ALPACA:
+        loader = AlpacaOHLCLoader(api_key=api_key, secret_key=secret_key)
+    else:
+        click.echo(f"Error: Unsupported broker: {broker}", err=True)
+        sys.exit(1)
+
+    click.echo(
+        f"Loading {symbol} candles ({timeframe}) "
+        f"from {start_date.date()} to {end_date.date()}"
+    )
+
+    async def run():
+        try:
+            await loader.load_candles(
+                symbol=symbol,
+                market_type=market_type,
+                timeframes=[timeframe],
+                start_date=start_date,
+                end_date=end_date,
+            )
+
+        finally:
+            await loader.close()
+
+    try:
+        asyncio.run(run())
+        click.echo("Data loaded successfully")
+    except KeyboardInterrupt:
+        sys.exit(0)
+    except Exception as e:
+        click.echo(f"Error loading data: {e}", err=True)
+        logger.exception("Loader failed")
+        sys.exit(1)
+
+
 @loader.command(name="run")
 @click.option(
     "--broker",
     type=EnumParam(BrokerType),
-    required=True,
+    required=False,
     help=f"Broker to load data from ({', '.join(BrokerType._value2member_map_.keys())})",
 )
 @click.option(
     "--symbol",
-    required=True,
+    required=False,
     help="Trading symbol (e.g., AAPL)",
 )
 @click.option(
     "--market-type",
     type=EnumParam(MarketType),
-    required=True,
+    required=False,
     help=f"Market type ({', '.join(MarketType._value2member_map_.keys())})",
 )
 @click.option(
     "--timeframe",
     type=EnumParam(Timeframe),
-    required=True,
+    required=False,
     help=f"Candle timeframe ({', '.join(Timeframe._value2member_map_.keys())})",
 )
 @click.option(
     "--start-date",
     type=click.DateTime(formats=["%Y-%m-%d"]),
-    required=True,
+    required=False,
     help="Start date (YYYY-MM-DD)",
 )
 @click.option(
@@ -78,6 +214,19 @@ def loader():
     envvar="ALPACA_SECRET_KEY",
     help="Alpaca secret key (or set ALPACA_SECRET_KEY env var)",
 )
+@click.option(
+    "--poll-interval",
+    type=int,
+    required=False,
+    default=0,
+)
+@click.option(
+    "--file",
+    type=click.Path(exists=True, dir_okay=False, file_okay=True, path_type=str),
+    required=False,
+    default=0,
+)
+@click.option("--health-port", type=int, default=5555, help="Health check server port")
 @click.option("--verbose", is_flag=True, help="Enable verbose output")
 def loader_run(
     broker,
@@ -88,6 +237,9 @@ def loader_run(
     end_date,
     api_key,
     secret_key,
+    poll_interval,
+    file,
+    health_port,
     verbose,
 ):
     """
@@ -96,6 +248,32 @@ def loader_run(
 
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
+    if not api_key or not secret_key:
+        click.echo(
+            "Error: --api-key and --secret-key are required for Alpaca broker",
+            err=True,
+        )
+        sys.exit(1)
+
+    if poll_interval > 0:
+        if file is None:
+            click.echo(
+                "Error: --file must be provided if --poll-interval is specified",
+                err=True,
+            )
+            sys.exit(1)
+
+        return handle_poll_loaders(file, poll_interval, health_port)
+    
+    for var, flag in (
+        (broker, "--broker"),
+        (market_type, "--market-type"),
+        (timeframe, "--timeframe"),
+        (start_date, "--start-date"),
+    ):
+        if var is None:
+            click.echo(f"Error: {flag} must be provided", err=True)
+            sys.exit(1)
 
     if not api_key or not secret_key:
         click.echo(
@@ -104,39 +282,16 @@ def loader_run(
         )
         sys.exit(1)
 
-    if broker == BrokerType.ALPACA:
-        loader = AlpacaOHLCLoader(api_key=api_key, secret_key=secret_key)
-    else:
-        click.echo(f"Error: Unsupported broker: {broker}", err=True)
-        sys.exit(1)
-
-    click.echo(
-        f"Loading {symbol} candles ({timeframe}) "
-        f"from {start_date.date()} to {end_date.date()}"
+    return handle_single_load(
+        broker=broker,
+        symbol=symbol,
+        market_type=market_type,
+        timeframe=timeframe,
+        api_key=api_key,
+        secret_key=secret_key,
+        start_date=start_date,
+        end_date=end_date,
     )
-
-    async def run():
-        try:
-            await loader.load_candles(
-                symbol=symbol,
-                market_type=market_type,
-                timeframe=timeframe,
-                start_date=start_date,
-                end_date=end_date,
-            )
-
-        finally:
-            await loader.close()
-
-    try:
-        asyncio.run(run())
-        click.echo("Data loaded successfully")
-    except KeyboardInterrupt:
-        sys.exit(0)
-    except Exception as e:
-        click.echo(f"Error loading data: {e}", err=True)
-        logger.exception("Loader failed")
-        sys.exit(1)
 
 
 @markets.group(name="feed")
@@ -156,44 +311,43 @@ async def _wrapper(coro):
 @click.option("--host", type=str, required=True, help="Server host")
 @click.option("--port", type=int, required=True, help="Server port")
 @click.option("--health-port", type=int, default=5555, help="Health check server port")
-def feed_run(host, port, health_port):
-    async def _run():
-        feeds: list[OHLCFeed] = []
-        for item in CONFIG_YAML["ohlc_feed"]:
-            broker = BrokerType(item["broker"])
-            market_type = MarketType(item["market_type"])
-            symbol = item["symbol"]
+@click.option(
+    "--file",
+    type=click.Path(exists=True, dir_okay=False, file_okay=True, path_type=str),
+    required=False,
+    default=0,
+)
+def feed_run(host, port, health_port, file):
+    feeds: list[OHLCFeed] = []
+    
+    yamloader = YamlLoader(file)
+    instruments_config = yamloader.load()
+    
+    for item in instruments_config:
+        broker = BrokerType(item["broker"])
+        market_type = MarketType(item["market_type"])
+        symbol = item["symbol"]
 
-            for tf in item["timeframes"]:
-                timeframe = Timeframe(tf)
-                if broker == BrokerType.ALPACA:
-                    feed = AlpacaOHLCFeed(
-                        symbol=symbol,
-                        market_type=market_type,
-                        timeframe=timeframe,
-                        api_key=ALPACA_API_KEY,
-                        secret_key=ALPACA_SECRET_KEY,
-                    )
-
-                    loader = AlpacaOHLCLoader(
-                        api_key=ALPACA_API_KEY, secret_key=ALPACA_SECRET_KEY
-                    )
-                else:
-                    raise ValueError(f"Unsupported broker type '{broker}'")
-
-                await loader.load_candles(
-                    symbol,
-                    market_type,
-                    timeframe,
-                    item["start_date"],
-                    datetime.now() + timedelta(days=1),
+        for tf in item["timeframes"]:
+            timeframe = Timeframe(tf)
+            if broker == BrokerType.ALPACA:
+                feed = AlpacaOHLCFeed(
+                    symbol=symbol,
+                    market_type=market_type,
+                    timeframe=timeframe,
+                    api_key=item['api_key'],
+                    secret_key=item['secret_key'],
                 )
-                feeds.append(feed)
+            else:
+                raise ValueError(f"Unsupported broker type '{broker}'")
 
-        feed_manager = FeedManager()
-        server = OHLCFeedServer(feed_manager, host, port)
-        health_server = HealthCheckServer(host=host, port=health_port)
+            feeds.append(feed)
 
+    feed_manager = FeedManager()
+    server = OHLCFeedServer(feed_manager, host, port)
+    health_server = HealthCheckServer(host=host, port=health_port)
+
+    async def _run():
         try:
             await server.init(feeds)
             await asyncio.gather(

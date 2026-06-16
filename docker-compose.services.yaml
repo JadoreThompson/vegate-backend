@@ -4,8 +4,6 @@ services:
     command: uv run src/main.py http run
     networks:
       - vegate_network
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
       interval: 10s
@@ -54,8 +52,6 @@ services:
     command: uv run src/main.py oms run --host 0.0.0.0 --port 8082
     networks:
       - vegate_network
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8082/v1/health"]
       interval: 10s
@@ -73,11 +69,9 @@ services:
 
   ohlc_feed:
     image: wifimemes/vegate-backend:latest
-    command: uv run src/main.py markets feed run --host 0.0.0.0 --port 8001
+    command: uv run src/main.py markets feed run --host 0.0.0.0 --port 8001 --file instruments.yaml
     networks:
       - vegate_network
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5555/health"]
       interval: 10s
@@ -176,6 +170,26 @@ services:
         failure_action: rollback
         delay: 3s
         monitor: 3s
+
+  ohlc_loader_poller:
+    image: wifimemes/vegate-backend:latest
+    command: uv run src/main.py markets loader run --poll-interval 60 --file instruments.yaml
+    networks:
+      - vegate_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5555/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 5s
+      start_interval: 5s
+    deploy:
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+        delay: 3s
+        monitor: 30s
 
   traefik:
     image: traefik:v3.6

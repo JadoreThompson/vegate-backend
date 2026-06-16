@@ -1,7 +1,6 @@
 import logging
 import os
 import sys
-import yaml
 from urllib.parse import quote
 
 from dotenv import load_dotenv
@@ -13,9 +12,6 @@ PYTEST_RUNNING = bool(os.getenv("PYTEST_VERSION"))
 load_dotenv(os.path.join(PROJECT_PATH, ".env.test" if PYTEST_RUNNING else ".env"))
 
 IS_PRODUCTION = bool(int(os.getenv("IS_PRODUCTION", "0")))
-
-with open(os.path.join(PROJECT_PATH, "feed.yaml"), "r") as f:
-    CONFIG_YAML = yaml.load(f, Loader=yaml.SafeLoader)
 
 
 # Server
