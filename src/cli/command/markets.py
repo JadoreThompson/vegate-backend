@@ -308,13 +308,13 @@ async def _wrapper(coro):
 
 
 @feed.command(name="run")
-@click.option("--host", type=str, required=True, help="Server host")
-@click.option("--port", type=int, required=True, help="Server port")
+@click.option("--host", type=str, default="localhost", help="Server host")
+@click.option("--port", type=int, default=8001, help="Server port")
 @click.option("--health-port", type=int, default=5555, help="Health check server port")
 @click.option(
     "--file",
     type=click.Path(exists=True, dir_okay=False, file_okay=True, path_type=str),
-    required=False,
+    required=True,
     default=0,
 )
 def feed_run(host, port, health_port, file):

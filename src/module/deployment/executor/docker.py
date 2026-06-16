@@ -35,7 +35,6 @@ class DockerDeploymentExecutor(DeploymentExecutor):
             container.start()
             container.reload()
         except DockerAPIError:
-            container.reload()
             container.remove(force=True)
             raise
 

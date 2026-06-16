@@ -71,14 +71,6 @@ class StrategyDeploymentRunner:
 
         self._logger.info(f"Found deployment: {deployment}")
 
-        if deployment.status not in {
-            StrategyDeploymentStatus.STOPPED,
-            StrategyDeploymentStatus.PENDING,
-        }:
-            raise ValueError(
-                f"Deployment with id '{self._deployment_id}' is not stopped. Aborting deployment"
-            )
-
         historical_data_client = HistoricalDataClient(base_url=HISTORICAL_BASE_URL)
         loader = StrategyLoader(
             self._ohlc_feed_client,

@@ -169,61 +169,6 @@ class TestSetup:
             with pytest.raises(ValueError, match="not found"):
                 runner.setup()
 
-
-
-    @pytest.mark.parametrize("status", [
-        StrategyDeploymentStatus.RUNNING,
-        StrategyDeploymentStatus.SUSPICIOUS,
-        StrategyDeploymentStatus.CANCELLED,
-        StrategyDeploymentStatus.STOP_REQUESTED,
-    ])
-    def test_setup_raises_when_deployment_not_stopped_or_pending(
-        self, runner, deployment_id, status
-    ):
-        mock_deployment = MagicMock()
-        mock_deployment.deployment_id = deployment_id
-        mock_deployment.status = status
-
-        mock_db_sess = MagicMock()
-        mock_result = MagicMock()
-        mock_strategy_version = MagicMock()
-        mock_result.first.return_value = (mock_deployment, mock_strategy_version)
-        mock_db_sess.execute.return_value = mock_result
-
-        with patch(f"{MODULE_PATH}.get_db_sess_sync") as mock_get_db:
-            mock_context = MagicMock()
-            mock_context.__enter__.return_value = mock_db_sess
-            mock_get_db.return_value = mock_context
-
-            with pytest.raises(ValueError, match="not stopped"):
-                runner.setup()
-
-    def test_setup_succeeds_when_pending(self, runner, deployment_id):
-        mock_deployment = self._make_mock_deployment(
-            deployment_id, StrategyDeploymentStatus.PENDING
-        )
-        mock_strategy_version = self._make_mock_strategy_version()
-
-        mock_db_sess = MagicMock()
-        mock_result = MagicMock()
-        mock_result.first.return_value = (mock_deployment, mock_strategy_version)
-        mock_db_sess.execute.return_value = mock_result
-
-        with patch(f"{MODULE_PATH}.get_db_sess_sync") as mock_get_db:
-            mock_context = MagicMock()
-            mock_context.__enter__.return_value = mock_db_sess
-            mock_get_db.return_value = mock_context
-
-            with patch(f"{MODULE_PATH}.StrategyLoader") as MockStrategyLoader:
-                mock_loader = MagicMock()
-                mock_loader.load_strategy.return_value = MagicMock()
-                MockStrategyLoader.return_value = mock_loader
-
-                runner.setup()
-
-                assert runner._strategy is not None
-
-
 class TestRun:
 
     def test_run_publishes_running_and_stopped_events(

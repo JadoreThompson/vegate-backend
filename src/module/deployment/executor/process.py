@@ -10,11 +10,10 @@ from module.event_bus import (
     SyncOutboxEventPublisher,
 )
 from vegate.markets.feed.client import OHLCFeedClient
+from vegate.oms.client import OMSClient
 from .base import DeploymentExecutor
 from ..exception import DeploymentNotFoundException, DeploymentAlreadyRunningException
 from ..runner import StrategyDeploymentRunner
-# from ..oms import OMSClient
-from vegate.oms.client import OMSClient
 
 
 def _run_strategy_deployment(deployment_id: UUID):
