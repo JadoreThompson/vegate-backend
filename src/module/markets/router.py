@@ -20,11 +20,20 @@ async def get_all_symbols_info(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
     symbol: str | None = None,
+    market_type: list[MarketType] = Query(None, min_length=1),
+    broker_type: list[BrokerType] = Query(None),
+    timeframe: list[Timeframe] = Query(None),
     db_sess: AsyncSession = Depends(depends_db_sess),
     markets_service: MarketsService = Depends(depends_class(MarketsService)),
 ):
     return await markets_service.get_symbols_info(
-        db_sess, page=page, limit=limit, symbol=symbol
+        db_sess,
+        page=page,
+        limit=limit,
+        symbol=symbol,
+        market_types=market_type,
+        broker_types=broker_type,
+        timeframes=timeframe,
     )
 
 

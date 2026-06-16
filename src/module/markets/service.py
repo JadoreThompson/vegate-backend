@@ -24,9 +24,9 @@ class MarketsService:
         page: int,
         limit: int,
         symbol: str | None = None,
-        broker_type: BrokerType | None = None,
-        market_type: MarketType | None = None,
-        timeframe: Timeframe | None = None,
+        market_types: list[MarketType] | None = None,
+        broker_types: list[BrokerType] | None = None,
+        timeframes: list[Timeframe] | None = None,
     ) -> PaginatedResponse[InstrumentInfo]:
         stmt = (
             select(
@@ -45,12 +45,12 @@ class MarketsService:
 
         if symbol is not None:
             stmt = stmt.where(Instrument.native_symbol == symbol)
-        if broker_type is not None:
-            stmt = stmt.where(Instrument.broker_type == broker_type)
-        if market_type is not None:
-            stmt = stmt.where(Instrument.market_type == market_type)
-        if timeframe is not None:
-            stmt = stmt.where(OHLC.timeframe == timeframe)
+        if market_types is not None:
+            stmt = stmt.where(Instrument.market_type.in_(market_types))
+        if broker_types is not None:
+            stmt = stmt.where(Instrument.broker_type.in_(broker_types))
+        if timeframes is not None:
+            stmt = stmt.where(OHLC.timeframe.in_(timeframes))
 
         result = await db_sess.execute(stmt)
 
