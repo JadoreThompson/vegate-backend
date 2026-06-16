@@ -17,10 +17,10 @@ def feed_manager():
 @pytest.fixture
 def mock_feed():
     feed = MagicMock(spec=OHLCFeed)
-    feed.symbol = "AAPL"
+    feed.symbols = ["AAPL"]
     feed.market_type = MarketType.STOCKS
     feed.broker = BrokerType.ALPACA
-    feed.timeframe = Timeframe.m1
+    feed.timeframes = [Timeframe.m1]
     feed.name = "MockFeed-AAPL"
     feed.stop = AsyncMock()
     return feed
@@ -29,10 +29,10 @@ def mock_feed():
 @pytest.fixture
 def mock_feed_crypto():
     feed = MagicMock(spec=OHLCFeed)
-    feed.symbol = "BTC/USD"
+    feed.symbols = ["BTC/USD"]
     feed.market_type = MarketType.CRYPTO
     feed.broker = BrokerType.ALPACA
-    feed.timeframe = Timeframe.H1
+    feed.timeframes = [Timeframe.H1]
     feed.name = "MockFeed-BTC"
     feed.stop = AsyncMock()
     return feed
@@ -41,10 +41,10 @@ def mock_feed_crypto():
 @pytest.fixture
 def mock_feed_same_symbol_diff_timeframe():
     feed = MagicMock(spec=OHLCFeed)
-    feed.symbol = "AAPL"
+    feed.symbols = ["AAPL"]
     feed.market_type = MarketType.STOCKS
     feed.broker = BrokerType.ALPACA
-    feed.timeframe = Timeframe.H1
+    feed.timeframes = [Timeframe.H1]
     feed.name = "MockFeed-AAPL-H1"
     feed.stop = AsyncMock()
     return feed
@@ -123,10 +123,10 @@ class TestGetBrokers:
         self, feed_manager, mock_feed
     ):
         mock_feed2 = MagicMock(spec=OHLCFeed)
-        mock_feed2.symbol = "AAPL"
+        mock_feed2.symbols = ["AAPL"]
         mock_feed2.market_type = MarketType.STOCKS
         mock_feed2.broker = BrokerType.ALPACA  # Same broker
-        mock_feed2.timeframe = Timeframe.H1
+        mock_feed2.timeframes = [Timeframe.H1]
         mock_feed2.name = "MockFeed-AAPL-2"
         mock_feed2.stop = AsyncMock()
 
@@ -272,10 +272,10 @@ class TestRegister:
             MagicMock(spec=OHLCFeed) for _ in range(10)
         ]
         for i, feed in enumerate(feeds):
-            feed.symbol = f"SYM{i}"
+            feed.symbols = [f"SYM{i}"]
             feed.market_type = MarketType.STOCKS
             feed.broker = BrokerType.ALPACA
-            feed.timeframe = Timeframe.m1
+            feed.timeframes = [Timeframe.m1]
             feed.name = f"Feed-{i}"
             feed.stop = AsyncMock()
 
@@ -310,18 +310,18 @@ class TestStopAll:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_stop_all_continues_on_exception(self, feed_manager):
         bad_feed = MagicMock(spec=OHLCFeed)
-        bad_feed.symbol = "BAD"
+        bad_feed.symbols = ["BAD"]
         bad_feed.market_type = MarketType.STOCKS
         bad_feed.broker = BrokerType.ALPACA
-        bad_feed.timeframe = Timeframe.m1
+        bad_feed.timeframes = [Timeframe.m1]
         bad_feed.name = "BadFeed"
         bad_feed.stop = AsyncMock(side_effect=RuntimeError("Stop failed"))
 
         good_feed = MagicMock(spec=OHLCFeed)
-        good_feed.symbol = "GOOD"
+        good_feed.symbols = ["GOOD"]
         good_feed.market_type = MarketType.STOCKS
         good_feed.broker = BrokerType.ALPACA
-        good_feed.timeframe = Timeframe.H1
+        good_feed.timeframes = [Timeframe.H1]
         good_feed.name = "GoodFeed"
         good_feed.stop = AsyncMock()
 
@@ -359,26 +359,26 @@ class TestIntegration:
     async def test_full_lifecycle(self, feed_manager):
         """Test register -> query -> stop lifecycle."""
         feed1 = MagicMock(spec=OHLCFeed)
-        feed1.symbol = "AAPL"
+        feed1.symbols = ["AAPL"]
         feed1.market_type = MarketType.STOCKS
         feed1.broker = BrokerType.ALPACA
-        feed1.timeframe = Timeframe.m1
+        feed1.timeframes = [Timeframe.m1]
         feed1.name = "AAPL-m1"
         feed1.stop = AsyncMock()
 
         feed2 = MagicMock(spec=OHLCFeed)
-        feed2.symbol = "AAPL"
+        feed2.symbols = ["AAPL"]
         feed2.market_type = MarketType.STOCKS
         feed2.broker = BrokerType.ALPACA
-        feed2.timeframe = Timeframe.H1
+        feed2.timeframes = [Timeframe.H1]
         feed2.name = "AAPL-H1"
         feed2.stop = AsyncMock()
 
         feed3 = MagicMock(spec=OHLCFeed)
-        feed3.symbol = "BTC/USD"
+        feed3.symbols = ["BTC/USD"]
         feed3.market_type = MarketType.CRYPTO
         feed3.broker = BrokerType.ALPACA
-        feed3.timeframe = Timeframe.m1
+        feed3.timeframes = [Timeframe.m1]
         feed3.name = "BTC-m1"
         feed3.stop = AsyncMock()
 
@@ -411,10 +411,10 @@ class TestIntegration:
     @pytest.mark.asyncio(loop_scope="session")
     async def test_register_after_stop_raises(self, feed_manager):
         feed = MagicMock(spec=OHLCFeed)
-        feed.symbol = "TEST"
+        feed.symbols = ["TEST"]
         feed.market_type = MarketType.STOCKS
         feed.broker = BrokerType.ALPACA
-        feed.timeframe = Timeframe.m1
+        feed.timeframes = [Timeframe.m1]
         feed.name = "TestFeed"
         feed.stop = AsyncMock()
 
@@ -422,10 +422,10 @@ class TestIntegration:
         await feed_manager.stop_all()
 
         new_feed = MagicMock(spec=OHLCFeed)
-        new_feed.symbol = "NEW"
+        new_feed.symbols = ["NEW"]
         new_feed.market_type = MarketType.STOCKS
         new_feed.broker = BrokerType.ALPACA
-        new_feed.timeframe = Timeframe.m1
+        new_feed.timeframes = [Timeframe.m1]
         new_feed.name = "NewFeed"
         new_feed.stop = AsyncMock()
 

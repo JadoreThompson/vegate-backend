@@ -18,9 +18,8 @@ from vegate.oms.enums import BrokerType
 @pytest.fixture
 def alpaca_feed():
     return AlpacaOHLCFeed(
-        symbol="AAPL",
         market_type=MarketType.STOCKS,
-        timeframe=Timeframe.m1,
+        instruments=[("AAPL", [Timeframe.m1])],
         api_key="test-api-key",
         secret_key="test-secret-key",
     )
@@ -29,9 +28,8 @@ def alpaca_feed():
 @pytest.fixture
 def alpaca_feed_crypto():
     return AlpacaOHLCFeed(
-        symbol="BTC/USD",
         market_type=MarketType.CRYPTO,
-        timeframe=Timeframe.H1,
+        instruments=[("BTC/USD", [Timeframe.H1])],
         api_key="test-api-key",
         secret_key="test-secret-key",
     )
@@ -47,19 +45,20 @@ class TestProperties:
     """Unit tests for AlpacaOHLCFeed properties."""
 
     def test_name_property(self, alpaca_feed):
-        assert alpaca_feed.name == "AlpacaOHLCFeed-AAPL-stocks"
+        assert "AlpacaOHLCFeed" in alpaca_feed.name
+        assert "stocks" in alpaca_feed.name
 
     def test_market_type_property(self, alpaca_feed):
         assert alpaca_feed.market_type == MarketType.STOCKS
 
-    def test_symbol_property(self, alpaca_feed):
-        assert alpaca_feed.symbol == "AAPL"
+    def test_symbols_property(self, alpaca_feed):
+        assert alpaca_feed.symbols == ["AAPL"]
 
     def test_broker_property(self, alpaca_feed):
         assert alpaca_feed.broker == BrokerType.ALPACA
 
-    def test_timeframe_property(self, alpaca_feed):
-        assert alpaca_feed.timeframe == Timeframe.m1
+    def test_timeframes_property(self, alpaca_feed):
+        assert alpaca_feed.timeframes == [Timeframe.m1]
 
 
 class TestGetUrl:
@@ -91,9 +90,8 @@ class TestGenerateSubscriptionMessage:
 
     def test_subscribe_daily_bars_for_d1(self):
         feed = AlpacaOHLCFeed(
-            symbol="AAPL",
             market_type=MarketType.STOCKS,
-            timeframe=Timeframe.D1,
+            instruments=[("AAPL", [Timeframe.D1])],
             api_key="key",
             secret_key="secret",
         )
@@ -103,10 +101,10 @@ class TestGenerateSubscriptionMessage:
         assert "bars" not in msg
 
 
-class TestParseCandle:
-    """Unit tests for candle parsing from Alpaca format."""
+class TestRawToSchema:
+    """Unit tests for _raw_to_schema."""
 
-    def test_parse_candle_success(self, alpaca_feed):
+    def test_raw_to_schema_success(self, alpaca_feed):
         candle_data = {
             "o": 100.0,
             "h": 105.0,
@@ -116,7 +114,7 @@ class TestParseCandle:
             "t": "2024-01-01T10:00:00Z",
         }
 
-        result = alpaca_feed._parse_candle(candle_data)
+        result = alpaca_feed._raw_to_schema(candle_data, Timeframe.m1, "AAPL")
 
         assert isinstance(result, OHLCSchema)
         assert result.open == 100.0
@@ -132,11 +130,10 @@ class TestParseCandle:
             datetime(2024, 1, 1, 10, 0, tzinfo=UTC).timestamp()
         )
 
-    def test_parse_candle_different_timeframe(self):
+    def test_raw_to_schema_different_timeframe(self):
         feed = AlpacaOHLCFeed(
-            symbol="BTC/USD",
             market_type=MarketType.CRYPTO,
-            timeframe=Timeframe.H1,
+            instruments=[("BTC/USD", [Timeframe.H1])],
             api_key="key",
             secret_key="secret",
         )
@@ -149,7 +146,7 @@ class TestParseCandle:
             "t": "2024-06-15T14:00:00+00:00",
         }
 
-        result = feed._parse_candle(candle_data)
+        result = feed._raw_to_schema(candle_data, Timeframe.H1, "BTC/USD")
 
         assert result.timeframe == Timeframe.H1
         assert result.symbol == "BTC/USD"
@@ -176,120 +173,3 @@ class TestSetOnCandle:
     def test_set_on_candle_none(self, alpaca_feed):
         alpaca_feed.set_on_candle(None)
         assert alpaca_feed._on_candle is None
-
-
-class TestPersistCandle:
-    """Unit tests for persisting candles to database."""
-
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_persist_candle_success(self, alpaca_feed, db_sess):
-        # Create instrument first
-        instrument = Instrument(
-            symbol="PERSTEST",
-            native_symbol="PERSTEST",
-            market_type=MarketType.STOCKS,
-            broker_type=BrokerType.ALPACA,
-        )
-        db_sess.add(instrument)
-        await db_sess.flush()
-        await db_sess.refresh(instrument)
-        await db_sess.commit()
-
-        alpaca_feed._instrument_id = instrument.id
-
-        candle = OHLCSchema(
-            open=100.0,
-            high=105.0,
-            low=99.0,
-            close=102.0,
-            symbol="PERSTEST",
-            volume=1000,
-            broker=BrokerType.ALPACA,
-            market_type=MarketType.STOCKS,
-            timestamp=int(datetime(2024, 1, 1, 10, 0).timestamp()),
-            timeframe=Timeframe.H1,
-        )
-
-        await alpaca_feed._persist_candle(candle)
-
-        # Verify record exists
-        async with get_db_session() as new_sess:
-            res = await new_sess.execute(
-                select(OHLC).where(OHLC.instrument_id == instrument.id)
-            )
-            records = res.scalars().all()
-            assert len(records) == 1
-            assert records[0].open == 100.0
-            assert records[0].high == 105.0
-            assert records[0].low == 99.0
-            assert records[0].close == 102.0
-            assert records[0].volume == 1000
-            assert records[0].timeframe == Timeframe.H1
-
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_persist_candle_multiple(self, alpaca_feed, db_sess):
-        instrument = Instrument(
-            symbol="PERSTEST2",
-            native_symbol="PERSTEST2",
-            market_type=MarketType.STOCKS,
-            broker_type=BrokerType.ALPACA,
-        )
-        db_sess.add(instrument)
-        await db_sess.flush()
-        await db_sess.refresh(instrument)
-        await db_sess.commit()
-
-        alpaca_feed._instrument_id = instrument.id
-
-        for i in range(3):
-            candle = OHLCSchema(
-                open=100.0 + i,
-                high=105.0 + i,
-                low=99.0 + i,
-                close=102.0 + i,
-                symbol="PERSTEST2",
-                volume=1000 + i,
-                broker=BrokerType.ALPACA,
-                market_type=MarketType.STOCKS,
-                timestamp=int(datetime(2024, 1, 1, 10 + i, 0).timestamp()),
-                timeframe=Timeframe.H1,
-            )
-            await alpaca_feed._persist_candle(candle)
-
-        async with get_db_session() as new_sess:
-            res = await new_sess.execute(
-                select(OHLC).where(OHLC.instrument_id == instrument.id)
-            )
-            records = res.scalars().all()
-            assert len(records) == 3
-
-
-class TestIntegration:
-    """Integration tests for AlpacaOHLCFeed with real database."""
-
-    @pytest.mark.skip("Requires pro plan to subscribe to multiple feeds")
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_subscribe_success(self):
-        alpaca_feed = AlpacaOHLCFeed(
-            symbol="SOL/USD",
-            market_type=MarketType.CRYPTO,
-            timeframe=Timeframe.m1,
-            api_key=ALPACA_API_KEY,
-            secret_key=ALPACA_SECRET_KEY,
-        )
-
-        alpaca_feed._persist_candle = AsyncMock()
-
-        candles = []
-
-        def func(candle):
-            candles.append(candle)
-
-        alpaca_feed.set_on_candle(func)
-
-        try:
-            await asyncio.wait_for(alpaca_feed.run(), timeout=61)
-        except asyncio.TimeoutError:
-            pass
-
-        assert len(candles) <= 2

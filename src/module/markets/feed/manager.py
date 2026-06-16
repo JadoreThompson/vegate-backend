@@ -51,9 +51,11 @@ class FeedManager:
 
             self._feeds.append(feed)
 
-            self._symbol_market_broker_timeframes[feed.symbol][feed.market_type][
-                feed.broker
-            ].append(feed.timeframe)
+            for sym in feed.symbols:
+                for tf in feed.timeframes:
+                    self._symbol_market_broker_timeframes[sym][feed.market_type][
+                        feed.broker
+                    ].append(tf)
 
             self._logger.info(f"Registered feed {feed.name}")
 

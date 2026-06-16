@@ -149,11 +149,10 @@ class OHLCFeedServer:
             feed.set_on_candle(self.handle_candle)
             await self._feed_manager.register(feed)
             self._logger.info(
-                "Registered feed '%s' (%s / %s / %s)",
+                "Registered feed '%s' (%s timeframes=%s)",
                 feed.name,
-                feed.symbol,
                 feed.market_type,
-                feed.timeframe,
+                feed.timeframes,
             )
 
     async def run(self) -> None:

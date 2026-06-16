@@ -318,30 +318,41 @@ async def _wrapper(coro):
     default=0,
 )
 def feed_run(host, port, health_port, file):
-    feeds: list[OHLCFeed] = []
-    
     yamloader = YamlLoader(file)
     instruments_config = yamloader.load()
-    
+
+    # Group instruments by (broker, market_type) so we create one feed per group.
+    groups: dict[
+        tuple[BrokerType, MarketType],
+        tuple[str, str, list[tuple[str, list[Timeframe]]]],
+    ] = {}
     for item in instruments_config:
         broker = BrokerType(item["broker"])
         market_type = MarketType(item["market_type"])
         symbol = item["symbol"]
+        
+        tfs = [Timeframe(tf) for tf in item["timeframes"]]
 
-        for tf in item["timeframes"]:
-            timeframe = Timeframe(tf)
-            if broker == BrokerType.ALPACA:
-                feed = AlpacaOHLCFeed(
-                    symbol=symbol,
-                    market_type=market_type,
-                    timeframe=timeframe,
-                    api_key=item['api_key'],
-                    secret_key=item['secret_key'],
-                )
-            else:
-                raise ValueError(f"Unsupported broker type '{broker}'")
+        key = (broker, market_type)
 
-            feeds.append(feed)
+        if key not in groups:
+            groups[key] = (item["api_key"], item["secret_key"], [])
+
+        groups[key][2].append((symbol, tfs))
+
+    feeds: list[OHLCFeed] = []
+    for (broker, market_type), (api_key, secret_key, instruments) in groups.items():
+        if broker == BrokerType.ALPACA:
+            feed = AlpacaOHLCFeed(
+                market_type=market_type,
+                instruments=instruments,
+                api_key=api_key,
+                secret_key=secret_key,
+            )
+        else:
+            raise ValueError(f"Unsupported broker type '{broker}'")
+    
+        feeds.append(feed)
 
     feed_manager = FeedManager()
     server = OHLCFeedServer(feed_manager, host, port)

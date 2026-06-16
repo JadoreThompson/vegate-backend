@@ -14,7 +14,7 @@ class OHLCFeed(ABC):
 
     @property
     @abstractmethod
-    def symbol(self) -> str: ...
+    def symbols(self) -> list[str]: ...
 
     @property
     @abstractmethod
@@ -22,7 +22,7 @@ class OHLCFeed(ABC):
 
     @property
     @abstractmethod
-    def timeframe(self) -> Timeframe: ...
+    def timeframes(self) -> list[Timeframe]: ...
 
     @property
     @abstractmethod
