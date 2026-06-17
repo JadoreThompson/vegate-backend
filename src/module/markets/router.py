@@ -21,8 +21,8 @@ async def get_all_symbols_info(
     limit: int = Query(50, ge=1, le=100),
     symbol: str | None = None,
     market_type: list[MarketType] = Query(None, min_length=1),
-    broker_type: list[BrokerType] = Query(None),
-    timeframe: list[Timeframe] = Query(None),
+    broker_type: list[BrokerType] = Query(None, min_length=1),
+    timeframe: list[Timeframe] = Query(None, min_length=1),
     db_sess: AsyncSession = Depends(depends_db_sess),
     markets_service: MarketsService = Depends(depends_class(MarketsService)),
 ):
