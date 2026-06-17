@@ -1,6 +1,6 @@
 - symbol: ETH/USD
   market_type: crypto
-  start_date: 2026-06-01
+  start_date: 2021-01-01
   broker: alpaca
   timeframes: ["1m", "5m", "15m", "30m", "1h", "4h", "1d"]
   api_key: ${ALPACA_API_KEY}
@@ -8,7 +8,47 @@
 
 - symbol: BTC/USD
   market_type: crypto
-  start_date: 2026-06-01
+  start_date: 2021-01-01
+  broker: alpaca
+  timeframes: ["1m", "5m", "15m", "30m", "1h", "4h", "1d"]
+  api_key: ${ALPACA_API_KEY}
+  secret_key: ${ALPACA_SECRET_KEY}
+
+- symbol: SOL/USD
+  market_type: crypto
+  start_date: 2021-01-01
+  broker: alpaca
+  timeframes: ["1m", "5m", "15m", "30m", "1h", "4h", "1d"]
+  api_key: ${ALPACA_API_KEY}
+  secret_key: ${ALPACA_SECRET_KEY}
+
+- symbol: LTC/USD
+  market_type: crypto
+  start_date: 2021-01-01
+  broker: alpaca
+  timeframes: ["1m", "5m", "15m", "30m", "1h", "4h", "1d"]
+  api_key: ${ALPACA_API_KEY}
+  secret_key: ${ALPACA_SECRET_KEY}
+
+- symbol: XRP/USD
+  market_type: crypto
+  start_date: 2021-01-01
+  broker: alpaca
+  timeframes: ["1m", "5m", "15m", "30m", "1h", "4h", "1d"]
+  api_key: ${ALPACA_API_KEY}
+  secret_key: ${ALPACA_SECRET_KEY}
+
+- symbol: HYPE/USD
+  market_type: crypto
+  start_date: 2021-01-01
+  broker: alpaca
+  timeframes: ["1m", "5m", "15m", "30m", "1h", "4h", "1d"]
+  api_key: ${ALPACA_API_KEY}
+  secret_key: ${ALPACA_SECRET_KEY}
+
+- symbol: BNB/USD
+  market_type: crypto
+  start_date: 2021-01-01
   broker: alpaca
   timeframes: ["1m", "5m", "15m", "30m", "1h", "4h", "1d"]
   api_key: ${ALPACA_API_KEY}
