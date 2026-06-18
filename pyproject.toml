@@ -23,6 +23,7 @@ dependencies = [
     "mkdocs>=1.6.1",
     "mkdocs-material>=9.7.6",
     "mkdocstrings[python]>=1.0.4",
+    "opentelemetry-distro>=0.63b1",
     "psycopg2-binary>=2.9.11",
     "pydantic-ai-slim[mistral]>=1.27.0",
     "pydantic[email,email-validator]>=2.12.0",

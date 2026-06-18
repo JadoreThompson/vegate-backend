@@ -1,0 +1,45 @@
+{
+  "title": "Node Metrics Dashboard",
+  "uid": "node-metrics",
+  "schemaVersion": 39,
+  "version": 1,
+  "overwrite": true,
+  "panels": [
+    {
+      "id": 2,
+      "title": "CPU Usage",
+      "type": "timeseries",
+      "description": "",
+      "datasource": { "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * (1 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])))",
+          "legendFormat": "__auto"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 80 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "showLegend": true },
+        "tooltip": { "mode": "single" }
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      }
+    }
+  ]
+}

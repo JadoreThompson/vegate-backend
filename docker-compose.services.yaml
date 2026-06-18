@@ -1,4 +1,7 @@
 services:
+  # ===================================================
+  # Application
+  # ===================================================
   backend:
     image: wifimemes/vegate-backend:latest
     command: uv run src/main.py http run
@@ -214,6 +217,44 @@ services:
       placement:
         constraints:
           - node.role == manager
+
+  # ===================================================
+  # Observability
+  # ===================================================
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    restart: unless-stopped
+    command:
+      - "--path.rootfs=/host"
+    networks:
+      - vegate_network
+    ports:
+      - 9100:9100
+    volumes:
+      - /:/host:ro
+
+  prometheus:
+    image: prom/prometheus
+    networks:
+      - vegate_network
+    ports:
+      - 9090:9090
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - node-exporter
+
+  grafana:
+    image: grafana/grafana
+    networks:
+      - vegate_network
+    ports:
+      - 3000:3000
+    volumes:
+      - ./grafana/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ./grafana/grafana-dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
 
 volumes:
   postgres:
