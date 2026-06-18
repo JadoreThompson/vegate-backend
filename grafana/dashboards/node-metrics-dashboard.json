@@ -10,7 +10,7 @@
       "title": "CPU Usage",
       "type": "timeseries",
       "description": "",
-      "datasource": { "uid": "PBFA97CFB590B2093" },
+      "datasource": { "name": "Prometheus" },
       "targets": [
         {
           "refId": "A",

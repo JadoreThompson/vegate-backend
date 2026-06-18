@@ -5,14 +5,17 @@ from urllib.parse import quote
 
 from dotenv import load_dotenv
 
+from core.logging.formatter import JsonLogFormatter
+from core.logging.handler.loki import LokiLogHandler
+
 SRC_PATH = os.path.dirname(__file__)
 PROJECT_PATH = os.path.dirname(SRC_PATH)
 
 PYTEST_RUNNING = bool(os.getenv("PYTEST_VERSION"))
 load_dotenv(os.path.join(PROJECT_PATH, ".env.test" if PYTEST_RUNNING else ".env"))
 
-IS_PRODUCTION = bool(int(os.getenv("IS_PRODUCTION", "0")))
-
+ENVIRONMENT = os.getenv("ENVIRONMENT", "dev")
+IS_PRODUCTION = ENVIRONMENT == "prod"
 
 # Server
 SCHEME = os.getenv("SCHEME", "http")
@@ -149,19 +152,33 @@ LLM_API_KEY = os.getenv("LLM_API_KEY", "api-key")
 LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "mistral-small-latest")
 
 
+# Loki
+LOKI_URL = os.getenv("LOKI_URL", "http://localhost:3100")
+LOKI_SERVICE = os.getenv("LOKI_SERVICE")
+
+
 # Logging
-logging.basicConfig(
-    filename="app.log",
-    filemode="a",
-    format="%(asctime)s - [%(levelname)s] - %(name)s - %(message)s",
-)
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 handler = logging.StreamHandler(sys.stdout)
-handler.setFormatter(
-    logging.Formatter("%(asctime)s - [%(levelname)s] - %(name)s - %(message)s")
-)
+json_formatter = JsonLogFormatter()
+handler.setFormatter(json_formatter)
 logger.addHandler(handler)
 
+loki_log_handler = LokiLogHandler(
+    LOKI_URL, labels={"service": LOKI_SERVICE, "env": ENVIRONMENT}
+)
+loki_log_handler.setFormatter(json_formatter)
+logger.addHandler(loki_log_handler)
+
+aiokafka_logger = logging.getLogger("aiokafka")
+aiokafka_logger.setLevel(logging.WARNING)
+
+kafka_logger = logging.getLogger("kafka")
+kafka_logger.setLevel(logging.WARNING)
+
 del logger
+del handler
+del json_formatter
+del loki_log_handler

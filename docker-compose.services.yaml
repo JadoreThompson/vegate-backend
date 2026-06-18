@@ -222,6 +222,14 @@ services:
   # Observability
   # ===================================================
 
+  loki:
+    image: grafana/loki:3.0.0
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - vegate_network
+    ports:
+      - 3100:3100
+
   node-exporter:
     image: prom/node-exporter:latest
     restart: unless-stopped
