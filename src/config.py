@@ -157,6 +157,11 @@ LOKI_URL = os.getenv("LOKI_URL", "http://localhost:3100")
 LOKI_SERVICE = os.getenv("LOKI_SERVICE")
 
 
+# Prometheus
+PROMETHEUS_SERVER_HOST = os.getenv("PROMETHEUS_SERVER_HOST", "localhost")
+PROMETHEUS_SERVER_PORT = int(os.getenv("PROMETHEUS_SERVER_PORT", "8002"))
+
+
 # Logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

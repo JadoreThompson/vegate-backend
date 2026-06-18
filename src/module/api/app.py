@@ -31,7 +31,11 @@ from module.strategy import StrategyService
 from module.strategy.router import router as strategies_router
 from module.user.router import router as user_router
 from core.redis import REDIS_CLIENT
-from .middleware import RateLimitMiddleware, GlobalExceptionHandlerMiddleware
+from .middleware import (
+    RateLimitMiddleware,
+    GlobalExceptionHandlerMiddleware,
+    PrometheusMiddleware,
+)
 from .object_registry import ObjectRegistry
 from .router import router as api_router
 
@@ -80,16 +84,20 @@ async def lifespan(app: FastAPI):
     deployment_event_broadcast = DeploymentEventBroadcast(
         deserialiser=DeploymentEventDeserialiser()
     )
-    task = asyncio.create_task(deployment_event_broadcast.run())
+
+    tasks: list[asyncio.Task] = []
+
+    tasks.append(asyncio.create_task(deployment_event_broadcast.run()))
     object_registry.register(deployment_event_broadcast)
 
     yield
 
-    task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
+    for task in tasks:
+        try:
+            task.cancel()
+            await asyncio.wait_for(task, timeout=5.0)
+        except (asyncio.CancelledError, asyncio.TimeoutError):
+            pass
 
     await object_registry.close()
 
@@ -110,6 +118,7 @@ app.add_middleware(
 app.add_middleware(
     RateLimitMiddleware, redis_client=REDIS_CLIENT, limit=1000, window=60
 )
+app.add_middleware(PrometheusMiddleware)
 
 app.include_router(api_router)
 app.include_router(auth_router)
