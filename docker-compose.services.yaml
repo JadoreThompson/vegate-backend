@@ -222,6 +222,17 @@ services:
   # Observability
   # ===================================================
 
+  tempo:
+    image: grafana/tempo:latest
+    command: ["-config.file=/etc/tempo.yaml"]
+    networks:
+      - vegate_network
+    ports:
+      - 3200:3200 # Query frontend
+      - 4318:4318 # OTLP HTTP
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml:ro
+
   loki:
     image: grafana/loki:3.0.0
     command: -config.file=/etc/loki/local-config.yaml

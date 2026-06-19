@@ -10,6 +10,9 @@ from config import (
     FRONTEND_SUB_DOMAIN,
     SCHEME,
 )
+from core.db.client import DB_ENGINE, DB_ENGINE_SYNC
+from core.redis import REDIS_CLIENT
+from core.telemetry import setup_tracing
 from module.auth.router import router as auth_router
 from module.auth.service import AuthService
 from module.backtest import BacktestsService
@@ -30,17 +33,21 @@ from module.markets.router import router as markets_router
 from module.strategy import StrategyService
 from module.strategy.router import router as strategies_router
 from module.user.router import router as user_router
-from core.redis import REDIS_CLIENT
 from .middleware import (
     RateLimitMiddleware,
     GlobalExceptionHandlerMiddleware,
     PrometheusMiddleware,
+    TracingMiddleware
 )
 from .object_registry import ObjectRegistry
 from .router import router as api_router
 
 
 async def lifespan(app: FastAPI):
+    setup_tracing(
+        fastapi_app=app,
+        sqlalchemy_engines=[lambda: DB_ENGINE_SYNC, lambda: DB_ENGINE],
+    )
     object_registry = ObjectRegistry()
     app.state.object_registry = object_registry
 
@@ -104,6 +111,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+app.add_middleware(TracingMiddleware)
 app.add_middleware(GlobalExceptionHandlerMiddleware)
 app.add_middleware(
     CORSMiddleware,
@@ -115,9 +123,9 @@ app.add_middleware(
     allow_headers=["*"],
     allow_credentials=True,
 )
-app.add_middleware(
-    RateLimitMiddleware, redis_client=REDIS_CLIENT, limit=1000, window=60
-)
+# app.add_middleware(
+#     RateLimitMiddleware, redis_client=REDIS_CLIENT, limit=1000, window=60
+# )
 app.add_middleware(PrometheusMiddleware)
 
 app.include_router(api_router)

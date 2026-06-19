@@ -152,9 +152,16 @@ LLM_API_KEY = os.getenv("LLM_API_KEY", "api-key")
 LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "mistral-small-latest")
 
 
+# Observability
+SERVICE_NAME = os.getenv("SERVICE_NAME", "vegate-backend")
+
+
 # Loki
-LOKI_URL = os.getenv("LOKI_URL", "http://localhost:3100")
-LOKI_SERVICE = os.getenv("LOKI_SERVICE")
+LOKI_BASE_URL = os.getenv("LOKI_BASE_URL", "http://localhost:3100")
+
+
+# Tempo
+TEMPO_BASE_URL = os.getenv("TEMPO_BASE_URL", "http://localhost:4318")
 
 
 # Prometheus
@@ -172,7 +179,7 @@ handler.setFormatter(json_formatter)
 logger.addHandler(handler)
 
 loki_log_handler = LokiLogHandler(
-    LOKI_URL, labels={"service": LOKI_SERVICE, "env": ENVIRONMENT}
+    LOKI_BASE_URL, labels={"service": SERVICE_NAME, "env": ENVIRONMENT}
 )
 loki_log_handler.setFormatter(json_formatter)
 logger.addHandler(loki_log_handler)
