@@ -159,14 +159,14 @@ jobs:
             --network vegate_network \
             wifimemes/vegate-backend:latest uv run src/main.py db upgrade
 
-      - name: Deploy stack
-        run: |
-          # Create stack compose file
-          docker run --rm wifimemes/vegate-backend:latest uv run src/main.py yaml
-            --file docker-compose.services.yaml \
-            --env-file .env > o.yaml
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
 
-          docker stack deploy -c o.yaml -d=false vegate_stack
+      - name: Create stack compose
+        run: uv run src/main.py yaml --file docker-compose.services.yaml --env-file .env > o.yaml
+
+      - name: Deploy stack
+        run: docker stack deploy -c o.yaml -d=false vegate_stack
 
   cleanup:
     name: Cleanup
