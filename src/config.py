@@ -157,7 +157,7 @@ SERVICE_NAME = os.getenv("SERVICE_NAME", "vegate-backend")
 
 
 # Loki
-LOKI_BASE_URL = os.getenv("LOKI_BASE_URL", "http://localhost:3100")
+LOKI_BASE_URL = os.getenv("LOKI_BASE_URL")
 
 
 # Tempo
@@ -178,11 +178,13 @@ json_formatter = JsonLogFormatter()
 handler.setFormatter(json_formatter)
 logger.addHandler(handler)
 
-loki_log_handler = LokiLogHandler(
-    LOKI_BASE_URL, labels={"service": SERVICE_NAME, "env": ENVIRONMENT}
-)
-loki_log_handler.setFormatter(json_formatter)
-logger.addHandler(loki_log_handler)
+if LOKI_BASE_URL is not None and LOKI_BASE_URL.strip():
+    loki_log_handler = LokiLogHandler(
+        LOKI_BASE_URL, labels={"service": SERVICE_NAME, "env": ENVIRONMENT}
+    )
+    loki_log_handler.setFormatter(json_formatter)
+    logger.addHandler(loki_log_handler)
+    del loki_log_handler
 
 aiokafka_logger = logging.getLogger("aiokafka")
 aiokafka_logger.setLevel(logging.WARNING)
@@ -193,4 +195,3 @@ kafka_logger.setLevel(logging.WARNING)
 del logger
 del handler
 del json_formatter
-del loki_log_handler
