@@ -5,6 +5,8 @@ services:
   backend:
     image: wifimemes/vegate-backend:latest
     command: uv run src/main.py http run
+    environment:
+      - SERVICE_NAME=backend
     networks:
       - vegate_network
     healthcheck:
@@ -31,6 +33,8 @@ services:
   deployment_listener:
     image: wifimemes/vegate-backend:latest
     command: uv run src/main.py deployment listener run
+    environment:
+      - SERVICE_NAME=deployment_listener
     networks:
       - vegate_network
     volumes:
@@ -53,6 +57,8 @@ services:
   oms:
     image: wifimemes/vegate-backend:latest
     command: uv run src/main.py oms run --host 0.0.0.0 --port 8082
+    environment:
+      - SERVICE_NAME=oms
     networks:
       - vegate_network
     healthcheck:
@@ -73,6 +79,8 @@ services:
   ohlc_feed:
     image: wifimemes/vegate-backend:latest
     command: uv run src/main.py markets feed run --host 0.0.0.0 --port 8001 --file instruments.yaml
+    environment:
+      - SERVICE_NAME=ohlc_feed
     networks:
       - vegate_network
     healthcheck:
@@ -93,6 +101,8 @@ services:
   backtest_monitor:
     image: wifimemes/vegate-backend:latest
     command: uv run src/main.py backtest monitor run
+    environment:
+      - SERVICE_NAME=backtest_monitor
     networks:
       - vegate_network
     volumes:
@@ -115,6 +125,8 @@ services:
   outbox_poller:
     image: wifimemes/vegate-backend:latest
     command: uv run src/main.py outbox run --interval 5 --batch-size 1000
+    environment:
+      - SERVICE_NAME=outbox_poller
     networks:
       - vegate_network
     volumes:
@@ -137,6 +149,8 @@ services:
   notification_poller:
     image: wifimemes/vegate-backend:latest
     command: uv run src/main.py notification poller run --interval 2 --batch-size 1000 --timeout 5
+    environment:
+      - SERVICE_NAME=notification_poller
     networks:
       - vegate_network
     volumes:
@@ -158,6 +172,8 @@ services:
 
   docs_server:
     image: wifimemes/vegate-backend-docs:latest
+    environment:
+      - SERVICE_NAME=docs_server
     networks:
       - vegate_network
     deploy:
@@ -177,6 +193,8 @@ services:
   ohlc_loader_poller:
     image: wifimemes/vegate-backend:latest
     command: uv run src/main.py markets loader run --poll-interval 60 --file instruments.yaml
+    environment:
+      - SERVICE_NAME=ohlc_loader_poller
     networks:
       - vegate_network
     healthcheck:
