@@ -6,7 +6,7 @@ services:
     image: wifimemes/vegate-backend:latest
     command: uv run src/main.py http run
     environment:
-      - SERVICE_NAME=backend
+      SERVICE_NAME: backend
     networks:
       - vegate_network
     healthcheck:
@@ -34,7 +34,7 @@ services:
     image: wifimemes/vegate-backend:latest
     command: uv run src/main.py deployment listener run
     environment:
-      - SERVICE_NAME=deployment_listener
+      SERVICE_NAME: deployment_listener
     networks:
       - vegate_network
     volumes:
@@ -58,7 +58,7 @@ services:
     image: wifimemes/vegate-backend:latest
     command: uv run src/main.py oms run --host 0.0.0.0 --port 8082
     environment:
-      - SERVICE_NAME=oms
+      SERVICE_NAME: oms
     networks:
       - vegate_network
     healthcheck:
@@ -80,7 +80,7 @@ services:
     image: wifimemes/vegate-backend:latest
     command: uv run src/main.py markets feed run --host 0.0.0.0 --port 8001 --file instruments.yaml
     environment:
-      - SERVICE_NAME=ohlc_feed
+      SERVICE_NAME: ohlc_feed
     networks:
       - vegate_network
     healthcheck:
@@ -102,7 +102,7 @@ services:
     image: wifimemes/vegate-backend:latest
     command: uv run src/main.py backtest monitor run
     environment:
-      - SERVICE_NAME=backtest_monitor
+      SERVICE_NAME: backtest_monitor
     networks:
       - vegate_network
     volumes:
@@ -126,7 +126,7 @@ services:
     image: wifimemes/vegate-backend:latest
     command: uv run src/main.py outbox run --interval 5 --batch-size 1000
     environment:
-      - SERVICE_NAME=outbox_poller
+      SERVICE_NAME: outbox_poller
     networks:
       - vegate_network
     volumes:
@@ -150,7 +150,7 @@ services:
     image: wifimemes/vegate-backend:latest
     command: uv run src/main.py notification poller run --interval 2 --batch-size 1000 --timeout 5
     environment:
-      - SERVICE_NAME=notification_poller
+      SERVICE_NAME: notification_poller
     networks:
       - vegate_network
     volumes:
@@ -173,7 +173,7 @@ services:
   docs_server:
     image: wifimemes/vegate-backend-docs:latest
     environment:
-      - SERVICE_NAME=docs_server
+      SERVICE_NAME: docs_server
     networks:
       - vegate_network
     deploy:
@@ -194,7 +194,7 @@ services:
     image: wifimemes/vegate-backend:latest
     command: uv run src/main.py markets loader run --poll-interval 60 --file instruments.yaml
     environment:
-      - SERVICE_NAME=ohlc_loader_poller
+      SERVICE_NAME: ohlc_loader_poller
     networks:
       - vegate_network
     healthcheck:
@@ -284,6 +284,9 @@ services:
 
   grafana:
     image: grafana/grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
     networks:
       - vegate_network
     ports:
@@ -292,6 +295,13 @@ services:
       - ./grafana/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
       - ./grafana/grafana-dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml
       - ./grafana/dashboards:/var/lib/grafana/dashboards
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.grafana.rule=Host(`monitoring.vegate.jadore.dev`)"
+        - "traefik.http.routers.grafana.service=vegate_stack_grafana"
+        - "traefik.http.routers.grafana.entrypoints=web,websecure"
+        - "traefik.http.services.vegate_stack_grafana.loadbalancer.server.port=3000"
 
 volumes:
   postgres:
