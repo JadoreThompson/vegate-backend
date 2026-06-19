@@ -31,6 +31,10 @@ def setup_tracing(
     Must be called exactly once at application startup.
     Returns ``None`` when ``TEMPO_BASE_URL`` is not set (tracing disabled).
     """
+    if TEMPO_BASE_URL is not None and TEMPO_BASE_URL.strip():
+        _logger.warning("TEMPO_BASE_URL is None. Aborting setup")
+        return
+    
     resource = Resource.create(attributes={"service.name": SERVICE_NAME})
 
     provider = TracerProvider(resource=resource)

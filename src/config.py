@@ -161,7 +161,7 @@ LOKI_BASE_URL = os.getenv("LOKI_BASE_URL")
 
 
 # Tempo
-TEMPO_BASE_URL = os.getenv("TEMPO_BASE_URL", "http://localhost:4318")
+TEMPO_BASE_URL = os.getenv("TEMPO_BASE_URL")
 
 
 # Prometheus
