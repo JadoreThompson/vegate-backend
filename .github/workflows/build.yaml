@@ -160,7 +160,13 @@ jobs:
             wifimemes/vegate-backend:latest uv run src/main.py db upgrade
 
       - name: Deploy stack
-        run: docker stack deploy -c docker-compose.services.yaml -d=false vegate_stack
+        run: |
+          # Create stack compose file
+          docker run --rm wifimemes/vegate-backend:latest uv run src/main.py yaml
+            --file docker-compose.services.yaml \
+            --env-file .env > o.yaml
+
+          docker stack deploy -c o.yaml -d=false vegate_stack
 
   cleanup:
     name: Cleanup
