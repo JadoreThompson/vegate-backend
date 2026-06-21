@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from core.db import get_db_sess_sync, get_db_session
 from vegate.oms.enums import BrokerType
 from vegate.markets.enums import MarketType, Timeframe
-from module.markets.model import OHLC, Instrument
+from module.markets.model import OHLC, Instrument, InstrumentTimeframe
 from module.user.model import User
 
 
@@ -70,5 +70,24 @@ def seed_candles():
                 for i in range(30)
             ]
             db_sess.add_all(candles)
+
+            start_ts = candles[0].timestamp
+            end_ts = candles[0].timestamp
+            db_sess.execute(
+                pg_insert(InstrumentTimeframe)
+                .values(
+                    instrument_id=instrument_id,
+                    timeframe=tf.value,
+                    start_ts=start_ts,
+                    end_ts=end_ts,
+                )
+                .on_conflict_do_update(
+                    index_elements=["instrument_id", "timeframe"],
+                    set_={
+                        "start_ts": start_ts,
+                        "end_ts": end_ts,
+                    },
+                )
+            )
 
         db_sess.commit()

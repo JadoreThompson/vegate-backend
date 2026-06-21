@@ -6,6 +6,7 @@ from uuid import UUID
 import aiohttp
 from alpaca.data.timeframe import TimeFrame as AlpacaTimeFrame
 from sqlalchemy import delete, func, insert, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from core.db import get_db_session
 from vegate.markets.enums import MarketType, Timeframe
@@ -14,7 +15,7 @@ from vegate.oms.enums import BrokerType
 from .base import OHLCLoader
 from .schema import OHLCLoadResult
 from ..aggregator import CandleAggregator
-from ..model import Instrument, OHLC
+from ..model import Instrument, InstrumentTimeframe, OHLC
 
 
 class AlpacaOHLCLoader(OHLCLoader):
@@ -304,6 +305,30 @@ class AlpacaOHLCLoader(OHLCLoader):
                 )
 
             await db_sess.execute(insert(OHLC), records)
+
+            # Upsert the rollup row
+            batch_start = records[0]["timestamp"]
+            batch_end = records[-1]["timestamp"]
+            await db_sess.execute(
+                pg_insert(InstrumentTimeframe)
+                .values(
+                    instrument_id=instrument_id,
+                    timeframe=timeframe.value,
+                    start_ts=batch_start,
+                    end_ts=batch_end,
+                )
+                .on_conflict_do_update(
+                    index_elements=["instrument_id", "timeframe"],
+                    set_={
+                        "start_ts": func.least(
+                            InstrumentTimeframe.start_ts, batch_start
+                        ),
+                        "end_ts": func.greatest(
+                            InstrumentTimeframe.end_ts, batch_end
+                        ),
+                    },
+                )
+            )
             await db_sess.commit()
             return len(records)
 

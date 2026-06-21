@@ -8,7 +8,7 @@ from vegate.markets.enums import MarketType, Timeframe
 from vegate.markets.schema import OHLC as OHLCResponse
 from vegate.oms.enums import BrokerType
 from .exception import SymbolNotFoundException
-from .model import OHLC, Instrument
+from .model import Instrument, InstrumentTimeframe, OHLC
 from .schema import InstrumentInfo
 
 
@@ -34,11 +34,11 @@ class MarketsService:
                 Instrument.broker_type,
                 Instrument.market_type,
                 Instrument.native_symbol,
-                OHLC.timeframe,
-                func.min(OHLC.timestamp).label("start_ts"),
-                func.max(OHLC.timestamp).label("end_ts"),
+                InstrumentTimeframe.timeframe,
+                InstrumentTimeframe.start_ts,
+                InstrumentTimeframe.end_ts,
             )
-            .group_by(Instrument.id, OHLC.timeframe)
+            .join(InstrumentTimeframe, Instrument.id == InstrumentTimeframe.instrument_id)
             .offset((page - 1) * limit)
             .limit(limit + 1)
         )
@@ -50,7 +50,7 @@ class MarketsService:
         if broker_types is not None:
             stmt = stmt.where(Instrument.broker_type.in_(broker_types))
         if timeframes is not None:
-            stmt = stmt.where(OHLC.timeframe.in_(timeframes))
+            stmt = stmt.where(InstrumentTimeframe.timeframe.in_(timeframes))
 
         result = await db_sess.execute(stmt)
 
@@ -87,17 +87,21 @@ class MarketsService:
             select(
                 Instrument.id,
                 Instrument.broker_type,
-                OHLC.timeframe,
+                InstrumentTimeframe.timeframe,
                 Instrument.market_type,
-                func.min(OHLC.timestamp).label("start_ts"),
-                func.max(OHLC.timestamp).label("end_ts"),
-            ).where(
+                InstrumentTimeframe.start_ts,
+                InstrumentTimeframe.end_ts,
+            )
+            .join(
+                InstrumentTimeframe,
+                Instrument.id == InstrumentTimeframe.instrument_id,
+            )
+            .where(
                 Instrument.symbol == symbol,
                 Instrument.broker_type == broker_type,
                 Instrument.market_type == market_type,
-                OHLC.timeframe == timeframe,
+                InstrumentTimeframe.timeframe == timeframe,
             )
-            .group_by(Instrument.id, OHLC.timeframe)
         )
 
         row = res.first()

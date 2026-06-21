@@ -26,7 +26,7 @@ from module.deployment.model import (
     StrategyDeployments,
 )
 from module.event_bus.model import EventOutbox
-from module.markets.model import Instrument, OHLC
+from module.markets.model import Instrument, OHLC, InstrumentTimeframe
 from module.notification.model import Notification
 from module.strategy.model import Strategy, StrategyVersion
 from module.user.model import User

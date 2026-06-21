@@ -9,6 +9,19 @@ from vegate.markets.enums import MarketType, Timeframe
 from vegate.oms.enums import BrokerType
 
 
+class InstrumentTimeframe(Base):
+    __tablename__ = "instrument_timeframes"
+
+    instrument_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("instruments.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    timeframe: Mapped[Timeframe] = mapped_column(String, primary_key=True)
+    start_ts: Mapped[int] = mapped_column(Integer, nullable=False)
+    end_ts: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
 class Instrument(Base):
     __tablename__ = "instruments"
     __table_args__ = (
