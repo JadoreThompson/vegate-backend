@@ -1,8 +1,6 @@
 import asyncio
 import logging
-from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,7 +9,10 @@ from core.db import get_db_session
 from core.kafka import AsyncKafkaConsumer
 from module.event_bus import EventPublisher
 from module.notification.publisher import NotificationPublisher
-from module.notification.schema import BacktestCapacityConstrainedNotificationContext
+from module.notification.schema import (
+    BacktestCapacityConstrainedNotificationContext,
+    BacktestRunningNotificationContext,
+)
 from module.notification.enums import NotificationType
 from .state import BacktestState
 from ..enums import BacktestStatus, BacktestCancellationReason
@@ -28,6 +29,11 @@ from ..executor import BacktestExecutor
 from ..executor.exception import BacktestLimitReached
 from ..model import Backtest, BacktestEvent as BacktestEventModel
 
+_OFFLINE_STATUSES = {
+    BacktestStatus.PENDING,
+    BacktestStatus.FAILED,
+    BacktestStatus.CANCELLED,
+}
 
 class BacktestEventHandler:
 
@@ -126,10 +132,20 @@ class BacktestEventHandler:
             if backtest.status == BacktestStatus.COMPLETED:
                 self._logger.info(f"Backtest is already completed. Aborting...")
                 return
-            
+
+            was_offline = backtest.status in _OFFLINE_STATUSES
             backtest.status = event.status
             await self._state.promote_to_running(event.backtest_id)
             self._logger.info(f"Backtest '{event.backtest_id}' is now running")
+
+            if was_offline:
+                await self._notification_publisher.publish(
+                    user_id=backtest.user_id,
+                    type=NotificationType.BACKTEST_RUNNING,
+                    context=BacktestRunningNotificationContext(
+                        backtest_id=event.backtest_id
+                    ),
+                )
 
         elif event.status in {BacktestStatus.FAILED, BacktestStatus.COMPLETED}:
             backtest.status = event.status
@@ -217,9 +233,8 @@ class BacktestEventHandler:
         db_sess: AsyncSession,
     ) -> None:
         if event.reason == BacktestCancellationReason.CAPACITY_CONSTRAINT:
-            user_id = await self._get_user_id_for_backtest(event.backtest_id)
             await self._notification_publisher.publish(
-                user_id=user_id,
+                user_id=backtest.user_id,
                 type=NotificationType.BACKTEST_CAPACITY_CONSTRAINED,
                 context=BacktestCapacityConstrainedNotificationContext(
                     backtest_id=event.backtest_id
@@ -227,13 +242,3 @@ class BacktestEventHandler:
             )
 
         backtest.status = BacktestStatus.CANCELLED
-
-    async def _get_user_id_for_backtest(self, backtest_id: UUID) -> UUID:
-        async with get_db_session() as session:
-            user_id = await session.scalar(
-                select(Backtest.user_id).where(Backtest.id == backtest_id)
-            )
-
-        if user_id is None:
-            raise Exception(f"User not found for backtest '{backtest_id}'")
-        return user_id

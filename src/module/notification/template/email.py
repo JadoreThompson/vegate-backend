@@ -4,6 +4,7 @@ from ..schema import (
     NotificationType,
     Notification,
     BacktestCapacityConstrainedNotificationContext,
+    BacktestRunningNotificationContext,
     DeploymentCapacityConstrainedNotificationContext,
     DeploymentRunningNotificationContext,
 )
@@ -27,6 +28,8 @@ class EmailNotificationTemplateEngine(
             return self._render_deployment_running(notification, recipient)
         if notification.type == NotificationType.DEPLOYMENT_CAPACITY_CONSTRAINED:
             return self._render_deployment_capacity_constrained(notification, recipient)
+        if notification.type == NotificationType.BACKTEST_RUNNING:
+            return self._render_backtest_running(notification, recipient)
         if notification.type == NotificationType.BACKTEST_CAPACITY_CONSTRAINED:
             return self._render_backtest_capacity_constrained(notification, recipient)
         raise ValueError(f"Unsupported notification type: {notification.type}")
@@ -93,6 +96,27 @@ class EmailNotificationTemplateEngine(
                 f"Backtest capacity is currently constrained."
                 f"Your backtest '{notification.context.backtest_id}' has been cancelled."
                 f"Please take necessary actions.\n\n"
+                "Best regards,\n"
+                "Vega Team"
+            ),
+        )
+    
+    def _render_backtest_running(
+        self, notification: Notification, recipient: str
+    ) -> RenderedEmailTemplate:
+        if not isinstance(
+            notification.context, BacktestRunningNotificationContext
+        ):
+            raise ValueError(
+                "Invalid notification context type. Expected BacktestRunningNotificationContext."
+            )
+
+        return RenderedEmailTemplate(
+            recipient=recipient,
+            subject="Backtest Is Now Running",
+            body=(
+                f"Dear {recipient},\n\n"
+                f"Your backtest '{notification.context.backtest_id}' is now running.\n\n"
                 "Best regards,\n"
                 "Vega Team"
             ),

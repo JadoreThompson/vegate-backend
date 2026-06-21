@@ -111,6 +111,7 @@ class TestHandleStatusChanged:
         backtest_id = uuid4()
         db_backtest = MagicMock()
         db_backtest.id = backtest_id
+        db_backtest.user_id = uuid4()
         db_backtest.status = BacktestStatus.PENDING
 
         event = BacktestStatusChangedEvent(backtest_id=backtest_id, status=status)
@@ -367,20 +368,16 @@ class TestHandleBacktestCancelled:
         db_backtest = MagicMock()
         db_backtest.id = backtest_id
         db_backtest.status = BacktestStatus.IN_PROGRESS
+        db_backtest.user_id = user_id
 
         event = BacktestCancelledEvent(
             backtest_id=backtest_id, reason="capacity_constraint"
         )
 
-        with patch.object(
-            event_handler,
-            "_get_user_id_for_backtest",
-            AsyncMock(return_value=user_id),
-        ):
-            db_sess = make_db_sess()
-            await event_handler._handle_backtest_cancelled(
-                event, db_backtest, db_sess
-            )
+        db_sess = make_db_sess()
+        await event_handler._handle_backtest_cancelled(
+            event, db_backtest, db_sess
+        )
 
         from module.notification.schema import (
             BacktestCapacityConstrainedNotificationContext,
@@ -404,6 +401,7 @@ class TestHandleBacktestCancelled:
         user_id = uuid4()
         db_backtest = MagicMock()
         db_backtest.id = backtest_id
+        db_backtest.user_id = user_id
         db_backtest.status = BacktestStatus.IN_PROGRESS
 
         event = BacktestCancelledEvent(
