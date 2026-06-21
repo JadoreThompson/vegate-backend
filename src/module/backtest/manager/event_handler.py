@@ -11,6 +11,7 @@ from module.event_bus import EventPublisher
 from module.notification.publisher import NotificationPublisher
 from module.notification.schema import (
     BacktestCapacityConstrainedNotificationContext,
+    BacktestCompletedNotificationContext,
     BacktestRunningNotificationContext,
 )
 from module.notification.enums import NotificationType
@@ -147,7 +148,20 @@ class BacktestEventHandler:
                     ),
                 )
 
-        elif event.status in {BacktestStatus.FAILED, BacktestStatus.COMPLETED}:
+        elif event.status == BacktestStatus.COMPLETED:
+            backtest.status = event.status
+            await self._state.discard(event.backtest_id)
+            self._logger.info(f"Backtest '{event.backtest_id}' completed")
+
+            await self._notification_publisher.publish(
+                user_id=backtest.user_id,
+                type=NotificationType.BACKTEST_COMPLETED,
+                context=BacktestCompletedNotificationContext(
+                    backtest_id=event.backtest_id
+                ),
+            )
+
+        elif event.status == BacktestStatus.FAILED:
             backtest.status = event.status
             await self._state.discard(event.backtest_id)
             self._logger.info(f"Removing backtest '{event.backtest_id}' from monitor")

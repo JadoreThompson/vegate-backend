@@ -4,6 +4,7 @@ from ..schema import (
     NotificationType,
     Notification,
     BacktestCapacityConstrainedNotificationContext,
+    BacktestCompletedNotificationContext,
     BacktestRunningNotificationContext,
     DeploymentCapacityConstrainedNotificationContext,
     DeploymentRunningNotificationContext,
@@ -30,6 +31,8 @@ class EmailNotificationTemplateEngine(
             return self._render_deployment_capacity_constrained(notification, recipient)
         if notification.type == NotificationType.BACKTEST_RUNNING:
             return self._render_backtest_running(notification, recipient)
+        if notification.type == NotificationType.BACKTEST_COMPLETED:
+            return self._render_backtest_completed(notification, recipient)
         if notification.type == NotificationType.BACKTEST_CAPACITY_CONSTRAINED:
             return self._render_backtest_capacity_constrained(notification, recipient)
         raise ValueError(f"Unsupported notification type: {notification.type}")
@@ -73,6 +76,27 @@ class EmailNotificationTemplateEngine(
                 f"Deployment capacity is currently constrained."
                 f"Your deployment '{notification.context.deployment_id}' has been cancelled."
                 f"Please take necessary actions.\n\n"
+                "Best regards,\n"
+                "Vega Team"
+            ),
+        )
+
+    def _render_backtest_completed(
+        self, notification: Notification, recipient: str
+    ) -> RenderedEmailTemplate:
+        if not isinstance(
+            notification.context, BacktestCompletedNotificationContext
+        ):
+            raise ValueError(
+                "Invalid notification context type. Expected BacktestCompletedNotificationContext."
+            )
+
+        return RenderedEmailTemplate(
+            recipient=recipient,
+            subject="Backtest Completed",
+            body=(
+                f"Dear {recipient},\n\n"
+                f"Your backtest '{notification.context.backtest_id}' has completed.\n\n"
                 "Best regards,\n"
                 "Vega Team"
             ),
