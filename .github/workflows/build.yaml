@@ -45,33 +45,36 @@ jobs:
           docker compose \
             -p test \
             -f docker-compose.infra.yaml \
-            -f docker-compose.infra.network.yaml \
+            -f docker-compose.infra.ports.yaml \
             --env-file .env.test \
             up -d --force-recreate
 
-          # Wait for Postgres to be ready
-          until docker exec vegate_postgres_test pg_isready -U postgres; do
+          for i in $(seq 1 60); do
+            if docker exec vegate_postgres_test pg_isready -U postgres; then
+              break
+            fi
+
             sleep 1
           done
 
-      - name: Build image
-        run: docker build -t vegate-backend-test --no-cache .
+          if [ "$i" -eq 60 ]; then
+            echo "Postgres did not become ready within 60s"
+            exit 1
+          fi
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
 
       - name: Run tests
-        run: |
-          docker run \
-          --rm \
-          --network vegate_network \
-          --name vegate-backend-test \
-          vegate-backend-test uv run pytest -s -x
+        run: uv run pytest -sx
 
-      - name: Cleanup
+      - name: Teardown test infra
         if: always()
         run: |
           docker compose \
             -p test \
             -f docker-compose.infra.yaml \
-            -f docker-compose.infra.network.yaml \
+            -f docker-compose.infra.ports.yaml \
             --env-file .env.test \
             down
 
