@@ -222,7 +222,7 @@ class DeploymentsService:
 
         res = await db_sess.scalars(
             select(StrategyDeploymentOrders)
-            .where(StrategyDeploymentOrders.deployment_id == deployment_id)
+            .where(StrategyDeploymentOrders.deployment_id == deployment.id)
             .offset((page - 1) * limit)
             .limit(limit)
             .order_by(StrategyDeploymentOrders.created_at.desc())
@@ -268,7 +268,7 @@ class DeploymentsService:
 
         res = await db_sess.execute(
             select(DeploymentEvent)
-            .where(DeploymentEvent.deployment_id == deployment_id)
+            .where(DeploymentEvent.deployment_id == deployment.id)
             .offset((page - 1) * limit)
             .limit(limit + 1)
             .order_by(DeploymentEvent.timestamp.desc())

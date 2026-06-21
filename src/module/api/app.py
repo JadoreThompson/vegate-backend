@@ -8,6 +8,8 @@ from config import (
     EVENT_PUBLISHER_NAME,
     FRONTEND_DOMAIN,
     FRONTEND_SUB_DOMAIN,
+    RATE_LIMIT_REQUESTS,
+    RATE_LIMIT_SECONDS,
     SCHEME,
 )
 from core.db.client import DB_ENGINE, DB_ENGINE_SYNC
@@ -23,7 +25,6 @@ from module.contact.router import router as contact_router
 from module.deployment import DeploymentsService
 from module.deployment.event.broadcast import DeploymentEventBroadcast
 from module.deployment.event.deserialiser import DeploymentEventDeserialiser
-from module.deployment.event.relay import DeploymentEventRelay
 from module.deployment.router import router as deployment_router
 from module.email import EmailServiceFactory
 from module.event_bus import EventPublisherFactory
@@ -37,7 +38,7 @@ from .middleware import (
     RateLimitMiddleware,
     GlobalExceptionHandlerMiddleware,
     PrometheusMiddleware,
-    TracingMiddleware
+    TracingMiddleware,
 )
 from .object_registry import ObjectRegistry
 from .router import router as api_router
@@ -68,7 +69,7 @@ async def lifespan(app: FastAPI):
     broker_connections_service = BrokerConnectionsService()
     object_registry.register(broker_connections_service)
 
-    strategy_service = StrategyService(deployment_service=None)  # type: ignore[arg-type]
+    strategy_service = StrategyService(deployment_service=None)
     object_registry.register(strategy_service)
 
     deployment_service = DeploymentsService(
@@ -123,9 +124,12 @@ app.add_middleware(
     allow_headers=["*"],
     allow_credentials=True,
 )
-# app.add_middleware(
-#     RateLimitMiddleware, redis_client=REDIS_CLIENT, limit=1000, window=60
-# )
+app.add_middleware(
+    RateLimitMiddleware,
+    redis_client=REDIS_CLIENT,
+    limit=RATE_LIMIT_REQUESTS,
+    window=RATE_LIMIT_SECONDS,
+)
 app.add_middleware(PrometheusMiddleware)
 
 app.include_router(api_router)

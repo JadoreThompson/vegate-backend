@@ -10,7 +10,7 @@ from cli.command.oms import oms
 from cli.command.outbox import outbox
 from cli.command.deployment import deployment
 from cli.command.notification import notification
-from cli.command.yaml_cmd import yaml_cmd
+from cli.command.yaml import yaml_cmd
 
 
 @click.group(invoke_without_command=True)

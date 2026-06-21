@@ -13,7 +13,6 @@ from module.deployment.event import (
     DeploymentEventType,
     DeploymentStatusChangedEvent,
 )
-from module.deployment.event.relay import DeploymentEventRelay
 from module.deployment.model import DeploymentEvent, StrategyDeployments
 from module.jwt.schema import JWTPayload
 from module.strategy import StrategyService
@@ -95,16 +94,6 @@ def _mock_deployment_runner():
         DeploymentsService
     )
     deployments_service._event_publisher.publish = AsyncMock()
-
-
-def _mock_relay():
-    from module.api.app import app
-    from module.deployment.event.relay import DeploymentEventRelay
-
-    relay = app.state.object_registry.get(DeploymentEventRelay)
-    relay.register = AsyncMock()
-    relay.remove = AsyncMock()
-    return relay
 
 
 class TestCreateDeployment:

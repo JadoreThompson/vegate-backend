@@ -13,7 +13,7 @@ from module.markets.feed.alpaca import AlpacaOHLCFeed
 from module.markets.feed.base import OHLCFeed
 from module.markets.feed.manager import FeedManager
 from module.markets.feed.server import OHLCFeedServer
-from module.markets.loader import OHLCLoader, AlpacaOHLCLoader, OHLCLoadResult
+from module.markets.loader import OHLCLoader, AlpacaOHLCLoader
 from module.markets.loader.poll import OHLCPoller, PollSubscription
 from util import get_datetime
 from vegate.markets.enums import MarketType, Timeframe

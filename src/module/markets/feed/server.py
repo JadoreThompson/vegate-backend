@@ -222,9 +222,10 @@ class OHLCFeedServer:
 
                 try:
                     payload = json.loads(raw.decode())
-                except json.JSONDecodeError as exc:
-                    await conn.send(self._err(f"Invalid JSON"))
+                except json.JSONDecodeError:
+                    await conn.send(self._err("Invalid JSON"))
                     continue
+
                 msg_type = payload.get("type")
 
                 if msg_type == "subscribe":

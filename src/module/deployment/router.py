@@ -18,7 +18,6 @@ from module.deployment.enums import StrategyDeploymentStatus
 from module.jwt import JWTPayload
 from .event import DeploymentEventUnion, DeploymentEventT
 from .event.broadcast import DeploymentEventBroadcast, QueueDeploymentObserver
-from .event.relay import DeploymentEventRelay
 from .schema import (
     CreateDeploymentRequest,
     CreateStrategyDeploymentResponse,

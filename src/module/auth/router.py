@@ -11,7 +11,6 @@ from .schema import (
     ChangeUsernameRequest,
     EmailVerificationRequest,
     ResetPasswordRequest,
-    ResetPasswordRequest,
     ResetPasswordVerificationRequest,
     RegisterUserRequest,
     LoginUserRequest,
@@ -27,9 +26,8 @@ async def register(
     body: RegisterUserRequest,
     db_sess: AsyncSession = Depends(depends_db_sess),
     auth_service: AuthService = Depends(depends_class(AuthService)),
-    jwt_service: JWTService = Depends(depends_class(JWTService)),
 ):
-    user = await auth_service.register_user(body, db_sess)
+    await auth_service.register_user(body, db_sess)
     await db_sess.commit()
     return Response(status_code=201)
 
@@ -108,7 +106,7 @@ async def change_username(
 
 
 @router.post("/change-password/request", status_code=201)
-async def change_password(
+async def request_change_password(
     body: ChangePasswordRequest,
     jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
@@ -120,14 +118,14 @@ async def change_password(
 
 
 @router.post("/change-password", status_code=202)
-async def change_password(
+async def verify_change_password(
     body: VerificationCode,
     jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),
     auth_service: AuthService = Depends(depends_class(AuthService)),
 ):
     try:
-        user = await auth_service.verify_password_change(
+        await auth_service.verify_password_change(
             request=body, user_id=jwt.sub, db_sess=db_sess
         )
         await db_sess.commit()
@@ -148,7 +146,7 @@ async def request_change_email(
 
 
 @router.post("/change-email", status_code=202)
-async def change_email(
+async def verify_change_email(
     body: VerificationCode,
     jwt: JWTPayload = Depends(depends_jwt),
     db_sess: AsyncSession = Depends(depends_db_sess),

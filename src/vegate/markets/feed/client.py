@@ -88,7 +88,7 @@ class OHLCFeedClient:
     def subscribe(self, instruments: list[dict]) -> None:
         items = []
         for inst in instruments:
-            request = SubscribeRequest.model_validate(inst)
+            SubscribeRequest.model_validate(inst)
             items.append(inst)
 
         payload = {"type": "subscribe", "instruments": items}

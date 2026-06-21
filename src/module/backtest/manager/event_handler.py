@@ -132,7 +132,7 @@ class BacktestEventHandler:
     ) -> None:
         if event.status == BacktestStatus.IN_PROGRESS:
             if backtest.status == BacktestStatus.COMPLETED:
-                self._logger.info(f"Backtest is already completed. Aborting...")
+                self._logger.info("Backtest is already completed. Aborting...")
                 return
 
             was_offline = backtest.status in _OFFLINE_STATUSES

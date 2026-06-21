@@ -1,15 +1,11 @@
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
 
 from module.event_bus import SyncEventPublisher
 from vegate.markets.historical.client import HistoricalDataClient
 from vegate.markets.schema import OHLC
 from vegate.markets.feed.client import OHLCFeedClient
 from vegate.oms.client import OMSClient
-
-# if TYPE_CHECKING:
-#     from module.deployment.oms import OMSClient
 
 
 class BaseStrategy(ABC):

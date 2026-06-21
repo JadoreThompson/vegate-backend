@@ -17,7 +17,7 @@ def db_upgrade():
     """
     Apply all migrations to the database
     """
-    click.echo(f"Upgrading database")
+    click.echo("Upgrading database")
     try:
         write_db_url_alembic_ini()
         subprocess.run(["uv", "run", "alembic", "upgrade", "head"], check=True)

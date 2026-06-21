@@ -1,7 +1,6 @@
-from dataclasses import asdict
 import logging
 import time
-
+from dataclasses import asdict
 from threading import Thread
 from uuid import UUID
 
@@ -14,7 +13,6 @@ from module.event_bus import SyncEventPublisher
 from module.strategy.loader import StrategyLoader
 from module.strategy.model import StrategyVersion
 from vegate.markets.historical.client import HistoricalDataClient
-from vegate.strategy.base import BaseStrategy
 from .engine import BacktestEngine
 from .engine.ohlc_feed_client import BacktestOHLCFeedClient
 from .engine.ohlc_feed_client_proxy import BacktestOHLCFeedClientProxy
@@ -23,7 +21,6 @@ from .engine.schema import BacktestMetrics as BacktestMetricsDto
 from .enums import BacktestStatus
 from .event import BacktestStatusChangedEvent
 from .model import Backtest, BacktestMetrics, BacktestOrder
-from .schema import BacktestMetricsSchema, EquityCurvePoint
 
 
 class BacktestRunner:

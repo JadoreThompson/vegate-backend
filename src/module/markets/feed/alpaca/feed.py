@@ -3,7 +3,6 @@ import json
 import logging
 from datetime import datetime
 from typing import Any, Awaitable, Callable
-from uuid import UUID
 
 import websockets
 
