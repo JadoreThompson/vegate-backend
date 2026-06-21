@@ -11,7 +11,10 @@ from core.db import get_db_session
 from core.kafka import AsyncKafkaConsumer
 from module.event_bus import EventPublisher
 from module.notification.publisher import NotificationPublisher
-from module.notification.schema import DeploymentCapacityConstrainedNotificationContext
+from module.notification.schema import (
+    DeploymentCapacityConstrainedNotificationContext,
+    DeploymentRunningNotificationContext,
+)
 from module.notification.enums import NotificationType
 from .state import State
 from ..enums import StrategyDeploymentStatus, DeploymentCancellationReason
@@ -27,6 +30,12 @@ from ..event.deserialiser import DeploymentEventDeserialiser
 from ..executor import DeploymentExecutor
 from ..executor.exception import DeploymentLimitReached
 from ..model import StrategyDeployments, DeploymentEvent
+
+_OFFLINE_STATUSES = {
+    StrategyDeploymentStatus.PENDING,
+    StrategyDeploymentStatus.STOPPED,
+    StrategyDeploymentStatus.CANCELLED,
+}
 
 
 class DeploymentEventHandler:
@@ -128,6 +137,17 @@ class DeploymentEventHandler:
         if event.status == StrategyDeploymentStatus.RUNNING:
             self._logger.info(f"Deployment '{event.deployment_id}' is now running")
             await self._state.promote_to_running(event.deployment_id)
+
+            was_offline = deployment.status in _OFFLINE_STATUSES
+            if was_offline:
+                user_id = await self._get_user_id_for_deployment(event.deployment_id)
+                await self._notification_publisher.publish(
+                    user_id=user_id,
+                    type=NotificationType.DEPLOYMENT_RUNNING,
+                    context=DeploymentRunningNotificationContext(
+                        deployment_id=event.deployment_id
+                    ),
+                )
 
     async def _handle_deployment_requested(
         self,

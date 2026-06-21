@@ -9,6 +9,10 @@ class NotificationContext(CustomBaseModel):
     pass
 
 
+class DeploymentRunningNotificationContext(NotificationContext):
+    deployment_id: UUID
+
+
 class DeploymentCapacityConstrainedNotificationContext(NotificationContext):
     deployment_id: UUID
 
@@ -18,6 +22,7 @@ class BacktestCapacityConstrainedNotificationContext(NotificationContext):
 
 
 NotificationContextUnion = Union[
+    DeploymentRunningNotificationContext,
     DeploymentCapacityConstrainedNotificationContext,
     BacktestCapacityConstrainedNotificationContext,
 ]
