@@ -13,3 +13,4 @@ class NotificationType(str, Enum):
     BACKTEST_RUNNING = "backtest.running"
     BACKTEST_COMPLETED = "backtest.completed"
     BACKTEST_CAPACITY_CONSTRAINED = "backtest.capacity_constrained"
+    BACKTEST_FAILED = "backtest.failed"

@@ -5,6 +5,7 @@ from ..schema import (
     Notification,
     BacktestCapacityConstrainedNotificationContext,
     BacktestCompletedNotificationContext,
+    BacktestFailedNotificationContext,
     BacktestRunningNotificationContext,
     DeploymentCapacityConstrainedNotificationContext,
     DeploymentRunningNotificationContext,
@@ -33,6 +34,8 @@ class EmailNotificationTemplateEngine(
             return self._render_backtest_running(notification, recipient)
         if notification.type == NotificationType.BACKTEST_COMPLETED:
             return self._render_backtest_completed(notification, recipient)
+        if notification.type == NotificationType.BACKTEST_FAILED:
+            return self._render_backtest_failed(notification, recipient)
         if notification.type == NotificationType.BACKTEST_CAPACITY_CONSTRAINED:
             return self._render_backtest_capacity_constrained(notification, recipient)
         raise ValueError(f"Unsupported notification type: {notification.type}")
@@ -97,6 +100,27 @@ class EmailNotificationTemplateEngine(
             body=(
                 f"Dear {recipient},\n\n"
                 f"Your backtest '{notification.context.backtest_id}' has completed.\n\n"
+                "Best regards,\n"
+                "Vega Team"
+            ),
+        )
+
+    def _render_backtest_failed(
+        self, notification: Notification, recipient: str
+    ) -> RenderedEmailTemplate:
+        if not isinstance(
+            notification.context, BacktestFailedNotificationContext
+        ):
+            raise ValueError(
+                "Invalid notification context type. Expected BacktestFailedNotificationContext."
+            )
+
+        return RenderedEmailTemplate(
+            recipient=recipient,
+            subject="Backtest Failed",
+            body=(
+                f"Dear {recipient},\n\n"
+                f"Your backtest '{notification.context.backtest_id}' has failed.\n\n"
                 "Best regards,\n"
                 "Vega Team"
             ),

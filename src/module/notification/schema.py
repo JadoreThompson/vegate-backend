@@ -25,6 +25,10 @@ class BacktestCompletedNotificationContext(NotificationContext):
     backtest_id: UUID
 
 
+class BacktestFailedNotificationContext(NotificationContext):
+    backtest_id: UUID
+
+
 class BacktestCapacityConstrainedNotificationContext(NotificationContext):
     backtest_id: UUID
 
@@ -34,6 +38,7 @@ NotificationContextUnion = Union[
     DeploymentCapacityConstrainedNotificationContext,
     BacktestRunningNotificationContext,
     BacktestCompletedNotificationContext,
+    BacktestFailedNotificationContext,
     BacktestCapacityConstrainedNotificationContext,
 ]
 
