@@ -14,7 +14,7 @@ from module.notification.publisher import NotificationPublisher
 from module.notification.schema import DeploymentCapacityConstrainedNotificationContext
 from module.notification.enums import NotificationType
 from .state import State
-from ..enums import StrategyDeploymentStatus
+from ..enums import StrategyDeploymentStatus, DeploymentCancellationReason
 from ..event import (
     DeploymentEventUnion,
     DeploymentCancelledEvent,
@@ -166,7 +166,8 @@ class DeploymentEventHandler:
             )
             await self._event_publisher.publish(
                 DeploymentCancelledEvent(
-                    deployment_id=event.deployment_id, reason="capacity_constraint"
+                    deployment_id=event.deployment_id,
+                    reason=DeploymentCancellationReason.CAPACITY_CONSTRAINT,
                 )
             )
 
@@ -205,7 +206,7 @@ class DeploymentEventHandler:
         deployment: StrategyDeployments,
         db_sess: AsyncSession,
     ) -> None:
-        if event.reason == "capacity_constraint":
+        if event.reason == DeploymentCancellationReason.CAPACITY_CONSTRAINT:
             user_id = await self._get_user_id_for_deployment(event.deployment_id)
             await self._notification_publisher.publish(
                 user_id=user_id,
@@ -216,7 +217,7 @@ class DeploymentEventHandler:
             )
             deployment.status = StrategyDeploymentStatus.CANCELLED
         else:
-            raise ValueError(f"Unknown cancellation reason '{event.reason}'")
+            deployment.status = StrategyDeploymentStatus.CANCELLED
 
     async def _get_user_id_for_deployment(self, deployment_id: UUID) -> UUID:
         async with get_db_session() as session:

@@ -6,7 +6,7 @@ from pydantic import Field, RootModel
 
 from config import STRATEGY_DEPLOYMENT_EVENTS_KEY
 from core.event import BaseEvent
-from module.deployment.enums import StrategyDeploymentStatus
+from module.deployment.enums import StrategyDeploymentStatus, DeploymentCancellationReason
 from vegate.oms.schema import Order, OrderRequest
 
 
@@ -104,7 +104,7 @@ class DeploymentCancelledEvent(BaseDeploymentEvent):
     type: Literal[DeploymentEventType.DEPLOYMENT_CANCELLED] = (
         DeploymentEventType.DEPLOYMENT_CANCELLED
     )
-    reason: Literal["capacity_constraint"]
+    reason: DeploymentCancellationReason
 
 
 DeploymentEventUnion = (

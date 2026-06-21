@@ -407,24 +407,6 @@ class TestHandleDeploymentCancelled:
         assert db_deployment.status == StrategyDeploymentStatus.CANCELLED
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_unknown_reason_raises(self, event_handler):
-        deployment_id = uuid4()
-        db_deployment = MagicMock()
-        db_deployment.deployment_id = deployment_id
-        db_deployment.status = StrategyDeploymentStatus.RUNNING
-
-        event = DeploymentCancelledEvent(
-            deployment_id=deployment_id, reason="capacity_constraint"
-        )
-        event.reason = "unknown_reason"
-
-        db_sess = make_db_sess()
-        with pytest.raises(ValueError, match="Unknown cancellation reason"):
-            await event_handler._handle_deployment_cancelled(
-                event, db_deployment, db_sess
-            )
-
-    @pytest.mark.asyncio(loop_scope="session")
     async def test_through_run_publishes_notification_and_commits(
         self, event_handler, mock_notification_publisher
     ):

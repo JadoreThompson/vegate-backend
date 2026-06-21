@@ -8,3 +8,7 @@ class StrategyDeploymentStatus(str, Enum):
     STOP_REQUESTED = "stop_requested"
     SUSPICIOUS = "suspicious"
     CANCELLED = "cancelled"
+
+
+class DeploymentCancellationReason(str, Enum):
+    CAPACITY_CONSTRAINT = "capacity_constraint"
