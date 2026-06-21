@@ -10,3 +10,7 @@ class BacktestStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+
+
+class BacktestCancellationReason(str, Enum):
+    CAPACITY_CONSTRAINT = "capacity_constraint"

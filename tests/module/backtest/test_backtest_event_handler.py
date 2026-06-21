@@ -252,7 +252,7 @@ class TestHandleBacktestRequested:
         published_event = mock_event_publisher.publish.call_args[0][0]
         assert isinstance(published_event, BacktestCancelledEvent)
         assert published_event.backtest_id == backtest_id
-        assert published_event.reason == "CAPACITY_CONSTRAINT"
+        assert published_event.reason == "capacity_constraint"
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_through_run_runs_executor_and_commits(
@@ -369,7 +369,7 @@ class TestHandleBacktestCancelled:
         db_backtest.status = BacktestStatus.IN_PROGRESS
 
         event = BacktestCancelledEvent(
-            backtest_id=backtest_id, reason="CAPACITY_CONSTRAINT"
+            backtest_id=backtest_id, reason="capacity_constraint"
         )
 
         with patch.object(
@@ -397,24 +397,6 @@ class TestHandleBacktestCancelled:
         assert db_backtest.status == BacktestStatus.CANCELLED
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_unknown_reason_raises(self, event_handler):
-        backtest_id = uuid4()
-        db_backtest = MagicMock()
-        db_backtest.id = backtest_id
-        db_backtest.status = BacktestStatus.IN_PROGRESS
-
-        event = BacktestCancelledEvent(
-            backtest_id=backtest_id, reason="CAPACITY_CONSTRAINT"
-        )
-        event.reason = "unknown_reason"
-
-        db_sess = make_db_sess()
-        with pytest.raises(ValueError, match="Unknown cancellation reason"):
-            await event_handler._handle_backtest_cancelled(
-                event, db_backtest, db_sess
-            )
-
-    @pytest.mark.asyncio(loop_scope="session")
     async def test_through_run_publishes_notification_and_commits(
         self, event_handler, mock_notification_publisher
     ):
@@ -425,7 +407,7 @@ class TestHandleBacktestCancelled:
         db_backtest.status = BacktestStatus.IN_PROGRESS
 
         event = BacktestCancelledEvent(
-            backtest_id=backtest_id, reason="CAPACITY_CONSTRAINT"
+            backtest_id=backtest_id, reason="capacity_constraint"
         )
         kafka_record = make_kafka_record(event)
 

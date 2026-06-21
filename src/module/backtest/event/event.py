@@ -4,7 +4,7 @@ from uuid import UUID
 
 from config import BACKTEST_EVENTS_KEY
 from core.event import BaseEvent
-from ..enums import BacktestStatus
+from ..enums import BacktestStatus, BacktestCancellationReason
 
 
 class BacktestEventType(str, Enum):
@@ -38,7 +38,7 @@ class BacktestStopRequestedEvent(BacktestEvent):
 
 class BacktestCancelledEvent(BacktestEvent):
     type: Literal[BacktestEventType.CANCELLED] = BacktestEventType.CANCELLED
-    reason: str
+    reason: BacktestCancellationReason
 
 
 class BacktestFailedEvent(BacktestEvent):

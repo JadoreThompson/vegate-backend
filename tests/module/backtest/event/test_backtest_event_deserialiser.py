@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from module.backtest.enums import BacktestStatus
+from module.backtest.enums import BacktestCancellationReason, BacktestStatus
 from module.backtest.event import (
     BacktestCancelledEvent,
     BacktestEventType,
@@ -58,7 +58,7 @@ class TestBacktestEventDeserialiser:
 
     def test_deserialise_cancelled(self, deserialiser):
         backtest_id = uuid4()
-        reason = "User requested cancellation"
+        reason = BacktestCancellationReason.CAPACITY_CONSTRAINT
         event = BacktestCancelledEvent(
             backtest_id=backtest_id, reason=reason
         )

@@ -14,7 +14,7 @@ from module.notification.publisher import NotificationPublisher
 from module.notification.schema import BacktestCapacityConstrainedNotificationContext
 from module.notification.enums import NotificationType
 from .state import BacktestState
-from ..enums import BacktestStatus
+from ..enums import BacktestStatus, BacktestCancellationReason
 from ..event import (
     BacktestCancelledEvent,
     BacktestEvent,
@@ -176,7 +176,8 @@ class BacktestEventHandler:
             )
             await self._event_publisher.publish(
                 BacktestCancelledEvent(
-                    backtest_id=event.backtest_id, reason="CAPACITY_CONSTRAINT"
+                    backtest_id=event.backtest_id,
+                    reason=BacktestCancellationReason.CAPACITY_CONSTRAINT,
                 )
             )
 
@@ -215,7 +216,7 @@ class BacktestEventHandler:
         backtest: Backtest,
         db_sess: AsyncSession,
     ) -> None:
-        if event.reason == "CAPACITY_CONSTRAINT":
+        if event.reason == BacktestCancellationReason.CAPACITY_CONSTRAINT:
             user_id = await self._get_user_id_for_backtest(event.backtest_id)
             await self._notification_publisher.publish(
                 user_id=user_id,
@@ -224,9 +225,8 @@ class BacktestEventHandler:
                     backtest_id=event.backtest_id
                 ),
             )
-            backtest.status = BacktestStatus.CANCELLED
-        else:
-            raise ValueError(f"Unknown cancellation reason '{event.reason}'")
+
+        backtest.status = BacktestStatus.CANCELLED
 
     async def _get_user_id_for_backtest(self, backtest_id: UUID) -> UUID:
         async with get_db_session() as session:
