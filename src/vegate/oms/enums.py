@@ -11,6 +11,16 @@ class OrderType(str, Enum):
     TRAILING_STOP = "trailing_stop"
 
 
+class ContractType(str, Enum):
+    PERPETUAL = "perpetual"
+    FUTURE = "future"
+
+
+class PositionSide(str, Enum):
+    LONG = "long"
+    SHORT = "short"
+
+
 class OrderStatus(str, Enum):
     """Order execution status."""
 

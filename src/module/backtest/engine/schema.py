@@ -1,14 +1,11 @@
 from dataclasses import dataclass
-from datetime import datetime
 
 from vegate.oms.schema import Order
 
 
 @dataclass
 class EquityCurvePoint:
-    """Represents a point in the equity curve."""
-
-    timestamp: datetime
+    timestamp: int
     balance: float
     equity: float
 

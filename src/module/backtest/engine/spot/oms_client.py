@@ -7,7 +7,7 @@ from vegate.markets.schema import OHLC as OHLCSchema
 from vegate.oms.client import OMSClient
 from vegate.oms.enums import OrderSide, OrderStatus, OrderType
 from vegate.oms.schema import Order, OrderRequest
-from .ohlc_feed_client import BacktestOHLCFeedClient
+from ..ohlc_feed_client import BacktestOHLCFeedClient
 
 
 class BacktestOMSClient(OMSClient):

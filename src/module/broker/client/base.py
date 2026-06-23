@@ -25,7 +25,13 @@ class BrokerClient(ABC):
     def get_equity(self): ...
 
     @abstractmethod
-    def get_position(self, symbol: str): ...
+    def get_position(self, symbol: str):
+        """
+        Get the current position size for `symbol`
+
+        Args:
+            symbol (str): Symbol
+        """
 
     @abstractmethod
     def place_order(self, order_request: OrderRequest) -> Order:
