@@ -1,4 +1,5 @@
 from opentelemetry import trace
+from opentelemetry.trace import Tracer
 from starlette.types import ASGIApp, Scope, Receive, Send
 
 from config import SERVICE_NAME
@@ -6,8 +7,14 @@ from config import SERVICE_NAME
 
 class TracingMiddleware:
 
-    def __init__(self, app: ASGIApp):
+    def __init__(self, app: ASGIApp, tracer: Tracer | None = None):
         self.app = app
+        self._tracer = tracer
+
+    def _get_tracer(self) -> Tracer:
+        if self._tracer is not None:
+            return self._tracer
+        return trace.get_tracer(SERVICE_NAME)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
         if scope["type"] != "http":
@@ -16,8 +23,7 @@ class TracingMiddleware:
 
         method = scope["method"]
         path = scope.get("path", "")
-
-        tracer = trace.get_tracer(SERVICE_NAME)
+        tracer = self._get_tracer()
 
         with tracer.start_as_current_span(
             f"{method} {path}",
