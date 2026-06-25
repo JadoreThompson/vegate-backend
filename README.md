@@ -21,7 +21,7 @@ Vegate is an open-source, event-driven algorithmic trading platform for backtest
 
 ## Architecture
 
-Vegate is organised into three layers: the **domain library** (`src/vegate/`), the **application modules** (`src/module/`), and the **infrastructure** (`src/core/`). The domain library defines shared schemas and abstract interfaces that the application modules implement.
+Vegate is organised into three layers: the **domain library** (`src/vegate/`), the **application modules** (`src/module/`), and the **infrastructure** (`src/core/`). The domain library defines shared schemas and abstract interfaces that the application modules implement. [Video Breakdown](https://youtu.be/LmZyD4hgWp4?is=VD1X8F6RLK1tkNMl)
 
 ```mermaid
 flowchart TD
